@@ -10,26 +10,19 @@
 #define GS_LIDAR_CMD_SET_EDGE_MODE             0x69
 
 #define PACKET_HEADER                          0xA5A5A5A5
+#define GS2_ALL_DEVICE_ADDRESS                 0x00
 #define GS2_DEVICE1_ADDRESS                    0x01
 #define GS2_DEVICE2_ADDRESS                    0x02
 #define GS2_DEVICE3_ADDRESS                    0x04
 
-struct gs2_lidar_header {
+typedef struct {
     uint8_t syncByte0;
     uint8_t syncByte1;
     uint8_t syncByte2;
     uint8_t syncByte3;
     uint8_t address;
-    uint8_t type;
+    uint8_t cmd;
     uint16_t size;
-};
-struct cmd_packet_gs {
-    uint8_t syncByte0;
-    uint8_t syncByte1;
-    uint8_t syncByte2;
-    uint8_t syncByte3;
-    uint8_t address;
-    uint8_t cmd_flag;
-    uint16_t size;
-};
+    uint8_t data[1000];
+}gs2_lidar_frame;
 

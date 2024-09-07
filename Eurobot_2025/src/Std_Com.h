@@ -2,7 +2,7 @@
 #define __STD_COM_H
 
 
-#define STD_COM_SIZE_BUFF 300
+#define STD_COM_SIZE_BUFF 100
 
 void Std_Com_Init(void);
 
