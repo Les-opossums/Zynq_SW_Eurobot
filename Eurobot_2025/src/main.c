@@ -25,6 +25,15 @@ int main()
         Status = 0;
     }
 
+    Status = UART1_Init();
+    if (Status != XST_SUCCESS) {
+        xil_printf("UART1 init failed\n\r");
+        Status = 0;
+    } else {
+        xil_printf("UART1 init done\n\r");
+        Status = 0;
+    }
+
     Status = Init_Timer_ms1();
     if (Status != XST_SUCCESS) {
         xil_printf("Timer init failed\n\r");
@@ -46,12 +55,13 @@ int main()
     // init_QEI();
     PWM_Init();
     Std_Com_Init();
+    init_lidar();
     xil_printf("Init done\n\r");
 
     while(1){
         if (Timer_ms1 - old_timer_ms1 >= 1000) {
             old_timer_ms1 = Timer_ms1;
-            xil_printf("Timer_ms1: %d\n\r", Timer_ms1);
+            // xil_printf("Timer_ms1: %d\n\r", Timer_ms1);
         }
 
         if (Get_Std_In(&c)) {
@@ -61,6 +71,7 @@ int main()
         // Asserv_Loop();
         PWM_Loop();
         Std_Com_Loop();
+        Lidar_Loop();
         // Can_Loop();
     }
     cleanup_platform();
