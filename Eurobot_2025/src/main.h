@@ -25,6 +25,10 @@
 #include "interpreteur.h"
 #include "User.h"
 
+#include "ydlidar_driver.h"
+#include "Serial.h"
+#include "ydlidar_protocol.h"
+
 #include "xscugic.h"
 
 //#define DEBUG

@@ -1,15 +1,14 @@
-#include "../main.h"
-
+#include "main.h"
 
 XUartPs Uart1_Instance;
 
-u8 SendBuffer[UART1_BUFFER_SIZE];
-u16 i_TX_CMD_Buff_TODO = 0;
-u16 i_TX_CMD_Buff_DONE = 0;
+u8 UART1_SendBuffer[UART1_BUFFER_SIZE];
+u16 i_TX1_CMD_Buff_TODO = 0;
+u16 i_TX1_CMD_Buff_DONE = 0;
 
-u8 RecvBuffer[UART1_BUFFER_SIZE];
-u16 i_RX_CMD_Buff_TODO = 0;
-u16 i_RX_CMD_Buff_DONE = 0;
+u8 UART1_RecvBuffer[UART1_BUFFER_SIZE];
+u16 i_RX1_CMD_Buff_TODO = 0;
+u16 i_RX1_CMD_Buff_DONE = 0;
 
 /*
  * The following counters are used to determine when the entire buffer has
@@ -31,8 +30,8 @@ int UART1_Init(void) {
      * the receive buffer.
      */
     for (Index = 0; Index < UART1_BUFFER_SIZE; Index++) {
-        SendBuffer[Index] = 0;
-        RecvBuffer[Index] = 0;
+        UART1_SendBuffer[Index] = 0;
+        UART1_RecvBuffer[Index] = 0;
     }
 
 	// Initialize the UART driver
@@ -107,15 +106,15 @@ void UART1_Handler(void *CallBackRef, u32 Event, unsigned int EventData)
 	/* All of the data has been received */
 	if (Event == XUARTPS_EVENT_RECV_DATA) {
 		// xil_printf("Data received\r\n");
-		u16 i = i_RX_CMD_Buff_TODO;
+		u16 i = i_RX1_CMD_Buff_TODO;
 		while (XUartPs_IsReceiveData(Uart1_InstancePtr->Config.BaseAddress)) {
-            RecvBuffer[i] = XUartPs_ReadReg(Uart1_InstancePtr->Config.BaseAddress, XUARTPS_FIFO_OFFSET);
+            UART1_RecvBuffer[i] = XUartPs_ReadReg(Uart1_InstancePtr->Config.BaseAddress, XUARTPS_FIFO_OFFSET);
             i++;
             if (i == UART_BUFFER_SIZE) {  // Check buffer overflow
                 i = 0;
             }
         }
-		i_RX_CMD_Buff_TODO = i;
+		i_RX1_CMD_Buff_TODO = i;
 	}
 
 	/*
@@ -156,7 +155,7 @@ void UART1_Handler(void *CallBackRef, u32 Event, unsigned int EventData)
 }
 
 u16 Place_In_Uart1_Cmd(void) {
-	u16 In_Buff = (UART1_BUFFER_SIZE + i_TX_CMD_Buff_TODO - i_TX_CMD_Buff_DONE) % UART1_BUFFER_SIZE;
+	u16 In_Buff = (UART1_BUFFER_SIZE + i_TX1_CMD_Buff_TODO - i_TX1_CMD_Buff_DONE) % UART1_BUFFER_SIZE;
 	return (UART1_BUFFER_SIZE - 1 - In_Buff);
 }
 
@@ -169,11 +168,11 @@ void Send_Uart1_Buff_Cmd(uint8_t Buff[], uint8_t Len) {
 }
 
 uint8_t Get_Uart1_Cmd(uint8_t *c) {
-	if (i_RX_CMD_Buff_DONE != i_RX_CMD_Buff_TODO) { 
-		*c = RecvBuffer[i_RX_CMD_Buff_DONE];
-		i_RX_CMD_Buff_DONE++;
-		if (i_RX_CMD_Buff_DONE >= UART1_BUFFER_SIZE)
-			i_RX_CMD_Buff_DONE = 0;
+	if (i_RX1_CMD_Buff_DONE != i_RX1_CMD_Buff_TODO) { 
+		*c = UART1_RecvBuffer[i_RX1_CMD_Buff_DONE];
+		i_RX1_CMD_Buff_DONE++;
+		if (i_RX1_CMD_Buff_DONE >= UART1_BUFFER_SIZE)
+			i_RX1_CMD_Buff_DONE = 0;
 		return 1;
 	} else {
 		return 0;
