@@ -34,11 +34,52 @@ void send_lidar_cmd(uint8_t cmd, uint8_t device_id) {
 }
 
     
-void init_lidar() {
+void init_lidar_loop() {
+    uint8_t lidar_state = 0;
+    uint32_t lidar_timer = 0;
     if (lidar_init == 0) {
-        send_lidar_cmd(GS_LIDAR_CMD_GET_ADDRESS, GS2_DEVICE1_ADDRESS);
-        lidar_init = 1;
-        xil_printf("init done = 1\r\n");
+        switch(lidar_state){
+            case 0:
+                send_lidar_cmd(GS_LIDAR_CMD_GET_ADDRESS, GS2_DEVICE1_ADDRESS);
+                lidar_timer = Timer_ms1;
+                lidar_state = 1;
+                break;
+            case 1:
+                if (Timer_ms1 - lidar_timer > 1000) {
+                    lidar_timer = Timer_ms1;
+                    lidar_state++;
+                    xil_printf("lidar_state: %d\n\r", lidar_state);
+                }
+                break;
+            case 2:
+                send_lidar_cmd(GS_LIDAR_CMD_GET_VERSION, GS2_DEVICE1_ADDRESS);
+                lidar_state++;
+                break;
+            case 3:
+                if (Timer_ms1 - lidar_timer > 1000) {
+                    lidar_timer = Timer_ms1;
+                    lidar_state++;
+                    xil_printf("lidar_state: %d\n\r", lidar_state);
+                }
+                break;
+            case 4:
+                send_lidar_cmd(GS_LIDAR_CMD_GET_PARAMETER, GS2_DEVICE1_ADDRESS);
+                lidar_state++;
+                break;
+            case 5:
+                if (Timer_ms1 - lidar_timer > 1000) {
+                    lidar_timer = Timer_ms1;
+                    lidar_state++;
+                    xil_printf("lidar_state: %d\n\r", lidar_state);
+                }
+                break;
+            case 6:
+                send_lidar_cmd(GS_LIDAR_CMD_SCAN, GS2_DEVICE1_ADDRESS);
+                lidar_state = 0;
+                lidar_init = 1;
+                break;
+        }
+
     }
 
 }
@@ -47,7 +88,7 @@ void Lidar_Loop() {
     uint8_t c;
     if (Get_Uart1_Cmd(&c)) {
         Lidar_Frame_Receive(&c, 1);
-        xil_printf("%d\n", c);
+        xil_printf("%d\r\n", c);
     } 
 }
 
@@ -60,4 +101,23 @@ void Lidar_Frame_Receive (uint8_t Buff[], uint8_t Len)
         if (i_Lidar_In_Buff_TODO >= STD_COM_SIZE_BUFF)
             i_Lidar_In_Buff_TODO = 0;
 	}
+}
+
+
+uint8_t Lidar_Start_Cmd(void) {
+    u32 val32;
+    if (Get_Param_u32(&val32)){
+        return PARAM_ERROR_CODE;
+    }
+    send_lidar_cmd(GS_LIDAR_CMD_STOP, GS2_DEVICE1_ADDRESS);
+    return 0;
+}
+
+uint8_t Lidar_Stop_Cmd(void) {
+    u32 val32;
+    if (Get_Param_u32(&val32)){
+        return PARAM_ERROR_CODE;
+    }
+    send_lidar_cmd(GS_LIDAR_CMD_SCAN, GS2_DEVICE1_ADDRESS);
+    return 0;
 }

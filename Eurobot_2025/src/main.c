@@ -55,7 +55,7 @@ int main()
     // init_QEI();
     PWM_Init();
     Std_Com_Init();
-    init_lidar();
+    
     xil_printf("Init done\n\r");
 
     while(1){
@@ -67,7 +67,7 @@ int main()
         if (Get_Std_In(&c)) {
             Interp(c);
         }
-
+        init_lidar_loop();
         // Asserv_Loop();
         PWM_Loop();
         Std_Com_Loop();
@@ -77,3 +77,4 @@ int main()
     cleanup_platform();
     return 0;
 }
+

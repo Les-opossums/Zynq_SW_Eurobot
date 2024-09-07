@@ -9,6 +9,9 @@ uint16_t i_Lecture_Current_Cmd = 0;
 
 const Command Command_List[] = {
 
+    { "LIDARSTART", Lidar_Start_Cmd},
+    { "LIDARSTOP", Lidar_Stop_Cmd},
+
     { "PRINTCMD", Print_All_CMD_Cmd},
     { "HELP", Print_All_CMD_Cmd},
     { "TEST", Test_Interpreteur},
