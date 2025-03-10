@@ -11,12 +11,15 @@ static u32 RxFrame[XCANPS_MAX_FRAME_SIZE_IN_WORDS];
 
 int angle_motor_1 = 0;
 int angle_motor_2 = 0;
+int angle_motor_3 = 0;
 
 int torque_motor_1 = 0;
 int torque_motor_2 = 0;
+int torque_motor_3 = 0;
 
 int speed_motor_1 = 0;
 int speed_motor_2 = 0;
+int speed_motor_3 = 0;
 
 /*
  * Shared variables used to test the callbacks.
@@ -36,6 +39,7 @@ int nbr_loop = 0;
 
 int motor1_current_order = 0;
 int motor2_current_order = 0;
+int motor3_current_order = 0;
 
 
 void Can_Loop(void){
@@ -45,16 +49,17 @@ void Can_Loop(void){
 				#ifdef DEBUG_CAN
 					xil_printf("Motor 1: angle = %d, torque = %d, speed = %d\r\n", angle_motor_1, torque_motor_1, speed_motor_1);
 					xil_printf("Motor 2: angle = %d, torque = %d, speed = %d\r\n", angle_motor_2, torque_motor_2, speed_motor_2);
+					xil_printf("Motor 3: angle = %d, torque = %d, speed = %d\r\n", angle_motor_3, torque_motor_3, speed_motor_3);
 				#endif
 				old_Can_Timer_ms1 = Timer_ms1;
 
-				if (nbr_loop < 10){
-					nbr_loop++;
-					TxFrame[2] = (u32)(motor2_current_order & 0xFF) << 24 | 
-										((motor2_current_order >> 8) & 0xFF) << 16 | 
-										((motor1_current_order & 0xFF) << 8) | 
-										((motor1_current_order >> 8) & 0xFF);
-				}
+				TxFrame[2] = (u32)(motor2_current_order & 0xFF) << 24 | 
+									((motor2_current_order >> 8) & 0xFF) << 16 | 
+									((motor1_current_order & 0xFF) << 8) | 
+									((motor1_current_order >> 8) & 0xFF);
+				TxFrame[3] = (u32)(motor3_current_order & 0xFF) << 8 | 
+									((motor3_current_order >> 8) & 0xFF);
+				
 				can_loop_state++;
 			}
 			break;
@@ -188,13 +193,22 @@ int CAN_configure_filters(void){
     }
     XCanPs_AcceptFilterEnable(&CanInstance, XCANPS_AFR_UAF1_MASK);
 
-    // configure acceptance filter 1
+     // configure acceptance filter 1
     XCanPs_AcceptFilterDisable(&CanInstance, XCANPS_AFR_UAF2_MASK);
     Status = XCanPs_AcceptFilterSet(&CanInstance, XCANPS_AFR_UAF2_MASK, CAN_MOTOR_FILTER_MASK, CAN_MOTOR_2_ID); // FilterIndex = 1, MaskValue = 0x0203 , IdValue = 0
     if (Status != XST_SUCCESS) {
         return XST_FAILURE;
     }
     XCanPs_AcceptFilterEnable(&CanInstance, XCANPS_AFR_UAF2_MASK);
+
+	// configure acceptance filter 2
+	XCanPs_AcceptFilterDisable(&CanInstance, XCANPS_AFR_UAF3_MASK);
+	Status = XCanPs_AcceptFilterSet(&CanInstance, XCANPS_AFR_UAF3_MASK, CAN_MOTOR_FILTER_MASK, CAN_MOTOR_3_ID); // FilterIndex = 2, MaskValue = 0x0203 , IdValue = 0
+	if (Status != XST_SUCCESS) {
+		return XST_FAILURE;
+	}
+	XCanPs_AcceptFilterEnable(&CanInstance, XCANPS_AFR_UAF3_MASK);
+
 	return XST_SUCCESS;
 }
 
@@ -216,7 +230,7 @@ void CAN_transmit(XCanPs *InstancePtr){
 	/*
 	 * Create correct values for Identifier and Data Length Code Register.
 	 */
-	TxFrame[0] = (u32)XCanPs_CreateIdValue((u32)TEST_MESSAGE_ID, 0, 0, 0, 0);
+	TxFrame[0] = (u32)XCanPs_CreateIdValue((u32)ESC_TX_MESSAGE_ID, 0, 0, 0, 0);
 	TxFrame[1] = (u32)XCanPs_CreateDlcValue((u32)FRAME_DATA_LENGTH);
 
 	/*
@@ -304,7 +318,7 @@ void SendFrame(XCanPs *InstancePtr){
 	/*
 	 * Create correct values for Identifier and Data Length Code Register.
 	 */
-	TxFrame[0] = (u32)XCanPs_CreateIdValue((u32)TEST_MESSAGE_ID, 0, 0, 0, 0);
+	TxFrame[0] = (u32)XCanPs_CreateIdValue((u32)ESC_TX_MESSAGE_ID, 0, 0, 0, 0);
 	TxFrame[1] = (u32)XCanPs_CreateDlcValue((u32)FRAME_DATA_LENGTH);
 
 	/*
@@ -385,13 +399,13 @@ void RecvHandler(void *CallBackRef)
 		byte3 = (RxFrame[2] >> 8) & 0xFF;
 		byte4 = RxFrame[2] & 0xFF;
 
-		angle_motor_1 = (int)((byte4 << 8) | byte3);
-		speed_motor_1 = (int)((byte2 << 8) | byte1);
+		angle_motor_1 = (int16_t)((byte4 << 8) | byte3);
+		speed_motor_1 = (int16_t)((byte2 << 8) | byte1);
 
 		byte1 = (RxFrame[3] >> 8) & 0xFF;
 		byte2 = RxFrame[3] & 0xFF;
 
-		torque_motor_1 = (int)((byte2 << 8) | byte1);
+		torque_motor_1 = (int16_t)((byte2 << 8) | byte1);
 
 	}else if (RxFrame[0] == (u32)XCanPs_CreateIdValue((u32)CAN_MOTOR_2_ID, 0, 0, 0, 0)){
 		byte1 = (RxFrame[2] >> 24) & 0xFF;
@@ -399,13 +413,26 @@ void RecvHandler(void *CallBackRef)
 		byte3 = (RxFrame[2] >> 8) & 0xFF;
 		byte4 = RxFrame[2] & 0xFF;
 
-		angle_motor_2 = (int)((byte4 << 8) | byte3);
-		speed_motor_2 = (int)((byte2 << 8) | byte1);
+		angle_motor_2 = (int16_t)((byte4 << 8) | byte3);
+		speed_motor_2 = (int16_t)((byte2 << 8) | byte1);
 
 		byte1 = (RxFrame[3] >> 8) & 0xFF;
 		byte2 = RxFrame[3] & 0xFF;
 
-		torque_motor_2 = (int)((byte2 << 8) | byte1);
+		torque_motor_2 = (int16_t)((byte2 << 8) | byte1);
+	}else if(RxFrame[0] == (u32)XCanPs_CreateIdValue((u32)CAN_MOTOR_3_ID, 0, 0, 0, 0)){
+		byte1 = (RxFrame[2] >> 24) & 0xFF;
+		byte2 = (RxFrame[2] >> 16) & 0xFF;
+		byte3 = (RxFrame[2] >> 8) & 0xFF;
+		byte4 = RxFrame[2] & 0xFF;
+
+		angle_motor_3 = (int16_t)((byte4 << 8) | byte3);
+		speed_motor_3 = (int16_t)((byte2 << 8) | byte1);
+
+		byte1 = (RxFrame[3] >> 8) & 0xFF;
+		byte2 = RxFrame[3] & 0xFF;
+
+		torque_motor_3 = (int16_t)((byte2 << 8) | byte1);
 	}
 	RecvDone = TRUE;
 }
@@ -435,35 +462,35 @@ void ErrorHandler(void *CallBackRef, u32 ErrorMask)
 		/*
 		 * ACK Error handling code should be put here.
 		 */
-		xil_printf("ACK Error\r\n");
+		// xil_printf("ACK Error\r\n");
 	}
 
 	if (ErrorMask & XCANPS_ESR_BERR_MASK) {
 		/*
 		 * Bit Error handling code should be put here.
 		 */
-		xil_printf("Bit Error\r\n");
+		// xil_printf("Bit Error\r\n");
 	}
 
 	if (ErrorMask & XCANPS_ESR_STER_MASK) {
 		/*
 		 * Stuff Error handling code should be put here.
 		 */
-		xil_printf("Stuff Error\r\n");
+		// xil_printf("Stuff Error\r\n");
 	}
 
 	if (ErrorMask & XCANPS_ESR_FMER_MASK) {
 		/*
 		 * Form Error handling code should be put here.
 		 */
-		xil_printf("Form Error\r\n");
+		// xil_printf("Form Error\r\n");
 	}
 
 	if (ErrorMask & XCANPS_ESR_CRCER_MASK) {
 		/*
 		 * CRC Error handling code should be put here.
 		 */
-		xil_printf("CRC Error\r\n");
+		// xil_printf("CRC Error\r\n");
 	}
 	XCanPs_ClearBusErrorStatus(CanPtr, ErrorMask);
 
@@ -571,4 +598,24 @@ void EventHandler(void *CallBackRef, u32 IntrMask)
 		 */
 		xil_printf("Lost bus arbitration\r\n");
 	}
+}
+
+uint8_t Motor_cmd(void) {
+    u32 id;
+    if (Get_Param_u32(&id)){
+        return PARAM_ERROR_CODE;
+    }
+	float current;
+    if (Get_Param_Float(&current)){
+        return PARAM_ERROR_CODE;
+    }
+	xil_printf("motor %d, current: %d\n\r", id, current);
+	if (id == 1){
+		motor1_current_order = (int)(current * 1000);
+	}else if (id == 2){
+		motor2_current_order = (int)(current * 1000);
+	}else if (id == 3){
+		motor3_current_order = (int)(current * 1000);
+	}
+    return 0;
 }

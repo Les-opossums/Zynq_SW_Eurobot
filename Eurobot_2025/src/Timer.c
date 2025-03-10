@@ -7,9 +7,9 @@ XScuTimer *TimerInstancePtr = &TimerInstance;
 XScuGic IntcInstance;
 XScuGic_Config *IntcConfig;
 
-u32 Timer_ms1 = 0;
+int Timer_ms1 = 0;
 
-u32 old_Timer = 0;
+int old_Timer = 0;
 
 
 
@@ -97,7 +97,7 @@ void TimerIntrHandler(void *CallBackRef)
 	}
 }
 
-void Delay_ms(u32 ms) {
+void Delay_ms(int ms) {
 	u32 old_Timer = Timer_ms1;
 	while (Timer_ms1 - old_Timer < ms);
 }

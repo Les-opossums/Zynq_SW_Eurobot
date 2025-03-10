@@ -15,11 +15,12 @@
 
 #define CAN_MOTOR_1_ID 0x201
 #define CAN_MOTOR_2_ID 0x202
+#define CAN_MOTOR_3_ID 0x203
 
 /* Maximum CAN frame length in word */
 #define XCANPS_MAX_FRAME_SIZE_IN_WORDS (XCANPS_MAX_FRAME_SIZE / sizeof(u32))
 #define FRAME_DATA_LENGTH	8 /* Frame Data field length */
-#define TEST_MESSAGE_ID 0x200
+#define ESC_TX_MESSAGE_ID 0x200
 
 // #define DEBUG_CAN
 
@@ -27,6 +28,43 @@ extern XCanPs CanInstance;
 
 extern int motor1_current_order;
 extern int motor2_current_order;
+extern int motor3_current_order;
+
+extern int angle_motor_1;
+extern int angle_motor_2;
+extern int angle_motor_3;
+ 
+extern int torque_motor_1;
+extern int torque_motor_2;
+extern int torque_motor_3;
+ 
+extern int speed_motor_1;
+extern int speed_motor_2;
+extern int speed_motor_3;
+
+typedef struct {
+    float motor1;   
+    float motor2;
+    float motor3;
+} ESC_Torque;
+
+typedef struct {
+    float motor1;   
+    float motor2;
+    float motor3;
+} ESC_Speed;
+
+typedef struct {
+    float motor1;   
+    float motor2;
+    float motor3;
+} ESC_Angle;
+
+typedef struct {
+    ESC_Torque torque;
+    ESC_Speed speed;
+    ESC_Angle angle;
+} ESC_Info;
 
 typedef struct {
     uint16_t id;             // the 11-bit message ID
@@ -51,3 +89,5 @@ void ErrorHandler(void *CallBackRef, u32 ErrorMask);
 void EventHandler(void *CallBackRef, u32 IntrMask);
 
 void Can_Loop(void);
+
+uint8_t Motor_cmd(void);

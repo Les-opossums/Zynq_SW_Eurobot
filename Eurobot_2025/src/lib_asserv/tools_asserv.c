@@ -1,4 +1,8 @@
-#include "Lib_Asserv.h"
+
+#include "lib_asserv.h"
+
+
+// Renvoyer une valeur comprise entre inf et sup
 
 float limit_float(float valeur, float inf, float sup) {
     if (valeur < inf) return inf;
@@ -16,7 +20,7 @@ float principal_angle(float angle) {
         alpha = fmodf(angle, 2 * PI);
         if (alpha<-PI) {
             alpha += 2 * PI;
-        }
+        } // d�calage de 2PI remarqu� par Ken si l'angle est n�gatif
         if (alpha > PI) {
             alpha -= 2 * PI;
         }

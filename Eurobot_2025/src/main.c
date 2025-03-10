@@ -43,36 +43,42 @@ int main()
         Status = 0;
     }
 
-    Status = init_CAN();
-    if (Status != XST_SUCCESS) {
-        xil_printf("CAN init failed\n\r");
-        Status = 0;
-    } else {
-        xil_printf("CAN init done\n\r");
-        Status = 0;
-    }
+   Status = init_CAN();
+   if (Status != XST_SUCCESS) {
+       xil_printf("CAN init failed\n\r");
+       Status = 0;
+   } else {
+       xil_printf("CAN init done\n\r");
+       Status = 0;
+   }
 
     // init_QEI();
-    PWM_Init();
+//    PWM_Init();
     Std_Com_Init();
-    
+    // init_AU();
+    Init_Pump();
+    Init_Asserv();
     xil_printf("Init done\n\r");
 
     while(1){
         if (Timer_ms1 - old_timer_ms1 >= 1000) {
             old_timer_ms1 = Timer_ms1;
-            // xil_printf("Timer_ms1: %d\n\r", Timer_ms1);
+            // xil_printf("Timer_ms1 = %d\n\r", Timer_ms1);
         }
 
         if (Get_Std_In(&c)) {
             Interp(c);
         }
         init_lidar_loop();
-        // Asserv_Loop();
-        PWM_Loop();
+        
+        // PWM_Loop();
         Std_Com_Loop();
         Lidar_Loop();
         // Can_Loop();
+        // Asserv_Loop();
+        // AU_Loop();
+        Std_Com_Loop();
+        // Pump_Loop();
     }
     cleanup_platform();
     return 0;
