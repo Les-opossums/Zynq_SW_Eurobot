@@ -44,7 +44,7 @@ void init_lidar_loop() {
     if (lidar_init == 0) {
         switch(lidar_state){
             case 0:
-                send_lidar_cmd(GS_LIDAR_CMD_GET_ADDRESS, GS2_DEVICE1_ADDRESS);
+                send_lidar_cmd(GS_LIDAR_CMD_GET_ADDRESS, GS2_ALL_DEVICE_ADDRESS);
                 lidar_timer = Timer_ms1;
                 lidar_state++;
                 break;
@@ -56,7 +56,7 @@ void init_lidar_loop() {
                 }
                 break;
             case 2:
-                send_lidar_cmd(GS_LIDAR_CMD_GET_VERSION, GS2_DEVICE1_ADDRESS);
+                send_lidar_cmd(GS_LIDAR_CMD_GET_VERSION, GS2_ALL_DEVICE_ADDRESS);
                 lidar_state++;
                 break;
             case 3:
@@ -67,7 +67,7 @@ void init_lidar_loop() {
                 }
                 break;
             case 4:
-                send_lidar_cmd(GS_LIDAR_CMD_GET_PARAMETER, GS2_DEVICE1_ADDRESS);
+                send_lidar_cmd(GS_LIDAR_CMD_GET_PARAMETER, GS2_ALL_DEVICE_ADDRESS);
                 lidar_state++;
                 break;
             case 5:
