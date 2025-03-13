@@ -13,6 +13,8 @@ uint8_t cpt_frame = 0;
 uint8_t lidar_state = 0;
 uint32_t lidar_timer = 0;
 
+uint8_t lidar_error_nbr = 0;
+
 void create_frame(uint8_t *frame, uint8_t device_id, uint8_t cmd) {
     frame[0] = (PACKET_HEADER >> 24) & 0xFF;
     frame[1] = (PACKET_HEADER >> 16) & 0xFF;
@@ -89,62 +91,103 @@ void init_lidar_loop() {
 }
 
 gs2_lidar_frame gs2_lidar_frame_buf[GS2_LIDAR_FRAME_BUFF_SIZE];
+uint8_t lidar_gs2_state = 0;
+uint8_t header_nbr_byte = 0;
+uint8_t data_length = 0;
 
 void Lidar_Loop() {
     uint8_t c;
     if (Get_Uart1_Cmd(&c)) {
-        Lidar_Frame_Receive(&c, 1);
-    }
-    // xil_printf("c : %d\n\r", c);
-    // recreate the frame
-    if(i_Lidar_In_Buff_TODO > i_Lidar_In_Buff_DONE){
-        if(i_Lidar_In_Buff_TODO == 1){
-            gs2_lidar_frame_buf[cpt_frame].syncByte0 = Lidar_Frame_Buf[i_Lidar_In_Buff_DONE];
-        }else if(i_Lidar_In_Buff_TODO == 2){
-            gs2_lidar_frame_buf[cpt_frame].syncByte1 = Lidar_Frame_Buf[i_Lidar_In_Buff_DONE];
-        }else if(i_Lidar_In_Buff_TODO == 3){
-            gs2_lidar_frame_buf[cpt_frame].syncByte2 = Lidar_Frame_Buf[i_Lidar_In_Buff_DONE];
-        }else if(i_Lidar_In_Buff_TODO == 4){
-            gs2_lidar_frame_buf[cpt_frame].syncByte3 = Lidar_Frame_Buf[i_Lidar_In_Buff_DONE];
-        }else if(i_Lidar_In_Buff_TODO == 5){
-            gs2_lidar_frame_buf[cpt_frame].address = Lidar_Frame_Buf[i_Lidar_In_Buff_DONE];
-        }else if(i_Lidar_In_Buff_TODO == 6){
-            gs2_lidar_frame_buf[cpt_frame].cmd = Lidar_Frame_Buf[i_Lidar_In_Buff_DONE];
-        }else if(i_Lidar_In_Buff_TODO == 7){
-            gs2_lidar_frame_buf[cpt_frame].size = (Lidar_Frame_Buf[i_Lidar_In_Buff_DONE]<<8);
-        }else if(i_Lidar_In_Buff_TODO == 8){
-            gs2_lidar_frame_buf[cpt_frame].size |= Lidar_Frame_Buf[i_Lidar_In_Buff_DONE];
-
-        }else if(i_Lidar_In_Buff_TODO <= gs2_lidar_frame_buf[cpt_frame].size + 8){
-            gs2_lidar_frame_buf[cpt_frame].data[i_Lidar_In_Buff_DONE - 8] = Lidar_Frame_Buf[i_Lidar_In_Buff_DONE];
-        }else{
-            i_Lidar_In_Buff_DONE = 0;
-            i_Lidar_In_Buff_TODO = 0;
-
-            xil_printf("frame received\n\r");
-            xil_printf("syncByte0: %d\n\r", gs2_lidar_frame_buf[cpt_frame].syncByte0);
-            xil_printf("syncByte1: %d\n\r", gs2_lidar_frame_buf[cpt_frame].syncByte1);
-            xil_printf("syncByte2: %d\n\r", gs2_lidar_frame_buf[cpt_frame].syncByte2);
-            xil_printf("syncByte3: %d\n\r", gs2_lidar_frame_buf[cpt_frame].syncByte3);
-            xil_printf("address: %d\n\r", gs2_lidar_frame_buf[cpt_frame].address);
-            xil_printf("cmd: %d\n\r", gs2_lidar_frame_buf[cpt_frame].cmd);
-            xil_printf("size: %d\n\r", gs2_lidar_frame_buf[cpt_frame].size);
-            if (gs2_lidar_frame_buf[cpt_frame].size > 0){
-                xil_printf("data: ");
-                for(uint16_t i = 0; i < gs2_lidar_frame_buf[cpt_frame].size; i++){
-                    xil_printf("%d ", gs2_lidar_frame_buf[cpt_frame].data[i]);
+        switch(lidar_gs2_state){
+            case 0: // Packet header reception
+                if (c == 0xA5) { 
+                    if (header_nbr_byte == 0) {
+                        gs2_lidar_frame_buf[cpt_frame].syncByte0 = c;
+                    } else if (header_nbr_byte == 1) {
+                        gs2_lidar_frame_buf[cpt_frame].syncByte1 = c;
+                    } else if (header_nbr_byte == 2) {
+                        gs2_lidar_frame_buf[cpt_frame].syncByte2 = c;
+                    } else if (header_nbr_byte == 3) {
+                        gs2_lidar_frame_buf[cpt_frame].syncByte3 = c;
+                    }
+                    header_nbr_byte++;
+                    if (header_nbr_byte == 4) {
+                        lidar_gs2_state++;
+                        header_nbr_byte = 0;
+                        printf("header received\n");
+                    }
+                } else {
+                    lidar_gs2_state = 0;
+                    lidar_error_nbr++;
+                    printf("error on header byte %d \n", header_nbr_byte);
+                    printf("data received: %d\n", c);
+                    if (lidar_error_nbr > MAX_NBR_ERROR) {
+                        lidar_error_nbr = 0;
+                        // lidar_init = 0;
+                    }
                 }
-                xil_printf("\n\r");
-            }
-
-            cpt_frame++;
-            if(cpt_frame >= GS2_LIDAR_FRAME_BUFF_SIZE){
-                cpt_frame = 0;
-            }
+                break;
+            case 1: // Address reception
+                gs2_lidar_frame_buf[cpt_frame].address = c;                
+                printf("address received\n");
+                printf("address: %d\n", gs2_lidar_frame_buf[cpt_frame].address);
+                lidar_gs2_state++;
+                break;
+            case 2: // Command reception
+                gs2_lidar_frame_buf[cpt_frame].cmd = c;
+                printf("cmd received\n");
+                printf("cmd: %d\n", gs2_lidar_frame_buf[cpt_frame].cmd);
+                lidar_gs2_state++;
+                break;
+            case 3: // Size reception
+                if(data_length == 0){
+                    gs2_lidar_frame_buf[cpt_frame].size = (c<<8);
+                    data_length++;
+                }else{
+                    gs2_lidar_frame_buf[cpt_frame].size |= c;
+                    printf("size received\n");
+                    printf("size: %d\n", gs2_lidar_frame_buf[cpt_frame].size);
+                    lidar_gs2_state++;
+                    data_length = 0;
+                }
+            case 4: // Data reception
+                if (gs2_lidar_frame_buf[cpt_frame].size > 0) {
+                    gs2_lidar_frame_buf[cpt_frame].data[data_length] = c;
+                    data_length++;
+                    if (data_length == gs2_lidar_frame_buf[cpt_frame].size) {
+                        printf("data received\n");
+                        for (uint8_t i = 0; i < gs2_lidar_frame_buf[cpt_frame].size; i++) {
+                            printf("%d ", gs2_lidar_frame_buf[cpt_frame].data[i]);
+                        }
+                        printf("\n");
+                        lidar_gs2_state = 0;
+                        cpt_frame++;
+                        if(cpt_frame >= GS2_LIDAR_FRAME_BUFF_SIZE){
+                            cpt_frame = 0;
+                        }
+                    }
+                } else {
+                    lidar_gs2_state = 0;
+                    cpt_frame++;
+                    if(cpt_frame >= GS2_LIDAR_FRAME_BUFF_SIZE){
+                        cpt_frame = 0;
+                    }
+                }
+                break;
+            case 5: // Checksum reception
+                if (c == Compute_Checksum((uint8_t *)&gs2_lidar_frame_buf[cpt_frame], gs2_lidar_frame_buf[cpt_frame].size + 8)) {
+                    printf("checksum ok\n");
+                } else {
+                    printf("checksum error\n");
+                }
+                lidar_gs2_state = 0;
+                cpt_frame++;
+                if(cpt_frame >= GS2_LIDAR_FRAME_BUFF_SIZE){
+                    cpt_frame = 0;
+                }
+                break;
         }
-        i_Lidar_In_Buff_DONE++;
     }
-
 }
 
 void Lidar_Frame_Receive (uint8_t Buff[], uint8_t Len)
