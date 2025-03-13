@@ -73,9 +73,10 @@ void init_lidar_loop() {
                 lidar_state++;
                 break;
             case 5:
-                if (Timer_ms1 - lidar_timer > 1000) {
+                if (Timer_ms1 - lidar_timer > 100) {
                     lidar_timer = Timer_ms1;
                     lidar_state++;
+                    // lidar_state = 4;
                     xil_printf("lidar_state: %d\n\r", lidar_state);
                 }
                 break;
