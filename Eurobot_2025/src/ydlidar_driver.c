@@ -12,7 +12,7 @@ uint8_t cpt_frame = 0;
 
 uint8_t lidar_gs2_state = 0;
 uint8_t header_nbr_byte = 0;
-uint8_t data_length = 0;
+uint16_t data_length = 0;
 
 uint8_t lidar_state = 0;
 uint32_t lidar_timer = 0;
@@ -94,14 +94,8 @@ void init_lidar_loop() {
                 printf("\n\n\n");
                 printf("Send scan\n");
                 send_lidar_cmd(GS_LIDAR_CMD_SCAN, GS2_ALL_DEVICE_ADDRESS);
-                lidar_state++;
+                lidar_state = 0;
                 lidar_init = 1;
-                break;
-            case 7:
-                if (Timer_ms1 - lidar_timer > 400) {
-                    lidar_timer = Timer_ms1;
-                    lidar_state++;
-                }
                 break;
         }
 
@@ -115,7 +109,6 @@ void Lidar_Loop() {
     uint8_t c;
     if (Get_Uart1_Cmd(&c)) {
         byte_ctr++;
-        // printf("byte_ctr = %d\n", byte_ctr);
         switch(lidar_gs2_state){
             // ##################################################################
             // #                                                                #
@@ -138,13 +131,13 @@ void Lidar_Loop() {
                         lidar_gs2_state++;
                         header_nbr_byte = 0;
                         #ifdef DEBUG_LIDAR
-                            printf("header received\n");
+                            // printf("header received\n");
                         #endif
                     }
                 } else {
                     lidar_error_nbr++;
                     #ifdef DEBUG_LIDAR
-                        printf("error on header byte %d \n", header_nbr_byte);
+                        // printf("error on header byte %d \n", header_nbr_byte);
                     #endif
                     if (lidar_error_nbr > MAX_NBR_ERROR) {
                         lidar_error_nbr = 0;
@@ -216,7 +209,7 @@ void Lidar_Loop() {
                 if (data_length == gs2_lidar_frame_buf[cpt_frame].size - 1) {
                     #ifdef DEBUG_LIDAR
                         printf("data received\n");
-                        for (uint8_t i = 0; i < gs2_lidar_frame_buf[cpt_frame].size; i++) {
+                        for (uint16_t i = 0; i < gs2_lidar_frame_buf[cpt_frame].size; i++) {
                             printf("%d ", gs2_lidar_frame_buf[cpt_frame].data[i]);
                         }
                         printf("\n");
