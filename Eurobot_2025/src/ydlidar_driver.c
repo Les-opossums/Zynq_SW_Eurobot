@@ -93,7 +93,7 @@ void init_lidar_loop() {
             case 6:
                 printf("\n\n\n");
                 printf("Send scan\n");
-                // send_lidar_cmd(GS_LIDAR_CMD_SCAN, GS2_DEVICE1_ADDRESS);
+                send_lidar_cmd(GS_LIDAR_CMD_SCAN, GS2_ALL_DEVICE_ADDRESS);
                 lidar_state++;
                 lidar_init = 1;
                 break;
@@ -115,7 +115,7 @@ void Lidar_Loop() {
     uint8_t c;
     if (Get_Uart1_Cmd(&c)) {
         byte_ctr++;
-        printf("byte_ctr = %d\n", byte_ctr);
+        // printf("byte_ctr = %d\n", byte_ctr);
         switch(lidar_gs2_state){
             // ##################################################################
             // #                                                                #
