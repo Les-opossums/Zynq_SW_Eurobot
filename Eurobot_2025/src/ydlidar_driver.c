@@ -87,8 +87,17 @@ void init_lidar_loop() {
                 }
                 break;
             case 6:
-                lidar_state = 0;
+                printf("\n\n\n");
+                printf("Send scan\n");
+                // send_lidar_cmd(GS_LIDAR_CMD_SCAN, GS2_DEVICE1_ADDRESS);
+                lidar_state++;
                 lidar_init = 1;
+                break;
+            case 7:
+                if (Timer_ms1 - lidar_timer > 400) {
+                    lidar_timer = Timer_ms1;
+                    lidar_state++;
+                }
                 break;
         }
 
@@ -103,12 +112,14 @@ uint8_t data_length = 0;
 
 void Lidar_Loop() {
     uint8_t c;
-    if(lidar_action == 0 && lidar_init == 1){
-        // send_lidar_cmd(GS_LIDAR_CMD_SCAN, GS2_DEVICE1_ADDRESS);
-        lidar_action = 1;
-    }else if (Get_Uart1_Cmd(&c)) {
+    if (Get_Uart1_Cmd(&c)) {
         switch(lidar_gs2_state){
-            case 0: // Packet header reception
+            // ##################################################################
+            // #                                                                #
+            // #                          PAQUET HEADER                         #
+            // #                                                                #
+            // ##################################################################
+            case 0:
                 if (c == 0xA5) { 
                     if (header_nbr_byte == 0) {
                         gs2_lidar_frame_buf[cpt_frame].syncByte0 = c;
@@ -123,51 +134,87 @@ void Lidar_Loop() {
                     if (header_nbr_byte == 4) {
                         lidar_gs2_state++;
                         header_nbr_byte = 0;
-                        printf("header received\n");
+                        #ifdef DEBUG_LIDAR
+                            printf("header received\n");
+                        #endif
                     }
                 } else {
                     lidar_error_nbr++;
-                    printf("error on header byte %d \n", header_nbr_byte);
+                    #ifdef DEBUG_LIDAR
+                        printf("error on header byte %d \n", header_nbr_byte);
+                    #endif
                     if (lidar_error_nbr > MAX_NBR_ERROR) {
                         lidar_error_nbr = 0;
                         // lidar_init = 0;
                     }
                 }
                 break;
-            case 1: // Address reception
-                gs2_lidar_frame_buf[cpt_frame].address = c;                
-                printf("address received\n");
-                printf("address: %d\n", gs2_lidar_frame_buf[cpt_frame].address);
+
+            // ##################################################################
+            // #                                                                #
+            // #                  Address reception                             #
+            // #                                                                #
+            // ##################################################################
+            case 1: 
+                gs2_lidar_frame_buf[cpt_frame].address = c;
+                #ifdef DEBUG_LIDAR
+                    printf("address received: %d\n", gs2_lidar_frame_buf[cpt_frame].address);                
+                #endif
                 lidar_gs2_state++;
                 break;
-            case 2: // Command reception
+
+
+            // ##################################################################
+            // #                                                                #
+            // #                  Command reception                             #
+            // #                                                                #
+            // ##################################################################
+            case 2:
                 gs2_lidar_frame_buf[cpt_frame].cmd = c;
-                printf("cmd received\n");
-                printf("cmd: %d\n", gs2_lidar_frame_buf[cpt_frame].cmd);
+                #ifdef DEBUG_LIDAR
+                    printf("cmd: %d\n", gs2_lidar_frame_buf[cpt_frame].cmd);
+                #endif
                 lidar_gs2_state++;
                 data_length = 0;
                 break;
-            case 3: // Size reception
-                if(data_length == 0){
-                    gs2_lidar_frame_buf[cpt_frame].size = (c<<8);
+
+
+            // ##################################################################
+            // #                                                                #
+            // #                  Size reception                                #   
+            // #                                                                #
+            // ##################################################################
+            case 3:
+                if (data_length == 0) { //LSB
+                    gs2_lidar_frame_buf[cpt_frame].size = c;
                     data_length++;
-                }else{
-                    gs2_lidar_frame_buf[cpt_frame].size = gs2_lidar_frame_buf[cpt_frame].size | c;
-                    printf("size received\n");
-                    printf("size: %d\n", gs2_lidar_frame_buf[cpt_frame].size);
+                } else { // MSB
+                    gs2_lidar_frame_buf[cpt_frame].size = gs2_lidar_frame_buf[cpt_frame].size | (c << 8);
+                    #ifdef DEBUG_LIDAR
+                        printf("size: %d\n", gs2_lidar_frame_buf[cpt_frame].size);
+                    #endif
                     lidar_gs2_state++;
                     data_length = 0;
                 }
-            case 4: // Data reception
-                if (gs2_lidar_frame_buf[cpt_frame].size > 0) {
+                break;
+
+            // ##################################################################
+            // #                                                                #
+            // #                  Data reception                                #
+            // #                                                                #
+            // ##################################################################
+            case 4:
+                if (gs2_lidar_frame_buf[cpt_frame].size > 0) { // si la taille du paquet est superieur a 0
                     gs2_lidar_frame_buf[cpt_frame].data[data_length] = c;
                     data_length++;
                     if (data_length == gs2_lidar_frame_buf[cpt_frame].size - 1) {
-                        printf("data received\n");
-                        for (uint8_t i = 0; i < gs2_lidar_frame_buf[cpt_frame].size; i++) {
-                            printf("%d ", gs2_lidar_frame_buf[cpt_frame].data[i]);
-                        }
-                        printf("\n");
+                        #ifdef DEBUG_LIDAR
+                            printf("data received\n");
+                            for (uint8_t i = 0; i < gs2_lidar_frame_buf[cpt_frame].size; i++) {
+                                printf("%d ", gs2_lidar_frame_buf[cpt_frame].data[i]);
+                            }
+                            printf("\n");
+                        #endif
                         data_length = 0;
                         lidar_gs2_state++;
                         if(cpt_frame >= GS2_LIDAR_FRAME_BUFF_SIZE){
@@ -178,15 +225,30 @@ void Lidar_Loop() {
                     lidar_gs2_state++;
                 }
                 break;
-            case 5: // Checksum reception
-                printf("checksum received\n");
-                printf("checksum: %d\n", c);
-                lidar_gs2_state = 0;
-                lidar_action = 0;
+
+            // ##################################################################
+            // #                                                                #
+            // #                  Checksum reception                            #
+            // #                                                                #
+            // ##################################################################
+            case 5:
+                #ifdef DEBUG_LIDAR
+                    printf("checksum: %d\n", c);
+                #endif
+                lidar_gs2_state++;
+                // lidar_action = 0;
                 cpt_frame++;
                 if(cpt_frame >= GS2_LIDAR_FRAME_BUFF_SIZE){
                     cpt_frame = 0;
                 }
+                break;
+            case 6:
+                lidar_gs2_state = 0;
+                lidar_action = 0;
+                // cpt_frame++;
+                // if(cpt_frame >= GS2_LIDAR_FRAME_BUFF_SIZE){
+                //     cpt_frame = 0;
+                // }
                 break;
         }
     }
@@ -218,3 +280,15 @@ uint8_t Lidar_Stop_Cmd(void) {
     send_lidar_cmd(GS_LIDAR_CMD_STOP, GS2_DEVICE1_ADDRESS);
     return 0;
 }
+
+uint8_t Lidar_Get_Version_Cmd(void) {
+    send_lidar_cmd(GS_LIDAR_CMD_GET_VERSION, GS2_DEVICE1_ADDRESS);
+    return 0;
+}
+
+uint8_t Lidar_Get_Parameter_Cmd(void) {
+    send_lidar_cmd(GS_LIDAR_CMD_GET_PARAMETER, GS2_DEVICE1_ADDRESS);
+    return 0;
+}
+
+uint32_t lidar_timer_scan = 0;

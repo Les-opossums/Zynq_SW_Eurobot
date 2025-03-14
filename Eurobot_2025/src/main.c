@@ -64,17 +64,15 @@ int main()
         if (Timer_ms1 - old_timer_ms1 >= 100) {
             old_timer_ms1 = Timer_ms1;
             // xil_printf("Timer_ms1 = %d\n\r", Timer_ms1);
-            Lidar_Loop();
         }
 
         if (Get_Std_In(&c)) {
             Interp(c);
         }
         init_lidar_loop();
-        
         // PWM_Loop();
         Std_Com_Loop();
-        // Lidar_Loop();
+        Lidar_Loop();
         // Can_Loop();
         // Asserv_Loop();
         // AU_Loop();

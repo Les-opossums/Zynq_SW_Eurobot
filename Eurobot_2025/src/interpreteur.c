@@ -12,6 +12,9 @@ const Command Command_List[] = {
     { "LIDARSTART", Lidar_Start_Cmd},
     { "LIDARSTOP", Lidar_Stop_Cmd},
     { "LIDARRESTART", Lidar_Restart_Cmd},
+    { "LIDARVERSION", Lidar_Get_Version_Cmd},
+    { "LIDARPARAM", Lidar_Get_Parameter_Cmd},
+    { "LIDAR", Lidar_Get_Parameter_Cmd},
 
     { "PRINTCMD", Print_All_CMD_Cmd},
     { "HELP", Print_All_CMD_Cmd},
