@@ -10,6 +10,10 @@ uint16_t i_Lidar_In_Buff_DONE = 0;
 gs2_lidar_frame gs2_lidar_frame_buf[GS2_LIDAR_FRAME_BUFF_SIZE];
 uint8_t cpt_frame = 0;
 
+uint8_t lidar_gs2_state = 0;
+uint8_t header_nbr_byte = 0;
+uint8_t data_length = 0;
+
 uint8_t lidar_state = 0;
 uint32_t lidar_timer = 0;
 
@@ -52,7 +56,6 @@ void init_lidar_loop() {
                 send_lidar_cmd(GS_LIDAR_CMD_GET_ADDRESS, GS2_ALL_DEVICE_ADDRESS);
                 lidar_timer = Timer_ms1;
                 lidar_state++;
-                
                 break;
             case 1:
                 if (Timer_ms1 - lidar_timer > 2000) {
@@ -79,6 +82,7 @@ void init_lidar_loop() {
                 send_lidar_cmd(GS_LIDAR_CMD_GET_PARAMETER, GS2_ALL_DEVICE_ADDRESS);
                 lidar_timer = Timer_ms1;
                 lidar_state++;
+
                 break;
             case 5:
                 if (Timer_ms1 - lidar_timer > 2000) {
@@ -105,14 +109,13 @@ void init_lidar_loop() {
 
 }
 
-gs2_lidar_frame gs2_lidar_frame_buf[GS2_LIDAR_FRAME_BUFF_SIZE];
-uint8_t lidar_gs2_state = 0;
-uint8_t header_nbr_byte = 0;
-uint8_t data_length = 0;
+int byte_ctr = 0;
 
 void Lidar_Loop() {
     uint8_t c;
     if (Get_Uart1_Cmd(&c)) {
+        byte_ctr++;
+        printf("byte_ctr = %d\n", byte_ctr);
         switch(lidar_gs2_state){
             // ##################################################################
             // #                                                                #
@@ -193,8 +196,13 @@ void Lidar_Loop() {
                     #ifdef DEBUG_LIDAR
                         printf("size: %d\n", gs2_lidar_frame_buf[cpt_frame].size);
                     #endif
-                    lidar_gs2_state++;
                     data_length = 0;
+                    if(gs2_lidar_frame_buf[cpt_frame].size == 0){
+                        lidar_gs2_state = 5;
+                        cpt_frame++;
+                    }else{
+                        lidar_gs2_state++;
+                    }
                 }
                 break;
 
@@ -204,25 +212,19 @@ void Lidar_Loop() {
             // #                                                                #
             // ##################################################################
             case 4:
-                if (gs2_lidar_frame_buf[cpt_frame].size > 0) { // si la taille du paquet est superieur a 0
-                    gs2_lidar_frame_buf[cpt_frame].data[data_length] = c;
-                    data_length++;
-                    if (data_length == gs2_lidar_frame_buf[cpt_frame].size - 1) {
-                        #ifdef DEBUG_LIDAR
-                            printf("data received\n");
-                            for (uint8_t i = 0; i < gs2_lidar_frame_buf[cpt_frame].size; i++) {
-                                printf("%d ", gs2_lidar_frame_buf[cpt_frame].data[i]);
-                            }
-                            printf("\n");
-                        #endif
-                        data_length = 0;
-                        lidar_gs2_state++;
-                        if(cpt_frame >= GS2_LIDAR_FRAME_BUFF_SIZE){
-                            cpt_frame = 0;
+                gs2_lidar_frame_buf[cpt_frame].data[data_length] = c;
+                if (data_length == gs2_lidar_frame_buf[cpt_frame].size - 1) {
+                    #ifdef DEBUG_LIDAR
+                        printf("data received\n");
+                        for (uint8_t i = 0; i < gs2_lidar_frame_buf[cpt_frame].size; i++) {
+                            printf("%d ", gs2_lidar_frame_buf[cpt_frame].data[i]);
                         }
-                    }
-                } else {
+                        printf("\n");
+                    #endif
+                    data_length = 0;
                     lidar_gs2_state++;
+                }else{
+                    data_length++;
                 }
                 break;
 
@@ -235,20 +237,12 @@ void Lidar_Loop() {
                 #ifdef DEBUG_LIDAR
                     printf("checksum: %d\n", c);
                 #endif
-                lidar_gs2_state++;
+                lidar_gs2_state = 0;
                 // lidar_action = 0;
                 cpt_frame++;
                 if(cpt_frame >= GS2_LIDAR_FRAME_BUFF_SIZE){
                     cpt_frame = 0;
                 }
-                break;
-            case 6:
-                lidar_gs2_state = 0;
-                lidar_action = 0;
-                // cpt_frame++;
-                // if(cpt_frame >= GS2_LIDAR_FRAME_BUFF_SIZE){
-                //     cpt_frame = 0;
-                // }
                 break;
         }
     }
@@ -290,5 +284,3 @@ uint8_t Lidar_Get_Parameter_Cmd(void) {
     send_lidar_cmd(GS_LIDAR_CMD_GET_PARAMETER, GS2_DEVICE1_ADDRESS);
     return 0;
 }
-
-uint32_t lidar_timer_scan = 0;
