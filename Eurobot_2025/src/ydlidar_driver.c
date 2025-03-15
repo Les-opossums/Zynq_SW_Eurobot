@@ -207,13 +207,13 @@ void Lidar_Loop() {
             case 4:
                 gs2_lidar_frame_buf[cpt_frame].data[data_length] = c;
                 if (data_length == gs2_lidar_frame_buf[cpt_frame].size - 1) {
-                    #ifdef DEBUG_LIDAR
-                        printf("data received\n");
+                    // #ifdef DEBUG_LIDAR
+                        printf("data received :");
                         for (uint16_t i = 0; i < gs2_lidar_frame_buf[cpt_frame].size; i++) {
                             printf("%d ", gs2_lidar_frame_buf[cpt_frame].data[i]);
                         }
                         printf("\n");
-                    #endif
+                    // #endif
                     data_length = 0;
                     lidar_gs2_state++;
                 }else{

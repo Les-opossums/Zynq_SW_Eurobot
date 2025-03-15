@@ -1,7 +1,7 @@
 #define LIDAR_BUFF_SIZE 1000
 #define GS2_LIDAR_FRAME_BUFF_SIZE 10
 
-#define DEBUG_LIDAR
+// #define DEBUG_LIDAR
 
 #define MAX_NBR_ERROR 20
 
