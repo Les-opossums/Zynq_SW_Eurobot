@@ -4,10 +4,10 @@ uint8_t lidar_init = 0;
 
 
 uint8_t Lidar_Frame_Buf[LIDAR_BUFF_SIZE];
-uint16_t i_Lidar_In_Buff_TODO = 0;
-uint16_t i_Lidar_In_Buff_DONE = 0;
 
 gs2_lidar_frame gs2_lidar_frame_buf[GS2_LIDAR_FRAME_BUFF_SIZE];
+uint16_t i_Lidar_In_Buff_TODO = 0;
+uint16_t i_Lidar_In_Buff_DONE = 0;
 uint8_t cpt_frame = 0;
 
 uint8_t lidar_gs2_state = 0;
@@ -105,7 +105,7 @@ void init_lidar_loop() {
 
 int byte_ctr = 0;
 
-void Lidar_Loop() {
+void Lidar_scan_Loop() {
     uint8_t c;
     if (Get_Uart1_Cmd(&c)) {
         byte_ctr++;
@@ -231,13 +231,22 @@ void Lidar_Loop() {
                     printf("checksum: %d\n", c);
                 #endif
                 lidar_gs2_state = 0;
-                // lidar_action = 0;
+                i_Lidar_In_Buff_TODO++;
+                if (i_Lidar_In_Buff_TODO >= LIDAR_BUFF_SIZE){
+                    i_Lidar_In_Buff_TODO = 0;
+                }
                 cpt_frame++;
                 if(cpt_frame >= GS2_LIDAR_FRAME_BUFF_SIZE){
                     cpt_frame = 0;
                 }
                 break;
         }
+    }
+}
+
+void Lidar_Calculation_loop() {
+    if(i_Lidar_In_Buff_DONE != i_Lidar_In_Buff_TODO){
+        
     }
 }
 

@@ -12,6 +12,7 @@ void send_lidar_cmd(uint8_t cmd, uint8_t device_id);
 void init_lidar_loop();
 void Lidar_Loop();
 void Lidar_Frame_Receive (uint8_t Buff[], uint8_t Len);
+void Lidar_Calculation_loop();
 
 
 uint8_t Lidar_Start_Cmd(void);
