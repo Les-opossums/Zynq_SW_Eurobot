@@ -72,7 +72,12 @@ int main()
         init_lidar_loop();
         // PWM_Loop();
         Std_Com_Loop();
-        Lidar_Loop();
+
+
+        //////////////////////////////////// LIADAR //////////////////////////////////////
+        Lidar_scan_Loop();
+        Lidar_Calculation_loop();
+        //////////////////////////////////////////////////////////////////////////////////
         // Can_Loop();
         // Asserv_Loop();
         // AU_Loop();

@@ -15,6 +15,10 @@
 #define GS2_DEVICE2_ADDRESS                    0x02
 #define GS2_DEVICE3_ADDRESS                    0x04
 
+#define Angle_Px 1.22
+#define Angle_Py 5.315
+#define Angle_PAngle 22.5 //GS2
+
 typedef struct {
     uint8_t syncByte0;
     uint8_t syncByte1;
