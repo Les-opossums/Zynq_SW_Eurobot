@@ -308,68 +308,78 @@ void Lidar_Calculation_loop() {
                 printf("bias: %f\n", bias);
             #endif
         }else if(gs2_lidar_frame_buf[i_Lidar_In_Buff_DONE].cmd == GS_LIDAR_CMD_SCAN){
-            // for(int i = 0; i < gs2_lidar_frame_buf[i_Lidar_In_Buff_DONE].size; i+=2){
-            //     Distance[i/2] = (float)((gs2_lidar_frame_buf[i_Lidar_In_Buff_DONE].data[i+1] << 8) | gs2_lidar_frame_buf[i_Lidar_In_Buff_DONE].data[i]) / 1000.0;
-            // }
-            // printf("Distance :");
-            // for(int i = 0; i < gs2_lidar_frame_buf[i_Lidar_In_Buff_DONE].size/2; i++){
-            //     printf("%f, ", Distance[i]);
-            // }
-            // printf("\n");
             for(int i = 0; i < gs2_lidar_frame_buf[i_Lidar_In_Buff_DONE].size; i+=2){
+                if(i>1){
 
-                // upper 7 bits are intensity data
-                intensitiy = (int)((gs2_lidar_frame_buf[i_Lidar_In_Buff_DONE].data[i+1] << 8) | gs2_lidar_frame_buf[i_Lidar_In_Buff_DONE].data[i]) >> 9;
-                // lower 9 bits are distance data
-                dist = (float)(((gs2_lidar_frame_buf[i_Lidar_In_Buff_DONE].data[i+1] << 8) | gs2_lidar_frame_buf[i_Lidar_In_Buff_DONE].data[i]) & 0x1FF);
+                    // upper 7 bits are intensity data
+                    intensitiy = (int)((gs2_lidar_frame_buf[i_Lidar_In_Buff_DONE].data[i+1] << 8) | gs2_lidar_frame_buf[i_Lidar_In_Buff_DONE].data[i]) >> 9;
+                    // lower 9 bits are distance data
+                    dist = (float)(((gs2_lidar_frame_buf[i_Lidar_In_Buff_DONE].data[i+1] << 8) | gs2_lidar_frame_buf[i_Lidar_In_Buff_DONE].data[i]) & 0x1FF);
 
 
-                pixelU = i/2;
-                if(pixelU < 80){
-                    pixelU = 80 - pixelU;
-                    if (d_compensateB0 > 1){
-                        temp_Theta = d_compensateK0 * pixelU - d_compensateB0; 
+                    pixelU = i/2;
+                    if(pixelU < 80){ // n < nodecount/2
+                        pixelU = 80 - pixelU;
+                        if (d_compensateB0 > 1){
+                            temp_Theta = d_compensateK0 * pixelU - d_compensateB0; 
+                        } else {
+                            temp_Theta = atan(d_compensateK0 * pixelU + d_compensateB0) * 180 / 3.14159; 
+                        }
+
+                        temp_Dist = (dist - Angle_Px) / cos(((m_pitchAngle + bias) - temp_Theta) * 3.14159 / 180.0);
+                        temp_Theta = temp_Theta * 3.14159 / 180.0;
+                        tempX = cos((m_pitchAngle + bias) * 3.14159 / 180) * temp_Dist * cos(temp_Theta) + 
+                            sin((m_pitchAngle + bias) *   3.14159) / 180 * (temp_Dist * sin(temp_Theta)); 
+                        tempY = -sin((m_pitchAngle + bias) * 3.14159 / 180) * temp_Dist * cos(temp_Theta) + 
+                            cos((m_pitchAngle + bias) * 3.14159 / 180) * (temp_Dist * sin(temp_Theta));
+
+                        tempX = tempX + Angle_Px;
+                        tempY = tempY - Angle_Py; //5.315
+                    
+                        dist = sqrt(tempX * tempX + tempY * tempY); 
+                        theta = atan(tempY / tempX) * 180 / 3.14159;  
                     } else {
-                        temp_Theta = atan(d_compensateK0 * pixelU + d_compensateB0) * 180 / 3.14159; 
+                        pixelU = 160 - pixelU;
+                        if (d_compensateB1 > 1) { 
+                            temp_Theta = d_compensateK1 * pixelU - d_compensateB1; 
+                        } else { 
+                            temp_Theta = atan(d_compensateK1 * pixelU - d_compensateB1) * 180 / 3.14159; 
+                        } 
+                        temp_Dist = (dist - Angle_Px) / cos((m_pitchAngle + bias + (temp_Theta)) * 3.14159 / 180);
+                        temp_Theta = temp_Theta * 3.14159 / 180;
+                        tempX = cos(-(m_pitchAngle + bias) * 3.14159 / 180) * temp_Dist * cos(temp_Theta) +
+                          sin(-(m_pitchAngle + bias) * 3.14159 / 180) * (temp_Dist * sin(temp_Theta));
+                        tempY = -sin(-(m_pitchAngle + bias) * 3.14159 / 180) * temp_Dist * cos(temp_Theta) +
+                          cos(-(m_pitchAngle + bias) * 3.14159 / 180) * (temp_Dist * sin(temp_Theta));
+
+                        tempX = tempX + Angle_Px;
+                        tempY = tempY + Angle_Py; //5.315
+
+                        dist = sqrt(tempX * tempX + tempY * tempY); 
+                        theta = atan(tempY / tempX) * 180 / 3.14159;
                     }
-                    
-                    temp_Dist = (dist - Angle_Px) / cos((m_pitchAngle + bias + temp_Theta) * 3.14159 / 180.0);
-                    temp_Theta = temp_Theta * 3.14159 / 180.0;
-                    tempX = cos((m_pitchAngle + bias) * 3.14159 / 180) * temp_Dist * cos(temp_Theta) + 
-                        sin((m_pitchAngle + bias) *   3.14159) / 180 * (temp_Dist * sin(temp_Theta)); 
-                    tempY = -sin((m_pitchAngle + bias) * 3.14159 / 180) * temp_Dist * cos(temp_Theta) + 
-                        cos((m_pitchAngle + bias) * 3.14159 / 180) * (temp_Dist * sin(temp_Theta));
-
-                    tempX = tempX + Angle_Px;
-                    tempY = tempY - Angle_Py; //5.315
-                
-                    dist = sqrt(tempX * tempX + tempY * tempY); 
-                    theta = atan(tempY / tempX) * 180 / 3.14159;  
-                } else {
-                    pixelU = 160 - pixelU;
-                    if (d_compensateB1 > 1) { 
-                        temp_Theta = d_compensateK1 * pixelU - d_compensateB1; 
-                    } else { 
-                        temp_Theta = atan(d_compensateK1 * pixelU - d_compensateB1) * 180 / 3.14159; 
+                    if (theta < 0) { 
+                        theta += 360; 
                     } 
-                    temp_Dist = (dist - Angle_Px) / cos((m_pitchAngle + bias + (temp_Theta)) * 3.14159 / 180);
-                    temp_Theta = temp_Theta * 3.14159 / 180;
-                    tempX = cos(-(m_pitchAngle + bias) * 3.14159 / 180) * temp_Dist * cos(temp_Theta) +
-                      sin(-(m_pitchAngle + bias) * 3.14159 / 180) * (temp_Dist * sin(temp_Theta));
-                    tempY = -sin(-(m_pitchAngle + bias) * 3.14159 / 180) * temp_Dist * cos(temp_Theta) +
-                      cos(-(m_pitchAngle + bias) * 3.14159 / 180) * (temp_Dist * sin(temp_Theta));
 
-                    tempX = tempX + Angle_Px;
-                    tempY = tempY + Angle_Py; //5.315
+                    printf("theta: %0.2f, dist: %0.2f\n", theta, dist);
                     
-                    dist = sqrt(tempX * tempX + tempY * tempY); 
-                    theta = atan(tempY / tempX) * 180 / 3.14159;
+                    
                 }
-                if (theta < 0) { 
-                    theta += 360; 
-                } 
-                printf("theta: %f, dist: %f, intensitiy: %f\n", theta, dist, intensitiy);
             }
+
+
+            // for (int i = 0; i < gs2_lidar_frame_buf[i_Lidar_In_Buff_DONE].size; i+=2){
+            //     dist = (float)(((gs2_lidar_frame_buf[i_Lidar_In_Buff_DONE].data[i+1] << 8) | gs2_lidar_frame_buf[i_Lidar_In_Buff_DONE].data[i]) & 0x1FF);
+            //     pixelU = i/2;
+            //     temp_Theta = atan(d_compensateK0 * pixelU - d_compensateB0) * 180 / 3.14159;
+            //     dist = dist / cos(temp_Theta * 3.14159 / 180.0);
+            //     theta = temp_Theta;
+            //     // if (theta < 0) { 
+            //     //     theta += 360; 
+            //     // }
+            //     printf("theta: %f, dist: %f\n", theta, dist);
+            // }
         }
 
         i_Lidar_In_Buff_DONE++;
