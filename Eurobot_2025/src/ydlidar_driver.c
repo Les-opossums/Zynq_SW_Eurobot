@@ -367,19 +367,6 @@ void Lidar_Calculation_loop() {
                     
                 }
             }
-
-
-            // for (int i = 0; i < gs2_lidar_frame_buf[i_Lidar_In_Buff_DONE].size; i+=2){
-            //     dist = (float)(((gs2_lidar_frame_buf[i_Lidar_In_Buff_DONE].data[i+1] << 8) | gs2_lidar_frame_buf[i_Lidar_In_Buff_DONE].data[i]) & 0x1FF);
-            //     pixelU = i/2;
-            //     temp_Theta = atan(d_compensateK0 * pixelU - d_compensateB0) * 180 / 3.14159;
-            //     dist = dist / cos(temp_Theta * 3.14159 / 180.0);
-            //     theta = temp_Theta;
-            //     // if (theta < 0) { 
-            //     //     theta += 360; 
-            //     // }
-            //     printf("theta: %f, dist: %f\n", theta, dist);
-            // }
         }
 
         i_Lidar_In_Buff_DONE++;
