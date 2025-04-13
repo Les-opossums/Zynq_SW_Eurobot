@@ -27,6 +27,7 @@ typedef struct {
     uint8_t address;
     uint8_t cmd;
     uint16_t size;
-    uint8_t data[1000];
+    uint16_t env;
+    uint8_t data[320];
 }gs2_lidar_frame;
 

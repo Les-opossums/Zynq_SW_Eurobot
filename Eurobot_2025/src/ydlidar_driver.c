@@ -235,22 +235,22 @@ void Lidar_scan_Loop() {
             // #                                                                #
             // ##################################################################
             case 4:
-                gs2_lidar_frame_buf[cpt_frame].data[data_length] = c;
-                if (data_length == gs2_lidar_frame_buf[cpt_frame].size - 1) {
-                    // printf("i_Lidar_In_Buff_TODO: %d\n", i_Lidar_In_Buff_TODO);
-                    // printf("i_Lidar_In_Buff_DONE: %d\n", i_Lidar_In_Buff_DONE);
-                    // printf("cpt_frame: %d\n", cpt_frame);
-                    // #ifdef DEBUG_LIDAR
-                    //     printf("data received :");
-                    //     for (uint16_t i = 0; i < gs2_lidar_frame_buf[cpt_frame].size; i++) {
-                    //         printf("%d ", gs2_lidar_frame_buf[cpt_frame].data[i]);
-                    //     }
-                    //     printf("\n");
-                    // #endif
-                    data_length = 0;
-                    lidar_gs2_state++;
-                }else{
-                    data_length++;
+                // calculate env value for the first two bytes of data
+                if (gs2_lidar_frame_buf[cpt_frame].cmd == GS_LIDAR_CMD_SCAN && data_length <= 1) {
+                    if (data_length == 0){
+                        gs2_lidar_frame_buf[cpt_frame].env = c;
+                    } else {
+                        gs2_lidar_frame_buf[cpt_frame].env = gs2_lidar_frame_buf[cpt_frame].env | (c << 8);
+                    }    
+                    data_length++;              
+                } else {
+                    gs2_lidar_frame_buf[cpt_frame].data[data_length - 2] = c;
+                    if (data_length == gs2_lidar_frame_buf[cpt_frame].size - 1) {
+                        data_length = 0;
+                        lidar_gs2_state++;
+                    }else{
+                        data_length++;
+                    }
                 }
                 break;
 
@@ -285,7 +285,7 @@ float tempX = 0;
 float tempY = 0;
 
 int pixelU = 0;
-float intensitiy = 0;
+float intensity = 0;
 
 double m_pitchAngle = Angle_PAngle;
 
@@ -310,11 +310,14 @@ void Lidar_Calculation_loop() {
         }else if(gs2_lidar_frame_buf[i_Lidar_In_Buff_DONE].cmd == GS_LIDAR_CMD_SCAN){
             for(int i = 0; i < gs2_lidar_frame_buf[i_Lidar_In_Buff_DONE].size; i+=2){
                 if(i>1){
-
-                    // upper 7 bits are intensity data
-                    intensitiy = (int)((gs2_lidar_frame_buf[i_Lidar_In_Buff_DONE].data[i+1] << 8) | gs2_lidar_frame_buf[i_Lidar_In_Buff_DONE].data[i]) >> 9;
-                    // lower 9 bits are distance data
-                    dist = (float)(((gs2_lidar_frame_buf[i_Lidar_In_Buff_DONE].data[i+1] << 8) | gs2_lidar_frame_buf[i_Lidar_In_Buff_DONE].data[i]) & 0x1FF);
+                    int raw_data = (int)((gs2_lidar_frame_buf[i_Lidar_In_Buff_DONE].data[i+1] << 8) | gs2_lidar_frame_buf[i_Lidar_In_Buff_DONE].data[i]);
+                    
+                    intensity = raw_data >> 9; // upper 7 bits are intensity data
+                    dist = (float)(raw_data & 0x1FF); // lower 9 bits are distance data
+                    // // upper 7 bits are intensity data
+                    // intensity = (int)((gs2_lidar_frame_buf[i_Lidar_In_Buff_DONE].data[i+1] << 8) | gs2_lidar_frame_buf[i_Lidar_In_Buff_DONE].data[i]) >> 9;
+                    // // lower 9 bits are distance data
+                    // dist = (float)(((gs2_lidar_frame_buf[i_Lidar_In_Buff_DONE].data[i+1] << 8) | gs2_lidar_frame_buf[i_Lidar_In_Buff_DONE].data[i]) & 0x1FF);
 
 
                     pixelU = i/2;
