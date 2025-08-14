@@ -2,12 +2,14 @@
 // buffer and dma parameters
 // ---------------------
 #define DMA_DEV_ID      XPAR_AXIDMA_0_DEVICE_ID
-#define RX_BUFFER_SIZE  4096 // Taille en bytes (ex : 1024 points * 4 bytes)
+#define RX_BUFFER_SIZE  48 // Taille en bytes (ex : 12 points * 4 bytes)
 
 #define LIDAR_REG_BASE   XPAR_OPOSSUM_LIDAR_0_BASEADDR
 
 #define NUM_BUFFERS        2 // 
-#define DMA_ALIGN          64
+#define DMA_ALIGN          32
+
+#define DMA_TIMEOUT        100 // Timeout en ms
 
 // offset param register
 #define REG_DIST_MIN       0x00
@@ -24,17 +26,21 @@
 #define POINTS_PER_FRAME   12   // 12 points per frame
 #define FRAME_BYTES        (POINTS_PER_FRAME * BYTES_PER_POINT)
 
+extern u8 RxBuf[NUM_BUFFERS][FRAME_BYTES] __attribute__ ((aligned(DMA_ALIGN)));
+
 
 typedef struct {
-    u32 dist_min;
-    u32 dist_max;
-    u32 angle_min;
-    u32 angle_max;
-    u32 intensity_min;
-    u32 ctrl;
-    u32 frame_count;
-    u32 error_count;
+    uint32_t dist_min;
+    uint32_t dist_max;
+    uint32_t angle_min;
+    uint32_t angle_max;
+    uint32_t intensity_min;
+    uint32_t ctrl;
+    uint32_t frame_count;
+    uint32_t error_count;
 } LD19Register;
+
+extern LD19Register lidar_1_reg;
 
 typedef struct {
     uint16_t dist_mm; // [31:16]
@@ -44,6 +50,14 @@ typedef struct {
 
 int init_dma(void);
 
-int lidar_read_block(u32 nb_bytes);
+void init_lidar(LD19Register *reg);
 
-void parse_lidar_data(u32 nb_words);
+int dma_recv_frame_blocking(u8 *dst, u32 len_bytes);
+
+
+void dump_frame(const u8 *buf, u32 len);
+
+void lidar_wr32(u32 off, u32 val);
+u32  lidar_rd32(u32 off);
+
+int lidar_dma_recv(void *dst, u32 len_bytes);

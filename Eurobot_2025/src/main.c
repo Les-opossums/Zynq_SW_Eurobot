@@ -6,6 +6,8 @@
 
 int old_timer_ms1 = 0;
 int Status = 0;
+int f = 0;
+
 
 int main()
 {
@@ -72,16 +74,31 @@ int main()
     // Init_Asserv();
     // Init_Stepper();
 
-    init_shared_memory();
+    // init lidar_1 register
+    // init_lidar(&lidar_1_reg);
+
+    // init_shared_memory();
 
     xil_printf("Init done\n\r");
     while(1){
-        if (Timer_ms1 - old_timer_ms1 >= 100) {
+        if (Timer_ms1 - old_timer_ms1 >= 1000) {
             old_timer_ms1 = Timer_ms1;   
-            Status = lidar_read_block(RX_BUFFER_SIZE);
-            if (Status == XST_SUCCESS) {
-                parse_lidar_data(RX_BUFFER_SIZE / 4);
+            u8 *buf = RxBuf[f & 1];  // alterne 0/1
+
+            Status = lidar_dma_recv(buf, RX_BUFFER_SIZE);
+            if(Status != XST_SUCCESS) {
+                xil_printf("Lidar DMA receive failed\n\r");
             }
+
+            // if(dma_recv_frame_blocking(buf, RX_BUFFER_SIZE) != XST_SUCCESS) {
+            //     // xil_printf("DMA receive failed\n\r");
+            // }else{
+            //     dump_frame(buf, RX_BUFFER_SIZE);
+            //     if ((f % 50) == 0) {
+            //         xil_printf("Counters: frame=%u error=%u\r\n",
+            //     lidar_rd32(REG_FRAME_COUNT), lidar_rd32(REG_ERROR_COUNT));
+            //     }
+            // }
         }
 
 

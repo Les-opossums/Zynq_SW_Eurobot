@@ -36,7 +36,7 @@ int main()
 
     // Init_CAN();
     Init_AU();
-    Init_Asserv();
+    // Init_Asserv();
     
 
     while(1){
@@ -48,8 +48,8 @@ int main()
             old_timer_ms1 = Timer_ms1;
         }
 
-        AU_Loop();
-        check_for_cmd_loop();
+        // AU_Loop();
+        // check_for_cmd_loop();
         if(AU_state == 1){
             // motion_free();
             // Init_CAN_MOTOR_variables();
