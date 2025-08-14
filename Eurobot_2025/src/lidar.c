@@ -1,7 +1,21 @@
 #include "main.h"
 
 static XAxiDma AxiDma;                  // Instance DMA
-static u32 RxBuffer[RX_BUFFER_SIZE/4] __attribute__ ((aligned(64))); // Aligné pour le cache
+static u8 RxBuf[NUM_BUFFERS][FRAME_BYTES] __attribute__ ((aligned(DMA_ALIGN)));
+
+static inline void lidar_wr32(u32 off, u32 val) { Xil_Out32(LIDAR_REG_BASE + off, val); }
+static inline u32  lidar_rd32(u32 off)          { return Xil_In32 (LIDAR_REG_BASE + off); }
+
+LD19Register lidar_1_reg = {
+    .dist_min = 0,
+    .dist_max = 3000,
+    .angle_min = 0,
+    .angle_max = 360,
+    .intensity_min = 5000,
+    .ctrl = 0, // filter deactivated by default
+    .frame_count = 0,
+    .error_count = 0
+};
 
 // ---------------------
 // Init DMA pour réception Lidar
@@ -46,10 +60,13 @@ int lidar_read_block(u32 nb_bytes) {
     }
 
     // Nettoyer cache avant réception
-    Xil_DCacheFlushRange((UINTPTR)RxBuffer, nb_bytes);
+    Xil_DCacheFlushRange((UINTPTR)RxBuf, nb_bytes);
+
+    // Invalider cache après réception
+    Xil_DCacheInvalidateRange((UINTPTR)RxBuf, nb_bytes);
 
     // Lancer réception S2MM
-    Status = XAxiDma_SimpleTransfer(&AxiDma, (UINTPTR)RxBuffer, nb_bytes, XAXIDMA_DEVICE_TO_DMA);
+    Status = XAxiDma_SimpleTransfer(&AxiDma, (UINTPTR)RxBuf, nb_bytes, XAXIDMA_DEVICE_TO_DMA);
     if (Status != XST_SUCCESS) {
         xil_printf("Erreur: SimpleTransfer DMA échoué\r\n");
         return XST_FAILURE;
@@ -59,7 +76,7 @@ int lidar_read_block(u32 nb_bytes) {
     while (XAxiDma_Busy(&AxiDma, XAXIDMA_DEVICE_TO_DMA));
 
     // Invalider cache après réception
-    Xil_DCacheInvalidateRange((UINTPTR)RxBuffer, nb_bytes);
+    Xil_DCacheInvalidateRange((UINTPTR)RxBuf, nb_bytes);
 
     return XST_SUCCESS;
 }
@@ -70,7 +87,7 @@ int lidar_read_block(u32 nb_bytes) {
 // ---------------------
 void parse_lidar_data(u32 nb_words) {
     for (u32 i = 0; i < nb_words; i++) {
-        u32 raw = RxBuffer[i];
+        u32 raw = RxBuf[i];
         float angle_deg = ((raw >> 16) & 0xFFFF) / 100.0f;
         u16 distance_mm = (raw >> 4) & 0x0FFF;
         u8 intensity = raw & 0x0F;
