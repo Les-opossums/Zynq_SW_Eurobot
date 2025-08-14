@@ -34,7 +34,7 @@ int main()
     init_shared_memory();
 
 
-    Init_CAN();
+    // Init_CAN();
     Init_AU();
     Init_Asserv();
     
@@ -51,11 +51,11 @@ int main()
         AU_Loop();
         check_for_cmd_loop();
         if(AU_state == 1){
-            motion_free();
-            Init_CAN_MOTOR_variables();
-            Init_Asserv();
+            // motion_free();
+            // Init_CAN_MOTOR_variables();
+            // Init_Asserv();
         }else{
-            Asserv_Loop();
+            // Asserv_Loop();
         }
     }
 

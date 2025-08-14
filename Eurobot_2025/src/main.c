@@ -52,8 +52,17 @@ int main()
         Status = 0;
     }
 
+    Status = init_dma();
+    if (Status != XST_SUCCESS) {
+        xil_printf("DMA init failed\n\r");
+        Status = 0;
+    } else {
+        xil_printf("DMA init done\n\r");
+        Status = 0;
+    }
+
     // init_QEI();
-    PWM_Init();
+    // PWM_Init();
     Std_Com_Init();
     init_AU();
     // ws2812b_init();
@@ -67,8 +76,12 @@ int main()
 
     xil_printf("Init done\n\r");
     while(1){
-        if (Timer_ms1 - old_timer_ms1 >= 1000) {
+        if (Timer_ms1 - old_timer_ms1 >= 100) {
             old_timer_ms1 = Timer_ms1;   
+            Status = lidar_read_block(RX_BUFFER_SIZE);
+            if (Status == XST_SUCCESS) {
+                parse_lidar_data(RX_BUFFER_SIZE / 4);
+            }
         }
 
 
@@ -76,7 +89,6 @@ int main()
             Interp(c);
         }
 
-        
 
         AU_Loop();
         // LED_loop();
@@ -92,7 +104,7 @@ int main()
         //     Stepper_Loop();
 
         //     LED_CLASSIC_MODE();
-        PWM_Loop();
+        // PWM_Loop();
 
         //     Pump_Loop();
         //     Valve_Loop();

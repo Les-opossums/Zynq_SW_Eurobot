@@ -18,6 +18,9 @@
 #include "xscugic.h"
 #include "xuartps.h"
 #include "xplatform_info.h"
+#include "xaxidma.h"
+#include "xil_cache.h"
+
 
 // driver part 
 #include "Timer.h"
@@ -50,5 +53,6 @@
 #include "shared_memory_structure.h"
 //#define DEBUG
 
-
+//lidar 
+#include "Lidar.h"
 #endif // MAIN_H
