@@ -54,7 +54,7 @@ int main()
         Status = 0;
     }
 
-    Status = init_dma();
+    Status = dma_init();
     if (Status != XST_SUCCESS) {
         xil_printf("DMA init failed\n\r");
         Status = 0;
@@ -62,6 +62,11 @@ int main()
         xil_printf("DMA init done\n\r");
         Status = 0;
     }
+    // Remplir buffer d'envoi
+    for (int i = 0; i < DMA_BUFFER_SIZE; i++) {
+        DMA_tx_buffer[i] = i & 0xFF;
+    }
+
 
     // init_QEI();
     // PWM_Init();
@@ -81,24 +86,28 @@ int main()
 
     xil_printf("Init done\n\r");
     while(1){
-        if (Timer_ms1 - old_timer_ms1 >= 1000) {
+        if (Timer_ms1 - old_timer_ms1 >= 2000) {
             old_timer_ms1 = Timer_ms1;   
-            u8 *buf = RxBuf[f & 1];  // alterne 0/1
+            
+            // Nettoyer caches avant DMA
+            Xil_DCacheFlushRange((UINTPTR)DMA_tx_buffer, DMA_BUFFER_SIZE);
+            Xil_DCacheInvalidateRange((UINTPTR)DMA_rx_buffer, DMA_BUFFER_SIZE);
 
-            Status = lidar_dma_recv(buf, RX_BUFFER_SIZE);
-            if(Status != XST_SUCCESS) {
-                xil_printf("Lidar DMA receive failed\n\r");
+            xil_printf("Envoi vers FIFO...\r\n");
+            dma_send(DMA_tx_buffer, DMA_BUFFER_SIZE);
+
+            xil_printf("Réception depuis FIFO...\r\n");
+            dma_receive(DMA_rx_buffer, DMA_BUFFER_SIZE);
+
+            // Invalider cache après réception
+            Xil_DCacheInvalidateRange((UINTPTR)DMA_rx_buffer, DMA_BUFFER_SIZE);
+
+            // Vérif
+            for (int i = 0; i < 1024; i++) {
+                xil_printf("rx[%d] = %d\r\n", i, DMA_rx_buffer[i]);
             }
 
-            // if(dma_recv_frame_blocking(buf, RX_BUFFER_SIZE) != XST_SUCCESS) {
-            //     // xil_printf("DMA receive failed\n\r");
-            // }else{
-            //     dump_frame(buf, RX_BUFFER_SIZE);
-            //     if ((f % 50) == 0) {
-            //         xil_printf("Counters: frame=%u error=%u\r\n",
-            //     lidar_rd32(REG_FRAME_COUNT), lidar_rd32(REG_ERROR_COUNT));
-            //     }
-            // }
+            xil_printf("DMA test terminé\r\n");
         }
 
 

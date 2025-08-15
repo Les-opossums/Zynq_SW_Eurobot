@@ -54,5 +54,5 @@
 //#define DEBUG
 
 //lidar 
-#include "Lidar.h"
+#include "dma.h"
 #endif // MAIN_H
