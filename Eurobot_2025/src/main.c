@@ -8,6 +8,8 @@ int old_timer_ms1 = 0;
 int Status = 0;
 int f = 0;
 
+XGpio gpio;
+u32 data;
 
 int main()
 {
@@ -67,7 +69,9 @@ int main()
         DMA_tx_buffer[i] = i & 0xFF;
     }
 
-
+        
+    XGpio_Initialize(&gpio, XPAR_AXI_GPIO_0_DEVICE_ID);
+    XGpio_SetDataDirection(&gpio, 1, 0xFFFFFFFF); // canal 1 en input
     // init_QEI();
     // PWM_Init();
     Std_Com_Init();
@@ -88,26 +92,28 @@ int main()
     while(1){
         if (Timer_ms1 - old_timer_ms1 >= 2000) {
             old_timer_ms1 = Timer_ms1;   
-            
-            // Nettoyer caches avant DMA
-            Xil_DCacheFlushRange((UINTPTR)DMA_tx_buffer, DMA_BUFFER_SIZE);
-            Xil_DCacheInvalidateRange((UINTPTR)DMA_rx_buffer, DMA_BUFFER_SIZE);
+            data = XGpio_DiscreteRead(&gpio, 1);
+            xil_printf("Data read from GPIO: %d\n\r", (int)data);
 
-            xil_printf("Envoi vers FIFO...\r\n");
-            dma_send(DMA_tx_buffer, DMA_BUFFER_SIZE);
+            // // Nettoyer caches avant DMA
+            // Xil_DCacheFlushRange((UINTPTR)DMA_tx_buffer, DMA_BUFFER_SIZE);
+            // Xil_DCacheInvalidateRange((UINTPTR)DMA_rx_buffer, DMA_BUFFER_SIZE);
 
-            xil_printf("Réception depuis FIFO...\r\n");
-            dma_receive(DMA_rx_buffer, DMA_BUFFER_SIZE);
+            // xil_printf("Envoi vers FIFO...\r\n");
+            // dma_send(DMA_tx_buffer, DMA_BUFFER_SIZE);
 
-            // Invalider cache après réception
-            Xil_DCacheInvalidateRange((UINTPTR)DMA_rx_buffer, DMA_BUFFER_SIZE);
+            // xil_printf("Réception depuis FIFO...\r\n");
+            // dma_receive(DMA_rx_buffer, DMA_BUFFER_SIZE);
 
-            // Vérif
-            for (int i = 0; i < 1024; i++) {
-                xil_printf("rx[%d] = %d\r\n", i, DMA_rx_buffer[i]);
-            }
+            // // Invalider cache après réception
+            // Xil_DCacheInvalidateRange((UINTPTR)DMA_rx_buffer, DMA_BUFFER_SIZE);
 
-            xil_printf("DMA test terminé\r\n");
+            // // Vérif
+            // for (int i = 0; i < 1024; i++) {
+            //     xil_printf("rx[%d] = %d\r\n", i, DMA_rx_buffer[i]);
+            // }
+
+            // xil_printf("DMA test terminé\r\n");
         }
 
 
