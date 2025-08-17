@@ -9,9 +9,9 @@ int Status = 0;
 
 int timer_lidar = 0;
 
-
 LD19Instance LD19;
 LD19ClusterHandler clusters;
+LD19ClusterParams cluster_param;
 
 int main()
 {
@@ -77,12 +77,13 @@ int main()
     // Init_Valve();
     // Init_Asserv();
     // Init_Stepper();
-
     LD19_init(&LD19);
 
     init_shared_memory();
 
     xil_printf("Init done\n\r");
+
+    cluster_param = LD19_DefaultClusterParams();
 
     u8 f = 0;
     while(1){
@@ -94,13 +95,18 @@ int main()
             // debug print
             LD19_printScanTeleplot(&LD19);
 
-            LD19_FindClusters(&LD19, &clusters);
-            LD19_ClassifyClusters(&LD19, &clusters);
-            for (int i = 0; i < clusters.count; i++) {
+            LD19_SegmentAdaptive(&LD19, &clusters, &cluster_param);
+            LD19_ClassifyClustersRobust(&LD19, &clusters, &cluster_param);
+            for (uint16_t i=0; i<clusters.count; i++){
                 LD19Cluster *c = &clusters.clusters[i];
                 if (c->isCircle) {
                     // print for teleplot
-                    printf(">cluster:%d:%d|xy\n", (int)c->cx, (int)c->cy);
+                    printf("cercle detecté\n");
+                    printf(">circle:%d:%d|xy\n", (int)c->cx, (int)c->cy);
+                }
+                if(c->isWall) {
+                    // print for teleplot
+                    printf(">wall:%d:%d|xy\n", (int)c->cx, (int)c->cy);
                 }
             }
         }
