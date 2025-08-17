@@ -58,4 +58,5 @@
 #include "UART_PL.h"
 
 #include "ld19.h"
+#include "node_cluster.h"
 #endif // MAIN_H
