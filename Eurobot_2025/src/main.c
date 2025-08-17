@@ -91,7 +91,7 @@ int main()
         }
 
         if (LD19_readScan(&LD19, &UartLite)) {
-            // LD19_printScanTeleplot(&LD19);
+            LD19_printScanTeleplot(&LD19);
         }
 
         if (Get_Std_In(&c)) {
@@ -114,7 +114,7 @@ int main()
         //     Stepper_Loop();
 
         //     LED_CLASSIC_MODE();
-        PWM_Loop();
+        // PWM_Loop();
 
         //     Pump_Loop();
         //     Valve_Loop();
