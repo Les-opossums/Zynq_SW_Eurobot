@@ -11,7 +11,7 @@ int timer_lidar = 0;
 
 
 LD19Instance LD19;
-
+LD19ClusterHandler clusters;
 
 int main()
 {
@@ -91,7 +91,18 @@ int main()
         }
 
         if (LD19_readScan(&LD19, &UartLite)) {
+            // debug print
             LD19_printScanTeleplot(&LD19);
+
+            LD19_FindClusters(&LD19, &clusters);
+            LD19_ClassifyClusters(&LD19, &clusters);
+            for (int i = 0; i < clusters.count; i++) {
+                LD19Cluster *c = &clusters.clusters[i];
+                if (c->isCircle) {
+                    // print for teleplot
+                    printf(">cluster:%d:%d|xy\n", (int)c->cx, (int)c->cy);
+                }
+            }
         }
 
         if (Get_Std_In(&c)) {
