@@ -7,22 +7,20 @@ OE_Params oe_default_params(void) {
     p.discard_converted_segments = 1;
 
 
-    p.min_group_points = 5;
-
-
-    p.max_group_distance = 0.10f;
+    p.min_group_points = 3;
+    p.max_group_distance = 0.08f; 
     p.distance_proportion = 0.00628f; /* ≈ 2*pi / 1000 */
-    p.max_split_distance = 0.20f;
-    p.max_merge_separation = 0.20f;
-    p.max_merge_spread = 0.20f;
+    p.max_split_distance = 0.15f;
+    p.max_merge_separation = 0.15f;
+    p.max_merge_spread = 0.10f;
 
 
-    p.max_circle_radius = 0.60f;
-    p.radius_enlargement = 0.25f;
+    p.max_circle_radius = 0.30f;
+    p.radius_enlargement = 0.10f;
 
 
-    p.min_x_limit = -10.0f; p.max_x_limit = 10.0f;
-    p.min_y_limit = -10.0f; p.max_y_limit = 10.0f;
+    p.min_x_limit = -3.0f; p.max_x_limit = 3.0f;
+    p.min_y_limit = -3.0f; p.max_y_limit = 3.0f;
     return p;
 }
 

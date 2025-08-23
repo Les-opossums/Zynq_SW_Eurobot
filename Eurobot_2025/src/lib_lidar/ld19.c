@@ -311,8 +311,8 @@ void LD19_to_oe_points(const LD19Instance* ld, OE_Point* out_pts,int* out_n) {
         const LD19DataPoint* p = &scan->points[i];
 
         OE_Point q;
-        q.x     = p->x * 1e-3f;          // mm → m
-        q.y     = p->y * 1e-3f;          // mm → m
+        q.x = p->x * 0.001f;  // mm → m
+        q.y = p->y * 0.001f;  // mm → m
 
         out_pts[i] = q;
     }
@@ -328,6 +328,8 @@ void LD19_print_obstacle(const LD19Instance* ld) {
     if (n == 0) {
         printf("Pas de points dans le scan.\n");
         return;
+    } else {
+        printf("Nombre de points dans le scan: %d\n", n);
     }
 
     OE_Params p = oe_default_params();
@@ -339,16 +341,27 @@ void LD19_print_obstacle(const LD19Instance* ld) {
 
     // Segments détectés
     // printf("==== Segments (%d) ====\n", out.num_segments);
-    // for (int i = 0; i < out.num_segments; i++) {
-    //     OE_Segment* s = &out.segments[i];
-    //     printf("seg[%d] : (%.3f, %.3f) -> (%.3f, %.3f)\n",
-    //            i, s->first_point.x, s->first_point.y,
-    //            s->last_point.x, s->last_point.y);
-    // }
+    for (int i = 0; i < out.num_segments; i++) {
+        OE_Segment* s = &out.segments[i];
+        // convert to mm
+        s->first_point.x *= 1000.0f;
+        s->first_point.y *= 1000.0f;
+        s->last_point.x *= 1000.0f;
+        s->last_point.y *= 1000.0f;
+        printf(">seg_start:%.3f:%.3f|xy,clr\n",
+               s->first_point.x, s->first_point.y);
+        printf(">seg_end:%.3f:%.3f|xy,clr\n",
+               s->last_point.x, s->last_point.y);
+    }
 
     // Cercles détectés
+    // printf("==== Cercles (%d) ====\n", out.num_circles);
     for (int i = 0; i < out.num_circles; i++) {
         OE_Circle* c = &out.circles[i];
-        printf(">circle:%.3f:%.3f \n", c->center.x, c->center.y);
+        // convert to mm
+        c->center.x *= 1000.0f;
+        c->center.y *= 1000.0f;
+        c->radius *= 1000.0f;   
+        printf(">circle:%.3f:%.3f|xy,clr\n", c->center.x, c->center.y);
     }
 }
