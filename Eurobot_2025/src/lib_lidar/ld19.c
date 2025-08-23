@@ -301,3 +301,20 @@ uint8_t LD19_isChecksumFail(LD19Instance *self) {
     previousChecksumFailCount = currentChecksumFailCount;
     return isFail;
 }
+
+void LD19_to_oe_points(const LD19Instance* ld, OE_Point* out_pts,int* out_n) {
+    const LD19DataPointHandler* scan = ld->previousScan;
+    int n = scan->index;  // nombre de points valides
+    if (n > LD19_MAX_PTS_SCAN) n = LD19_MAX_PTS_SCAN;
+
+    for (int i = 0; i < n; i++) {
+        const LD19DataPoint* p = &scan->points[i];
+
+        OE_Point q;
+        q.x     = p->x * 1e-3f;          // mm → m
+        q.y     = p->y * 1e-3f;          // mm → m
+
+        out_pts[i] = q;
+    }
+    *out_n = n;
+}

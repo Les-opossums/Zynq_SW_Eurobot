@@ -158,4 +158,8 @@ static inline uint8_t LD19_filter(LD19Instance *self, LD19DataPoint *data) {
     return distanceFilter && intensityFilter && angularFilter;
 }
 
+
+void LD19_to_oe_points(const LD19Instance* ld, OE_Point* out_pts,int* out_n);
+
+
 #endif // LD19_H
