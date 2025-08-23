@@ -92,11 +92,11 @@ int main()
 
         if (LD19_readScan(&LD19, &UartLite)) {
             // debug print
-            // LD19_printScanTeleplot(&LD19);
-            // LD19_print_obstacle(&LD19);
+            LD19_printScanTeleplot(&LD19);
+            LD19_print_obstacle(&LD19);
 
             //print number of points
-            printf("nbr points: %d\n", LD19.previousScan->index); // stable to 500
+            // printf("nbr points: %d\n", LD19.previousScan->index); // stable to 500
         }
 
         if (Get_Std_In(&c)) {

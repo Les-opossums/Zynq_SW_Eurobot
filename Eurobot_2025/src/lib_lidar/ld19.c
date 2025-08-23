@@ -268,10 +268,10 @@ void LD19_printScanCSV(LD19Instance *self) {
 
 void LD19_printScanTeleplot(LD19Instance *self) {
     if (self->previousScan->index) {
-        // printf("Lidar Scan: %d points\n", self->previousScan->index);
+        printf("Lidar Scan: %d points\n", self->previousScan->index);
         printf(">lidar:");
         for (uint16_t i = 0; i < self->previousScan->index; i++) {
-            printf("%f:%f;", self->previousScan->points[i].x, self->previousScan->points[i].y);
+            printf("%d:%d;", (int)self->previousScan->points[i].x, (int)self->previousScan->points[i].y);
         }
         printf("|xy,clr\n");
     }
@@ -341,18 +341,18 @@ void LD19_print_obstacle(const LD19Instance* ld) {
 
     // Segments détectés
     // printf("==== Segments (%d) ====\n", out.num_segments);
-    for (int i = 0; i < out.num_segments; i++) {
-        OE_Segment* s = &out.segments[i];
-        // convert to mm
-        s->first_point.x *= 1000.0f;
-        s->first_point.y *= 1000.0f;
-        s->last_point.x *= 1000.0f;
-        s->last_point.y *= 1000.0f;
-        printf(">seg_start:%.3f:%.3f|xy,clr\n",
-               s->first_point.x, s->first_point.y);
-        printf(">seg_end:%.3f:%.3f|xy,clr\n",
-               s->last_point.x, s->last_point.y);
-    }
+    // for (int i = 0; i < out.num_segments; i++) {
+    //     OE_Segment* s = &out.segments[i];
+    //     // convert to mm
+    //     s->first_point.x *= 1000.0f;
+    //     s->first_point.y *= 1000.0f;
+    //     s->last_point.x *= 1000.0f;
+    //     s->last_point.y *= 1000.0f;
+    //     printf(">seg_start:%d:%d|xy,clr\n",
+    //            (int)s->first_point.x, (int)s->first_point.y);
+    //     printf(">seg_end:%d:%d|xy,clr\n",
+    //            (int)s->last_point.x, (int)s->last_point.y);
+    // }
 
     // Cercles détectés
     // printf("==== Cercles (%d) ====\n", out.num_circles);
@@ -361,7 +361,6 @@ void LD19_print_obstacle(const LD19Instance* ld) {
         // convert to mm
         c->center.x *= 1000.0f;
         c->center.y *= 1000.0f;
-        c->radius *= 1000.0f;   
-        printf(">circle:%.3f:%.3f|xy,clr\n", c->center.x, c->center.y);
+        printf(">circle:%d:%d|xy,clr\n", (int)c->center.x, (int)c->center.y);
     }
 }

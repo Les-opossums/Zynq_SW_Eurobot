@@ -7,7 +7,7 @@
 
 #define UART_BUFFER_SIZE	100
 
-#define BAUDRATE            115200
+#define BAUDRATE            921600
 
 extern XUartPs UartInstance;
 
