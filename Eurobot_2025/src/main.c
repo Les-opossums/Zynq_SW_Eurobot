@@ -93,6 +93,7 @@ int main()
         if (LD19_readScan(&LD19, &UartLite)) {
             // debug print
             LD19_printScanTeleplot(&LD19);
+            LD19_print_obstacle(&LD19);
         }
 
         if (Get_Std_In(&c)) {

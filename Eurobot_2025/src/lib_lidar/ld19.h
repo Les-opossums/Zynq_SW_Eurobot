@@ -1,6 +1,8 @@
 #ifndef LD19_H
 #define LD19_H
 
+#include "obstacle_extractor.h"
+
 #define LD19_HEADER 0x54
 #define LD19_VER_SIZE 0x2C
 
@@ -160,6 +162,7 @@ static inline uint8_t LD19_filter(LD19Instance *self, LD19DataPoint *data) {
 
 
 void LD19_to_oe_points(const LD19Instance* ld, OE_Point* out_pts,int* out_n);
+void LD19_print_obstacle(const LD19Instance* ld);
 
 
 #endif // LD19_H

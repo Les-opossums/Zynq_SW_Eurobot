@@ -112,8 +112,13 @@ tf->sin_th*p.x + tf->cos_th*p.y + tf->ty };
 return r;
 }
 
+static inline void oe_reset_output(OE_Output* out) {
+    out->num_point_sets = 0;
+    out->num_segments = 0;
+    out->num_circles = 0;
+}
 
-
+OE_Params oe_default_params(void);
 float oe_point_to_segment_dist(OE_Point a, OE_Point b, OE_Point p);
 void oe_iepf_fit_segment(const OE_Point* pts, int b, int e, OE_Segment* seg);
 float oe_point_to_line_dist(OE_Point a, OE_Point b, OE_Point p);

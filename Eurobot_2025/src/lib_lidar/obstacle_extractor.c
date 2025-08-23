@@ -1,5 +1,30 @@
 #include "../main.h"
 
+OE_Params oe_default_params(void) {
+    OE_Params p;
+    p.use_split_and_merge = 1;
+    p.circles_from_visibles = 1;
+    p.discard_converted_segments = 1;
+
+
+    p.min_group_points = 5;
+
+
+    p.max_group_distance = 0.10f;
+    p.distance_proportion = 0.00628f; /* ≈ 2*pi / 1000 */
+    p.max_split_distance = 0.20f;
+    p.max_merge_separation = 0.20f;
+    p.max_merge_spread = 0.20f;
+
+
+    p.max_circle_radius = 0.60f;
+    p.radius_enlargement = 0.25f;
+
+
+    p.min_x_limit = -10.0f; p.max_x_limit = 10.0f;
+    p.min_y_limit = -10.0f; p.max_y_limit = 10.0f;
+    return p;
+}
 
 /* Distance from point to line segment AB (true distance along segment hull) */
 float oe_point_to_segment_dist(OE_Point a, OE_Point b, OE_Point p){

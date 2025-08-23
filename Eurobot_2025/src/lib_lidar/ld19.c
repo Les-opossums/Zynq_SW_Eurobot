@@ -318,3 +318,37 @@ void LD19_to_oe_points(const LD19Instance* ld, OE_Point* out_pts,int* out_n) {
     }
     *out_n = n;
 }
+
+
+void LD19_print_obstacle(const LD19Instance* ld) {
+    OE_Point pts[LD19_MAX_PTS_SCAN];
+    int n = 0;
+    LD19_to_oe_points(ld, pts, &n);
+
+    if (n == 0) {
+        printf("Pas de points dans le scan.\n");
+        return;
+    }
+
+    OE_Params p = oe_default_params();
+    OE_Output out;
+    oe_reset_output(&out);
+
+    OE_Transform tf = { .enabled=1 }; // pas de transform pour l’instant
+    oe_process_points(pts, n, &p, &tf, &out);
+
+    // Segments détectés
+    // printf("==== Segments (%d) ====\n", out.num_segments);
+    // for (int i = 0; i < out.num_segments; i++) {
+    //     OE_Segment* s = &out.segments[i];
+    //     printf("seg[%d] : (%.3f, %.3f) -> (%.3f, %.3f)\n",
+    //            i, s->first_point.x, s->first_point.y,
+    //            s->last_point.x, s->last_point.y);
+    // }
+
+    // Cercles détectés
+    for (int i = 0; i < out.num_circles; i++) {
+        OE_Circle* c = &out.circles[i];
+        printf(">circle:%.3f:%.3f \n", c->center.x, c->center.y);
+    }
+}
