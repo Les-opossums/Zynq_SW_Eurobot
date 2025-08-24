@@ -19,8 +19,8 @@ OE_Params oe_default_params(void) {
     p.radius_enlargement = 0.02f;
 
 
-    p.min_x_limit = -1.0f; p.max_x_limit = 1.0f;
-    p.min_y_limit = -1.0f; p.max_y_limit = 1.0f;
+    p.min_x_limit = -3.0f; p.max_x_limit = 3.0f;
+    p.min_y_limit = -3.0f; p.max_y_limit = 3.0f;
     return p;
 }
 
