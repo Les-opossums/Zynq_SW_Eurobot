@@ -268,7 +268,7 @@ void LD19_printScanCSV(LD19Instance *self) {
 
 void LD19_printScanTeleplot(LD19Instance *self) {
     if (self->previousScan->index) {
-        printf("Lidar Scan: %d points\n", self->previousScan->index);
+        // printf("Lidar Scan: %d points\n", self->previousScan->index);
         printf(">lidar:");
         for (uint16_t i = 0; i < self->previousScan->index; i++) {
             printf("%d:%d;", (int)self->previousScan->points[i].x, (int)self->previousScan->points[i].y);
@@ -336,7 +336,7 @@ void LD19_print_obstacle(const LD19Instance* ld) {
     OE_Output out;
     oe_reset_output(&out);
 
-    OE_Transform tf = { .enabled=1 }; // pas de transform pour l’instant
+    OE_Transform tf = { .enabled=0 }; // pas de transform pour l’instant
     oe_process_points(pts, n, &p, &tf, &out);
 
     // Segments détectés
@@ -360,6 +360,9 @@ void LD19_print_obstacle(const LD19Instance* ld) {
         printf(">circle:");
         for (int i = 0; i < out.num_circles; i++) {
             OE_Circle* c = &out.circles[i];
+            // convert to mm
+            c->center.x *= 1000.0f;
+            c->center.y *= 1000.0f;
             printf("%d:%d;", (int)c->center.x, (int)c->center.y);
         }
         printf("|xy\n");

@@ -62,7 +62,8 @@ float oe_point_to_line_dist(OE_Point a, OE_Point b, OE_Point p){
 
 /* Fit a circle with the algebraic Kåsa method. Returns false if ill-conditioned. */
 uint8_t oe_fit_circle_kasa(const OE_Point* pts, const OE_PointSet* psets, int ps_begin, int ps_count, OE_Point* center, float* radius){
-    double Sx=0, Sy=0, Sxx=0, Syy=0, Sxy=0, Szzz=0, Sxxp=0, Syyp=0, Sxyp=0; /* (
+    printf("Fitting circle using Kasa method...\n");
+    double Sx=0, Sy=0, Sxx=0, Syy=0, Sxy=0, Szzz=0, Sxxp=0, Syyp=0; /* (
     The classic linear system for x^2 + y^2 + Ax + By + C = 0 is:
     [Sxx Sxy Sx] [A] = [Sx(x^2+y^2)]
     [Sxy Syy Sy] [B] [Sy(x^2+y^2)]
@@ -70,21 +71,28 @@ uint8_t oe_fit_circle_kasa(const OE_Point* pts, const OE_PointSet* psets, int ps
     We'll accumulate the sums then solve 3x3 via Cramer's rule.
     ) */
     int N = 0;
-    for (int k=0; k<ps_count; ++k){
+    for (int k=0; k < ps_count; ++k){
         const OE_PointSet* ps = &psets[ps_begin+k];
         for (int i=ps->begin_idx; i<=ps->end_idx; ++i){
             float x = pts[i].x, y = pts[i].y;
             double z = (double)x*(double)x + (double)y*(double)y; // r^2
-            Sx += x; Sy += y; Sxx += x*x; Syy += y*y; Sxy += x*y;
-            Sxxp+= x*z; Syyp+= y*z; Szzz+= z; N++;
+            Sx += x; 
+            Sy += y; 
+            Sxx += x*x; 
+            Syy += y*y; 
+            Sxy += x*y;
+            Sxxp+= x*z; 
+            Syyp+= y*z; 
+            Szzz+= z; 
+            N++;
         }
     }
     if (N < 3) return 1;
     /* Construct matrices */
     double M[3][3] = {
-    {Sxx, Sxy, Sx},
-    {Sxy, Syy, Sy},
-    {Sx, Sy, (double)N}
+        {Sxx, Sxy, Sx},
+        {Sxy, Syy, Sy},
+        {Sx, Sy, (double)N}
     };
     double Bv[3] = { Sxxp, Syyp, Szzz };
 
@@ -145,9 +153,10 @@ void oe_group_points(const OE_Point* pts, int n, const OE_Params* P, OE_Output* 
         float dx = pts[i].x - prevp.x, dy = pts[i].y - prevp.y;
         float distance = sqrtf(dx*dx + dy*dy);
         if (distance < P->max_group_distance + r * P->distance_proportion){
-            cur.end_idx = i; cur.num_points++;
+            cur.end_idx = i; 
+            cur.num_points++;
         } else {
-        /* visibility test using Heron's formula to get sine of beam angle */
+            /* visibility test using Heron's formula to get sine of beam angle */
             float prev_r = sqrtf(prevp.x*prevp.x + prevp.y*prevp.y);
             float p = (r + prev_r + distance) * 0.5f;
             float S2 = fmaxf(p*(p-r)*(p-prev_r)*(p-distance), 0.0f);
@@ -165,7 +174,9 @@ void oe_group_points(const OE_Point* pts, int n, const OE_Params* P, OE_Output* 
             cur.is_visible = (fabsf(sin_d) > sin_dp || r < prev_r);
         }
     }
-    if (cur.num_points >= P->min_group_points){ oe_push_pointset(out, cur); }
+    if (cur.num_points >= P->min_group_points){ 
+        oe_push_pointset(out, cur); 
+    }
 }
 
 /* ---------------- split & merge segmentation ---------------- */
@@ -361,8 +372,8 @@ void oe_process_points(const OE_Point* pts, int n, const OE_Params* P, const OE_
     /* stage 1: grouping */
     oe_group_points(pts, n, P, out);
     /* stage 2: segments (split & merge + merging) */
-    oe_detect_segments(pts, P, out);
-    oe_merge_segments(pts, P, out);
+    // oe_detect_segments(pts, P, out);
+    // oe_merge_segments(pts, P, out);
     /* stage 3: circles (fit + merge) */
     oe_detect_circles(pts, P, out);
     oe_merge_circles(P, out);
@@ -380,8 +391,8 @@ void oe_process_points(const OE_Point* pts, int n, const OE_Params* P, const OE_
     }
     out->num_circles = wr;
 
-    for (int i=0; i<out->num_segments; ++i){
-        out->segments[i].first_point = oe_rot_apply(opt_tf, out->segments[i].first_point);
-        out->segments[i].last_point = oe_rot_apply(opt_tf, out->segments[i].last_point);
-    }
+    // for (int i=0; i<out->num_segments; ++i){
+    //     out->segments[i].first_point = oe_rot_apply(opt_tf, out->segments[i].first_point);
+    //     out->segments[i].last_point = oe_rot_apply(opt_tf, out->segments[i].last_point);
+    // }
 }
