@@ -311,8 +311,8 @@ void LD19_to_oe_points(const LD19Instance* ld, OE_Point* out_pts,int* out_n) {
         const LD19DataPoint* p = &scan->points[i];
 
         OE_Point q;
-        q.x = p->x;  // mm
-        q.y = p->y;  // mm
+        q.x = p->x * 0.001f;  // mm → m
+        q.y = p->y * 0.001f;  // mm → m
 
         out_pts[i] = q;
     }
@@ -329,7 +329,7 @@ void LD19_print_obstacle(const LD19Instance* ld) {
         printf("Pas de points dans le scan.\n");
         return;
     } else {
-        // printf("Nbrpoints: %d\n", n);
+        printf("Nombre de points dans le scan: %d\n", n);
     }
 
     OE_Params p = oe_default_params();

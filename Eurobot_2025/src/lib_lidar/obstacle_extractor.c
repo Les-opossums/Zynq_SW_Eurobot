@@ -6,45 +6,39 @@ OE_Params oe_default_params(void) {
     p.circles_from_visibles = 1;
     p.discard_converted_segments = 1;
 
-    p.min_group_points = 5;
 
-    p.max_group_distance   = 100;   // 0.10 m
-    p.distance_proportion = 6280;  // 0.00628 ≈ 2π/1000 en "×10^-6"
-    p.max_split_distance   = 200;   // 0.20 m
-    p.max_merge_separation = 200;
-    p.max_merge_spread     = 200;
+    p.min_group_points = 3;
+    p.max_group_distance = 0.08f; 
+    p.distance_proportion = 0.00628f; /* ≈ 2*pi / 1000 */
+    p.max_split_distance = 0.15f;
+    p.max_merge_separation = 0.15f;
+    p.max_merge_spread = 0.10f;
 
-    p.max_circle_radius = 600;  // 0.60 m
-    p.radius_enlargement = 250; // 0.25 m
 
-    p.min_x_limit = -10000; p.max_x_limit = 10000;
-    p.min_y_limit = -10000; p.max_y_limit = 10000;
+    p.max_circle_radius = 0.30f;
+    p.radius_enlargement = 0.10f;
 
+
+    p.min_x_limit = -3.0f; p.max_x_limit = 3.0f;
+    p.min_y_limit = -3.0f; p.max_y_limit = 3.0f;
     return p;
 }
 
 /* Distance from point to line segment AB (true distance along segment hull) */
-int32_t oe_point_to_segment_dist(OE_Point a, OE_Point b, OE_Point p){
-    int32_t vx = b.x - a.x, vy = b.y - a.y;
-    int64_t v2 = (int64_t)vx*vx + (int64_t)vy*vy;
-    if (v2 <= 0) {
-        int64_t dx = (int64_t)p.x - a.x, dy = (int64_t)p.y - a.y;
-        return (int32_t)sqrt((double)(dx*dx + dy*dy));
+float oe_point_to_segment_dist(OE_Point a, OE_Point b, OE_Point p){
+    OE_Point ab = oe_sub(b,a);
+    float ab2 = oe_dot(ab,ab);
+    if (ab2 <= 1e-9f) {
+        return oe_len(oe_sub(p,a));
     }
-    int64_t px = (int64_t)p.x - a.x, py = (int64_t)p.y - a.y;
-    int64_t t_num = px*vx + py*vy; /* may be negative */
-    if (t_num <= 0) {
-        int64_t dx = px, dy = py; return (int32_t)sqrt((double)(dx*dx + dy*dy));
+    float t = oe_dot(oe_sub(p,a), ab) / ab2;
+    if (t < 0.0f) {
+        t = 0.0f;
+    } else if (t > 1.0f) {
+        t = 1.0f;
     }
-    if (t_num >= v2) {
-        int64_t dx = (int64_t)p.x - b.x, dy = (int64_t)p.y - b.y;
-        return (int32_t)sqrt((double)(dx*dx + dy*dy));
-    }
-    /* projection point = A + (t_num/v2) * (B-A) ; distance to P */
-    /* compute perpendicular distance via cross product magnitude |(P-A) x (B-A)| / |B-A| */
-    int64_t cross = llabs(px*vy - py*vx);
-    double d = (double)cross / sqrt((double)v2);
-    return (int32_t)(d + 0.5);
+    OE_Point proj = oe_add(a, oe_scale(ab, t));
+    return oe_len(oe_sub(p, proj));
 }      
 
 /* Fit a line to a set of points by IEPF: initial line = first..last, split if needed
@@ -56,55 +50,64 @@ void oe_iepf_fit_segment(const OE_Point* pts, int b, int e, OE_Segment* seg){
 }
 
 /* Orthogonal distance from point to infinite line (A=first,B=last) */
-int32_t oe_point_to_line_dist(OE_Point a, OE_Point b, OE_Point p){
-    int32_t vx = b.x - a.x, vy = b.y - a.y;
-    int64_t v2 = (int64_t)vx*vx + (int64_t)vy*vy;
-    if (v2 <= 0) {
-        int64_t dx = (int64_t)p.x - a.x, dy = (int64_t)p.y - a.y;
-        return (int32_t)sqrt((double)(dx*dx + dy*dy));
+float oe_point_to_line_dist(OE_Point a, OE_Point b, OE_Point p){
+    OE_Point ab = oe_sub(b,a);
+    float L = oe_len(ab);
+    if (L <= 1e-9f){
+        return oe_len(oe_sub(p,a));
     }
-    int64_t px = (int64_t)p.x - a.x, py = (int64_t)p.y - a.y;
-    int64_t cross = llabs(px*vy - py*vx);
-    double d = (double)cross / sqrt((double)v2);
-    return (int32_t)(d + 0.5);
+    OE_Point n = { -ab.y/L, ab.x/L };
+    return fabsf( oe_dot( oe_sub(p,a), n ) );
 }
 
 /* Fit a circle with the algebraic Kåsa method. Returns false if ill-conditioned. */
-uint8_t oe_fit_circle_kasa(const OE_Point* pts, const OE_PointSet* psets, int ps_begin, int ps_count, OE_Point* center, int32_t* radius){
-    double Sx=0,Sy=0,Sxx=0,Syy=0,Sxy=0,Szz=0,Sxxp=0,Syyp=0; 
-    int N=0;
-    for(int k=0;k<ps_count;++k){
-        const OE_PointSet* ps=&psets[ps_begin+k];
-        for(int i=ps->begin_idx;i<=ps->end_idx;++i){
-            double x=pts[i].x, y=pts[i].y;
-            double z=x*x + y*y;
-            Sx+=x; Sy+=y; Sxx+=x*x; Syy+=y*y; Sxy+=x*y; Szz+=z; Sxxp+=x*z; Syyp+=y*z; N++;
+uint8_t oe_fit_circle_kasa(const OE_Point* pts, const OE_PointSet* psets, int ps_begin, int ps_count, OE_Point* center, float* radius){
+    double Sx=0, Sy=0, Sxx=0, Syy=0, Sxy=0, Szzz=0, Sxxp=0, Syyp=0, Sxyp=0; /* (
+    The classic linear system for x^2 + y^2 + Ax + By + C = 0 is:
+    [Sxx Sxy Sx] [A] = [Sx(x^2+y^2)]
+    [Sxy Syy Sy] [B] [Sy(x^2+y^2)]
+    [Sx Sy N ] [C] [Σ(x^2+y^2)]
+    We'll accumulate the sums then solve 3x3 via Cramer's rule.
+    ) */
+    int N = 0;
+    for (int k=0; k<ps_count; ++k){
+        const OE_PointSet* ps = &psets[ps_begin+k];
+        for (int i=ps->begin_idx; i<=ps->end_idx; ++i){
+            float x = pts[i].x, y = pts[i].y;
+            double z = (double)x*(double)x + (double)y*(double)y; // r^2
+            Sx += x; Sy += y; Sxx += x*x; Syy += y*y; Sxy += x*y;
+            Sxxp+= x*z; Syyp+= y*z; Szzz+= z; N++;
         }
     }
-    if (N<3) return 0;
-    double M00=Sxx, M01=Sxy, M02=Sx;
-    double M10=Sxy, M11=Syy, M12=Sy;
-    double M20=Sx, M21=Sy, M22=(double)N;
-    double B0=Sxxp, B1=Syyp, B2=Szz;
+    if (N < 3) return 1;
+    /* Construct matrices */
+    double M[3][3] = {
+    {Sxx, Sxy, Sx},
+    {Sxy, Syy, Sy},
+    {Sx, Sy, (double)N}
+    };
+    double Bv[3] = { Sxxp, Syyp, Szzz };
 
+
+    /* Determinant helper */
     #define DET3(a,b,c,d,e,f,g,h,i) ((a)*((e)*(i)-(f)*(h)) - (b)*((d)*(i)-(f)*(g)) + (c)*((d)*(h)-(e)*(g)))
-    double D = DET3(M00,M01,M02,M10,M11,M12,M20,M21,M22);
+    double D = DET3(M[0][0],M[0][1],M[0][2], M[1][0],M[1][1],M[1][2], M[2][0],M[2][1],M[2][2]);
     if (fabs(D) < 1e-12) return 0;
-    double Dx=DET3(B0,M01,M02,B1,M11,M12,B2,M21,M22);
-    double Dy=DET3(M00,B0,M02, M10,B1,M12, M20,B2,M22);
-    double Dc=DET3(M00,M01,B0, M10,M11,B1, M20,M21,B2);
+    double Dx = DET3(Bv[0],M[0][1],M[0][2], Bv[1],M[1][1],M[1][2], Bv[2],M[2][1],M[2][2]);
+    double Dy = DET3(M[0][0],Bv[0],M[0][2], M[1][0],Bv[1],M[1][2], M[2][0],Bv[2],M[2][2]);
+    double Dc = DET3(M[0][0],M[0][1],Bv[0], M[1][0],M[1][1],Bv[1], M[2][0],M[2][1],Bv[2]);
     #undef DET3
-    
-    double A=Dx/D, B=Dy/D, C=Dc/D;
-    double cx=-A*0.5, cy=-B*0.5; 
-    double r2=cx*cx+cy*cy - C; 
-    if (r2<=0) return 0;
 
-    center->x = (int32_t)llround(cx); 
-    center->y = (int32_t)llround(cy);
-    *radius = (int32_t)llround(sqrt(r2));
+
+    double A = Dx/D, B = Dy/D, C = Dc/D;
+    double cx = -A*0.5, cy = -B*0.5;
+    double r2 = cx*cx + cy*cy - C;
+    if (r2 <= 0.0) return 0;
+
+    *center = (OE_Point){ (float)cx, (float)cy };
+    *radius = (float)sqrt(r2);
     return 1;
-    }
+}
 
 /* Add a point set to output (returns index), with bound check */
 int oe_push_pointset(OE_Output* out, OE_PointSet ps){
@@ -131,110 +134,108 @@ int oe_push_circle(OE_Output* out, OE_Circle c){
 
 /* ---------------- grouping (build point sets & visibility) ---------------- */
 void oe_group_points(const OE_Point* pts, int n, const OE_Params* P, OE_Output* out){
-    ensure_sin2dp(P);
-    if (n<=0) return;
+    const float sin_dp = sinf(2.0f * P->distance_proportion);
+    if (n <= 0) return;
 
-    OE_PointSet cur = {0,0,1,1};
-    for (int i=1;i<n;++i){
-        /* current point range */
-        int64_t r2 = (int64_t)pts[i].x*pts[i].x + (int64_t)pts[i].y*pts[i].y;
-        int32_t r = (int32_t)sqrt((double)r2);
-
-        /* distance to previous point in current set */
-        int32_t dx = pts[i].x - pts[cur.end_idx].x;
-        int32_t dy = pts[i].y - pts[cur.end_idx].y;
-        int32_t dist = (int32_t)sqrt((double)((int64_t)dx*dx + (int64_t)dy*dy));
-
-        int32_t thr = P->max_group_distance + (int32_t)(( (int64_t)r * P->distance_proportion ) / 1000000LL);
-        if (dist < thr){
-            cur.end_idx=i; cur.num_points++;
+    OE_PointSet cur = {0, 0, 1, 1};
+    for (int i=1; i<n; ++i){
+        float rx = pts[i].x, ry = pts[i].y;
+        float r = sqrtf(rx*rx + ry*ry);
+        OE_Point prevp = pts[cur.end_idx];
+        float dx = pts[i].x - prevp.x, dy = pts[i].y - prevp.y;
+        float distance = sqrtf(dx*dx + dy*dy);
+        if (distance < P->max_group_distance + r * P->distance_proportion){
+            cur.end_idx = i; cur.num_points++;
         } else {
-            /* visibility test using Heron's formula via sine */
-            int64_t pr2 = (int64_t)pts[cur.end_idx].x*pts[cur.end_idx].x + (int64_t)pts[cur.end_idx].y*pts[cur.end_idx].y;
-            int32_t pr = (int32_t)sqrt((double)pr2);
-            int32_t a = r, b = pr, c = dist; /* triangle sides */
-            /* Heron area: S = sqrt(p(p-a)(p-b)(p-c)), p=(a+b+c)/2 ; use double here, not in hot loops often */
-            double p = (a + b + c) * 0.5;
-            double S2 = p*(p-a)*(p-b)*(p-c);
-            double S = S2>0 ? sqrt(S2) : 0.0;
-            double sin_d = (a>0 && b>0) ? (2.0*S)/((double)a*(double)b) : 0.0;
-            /* compare |sin_d| < sin(2*dp) */
-            double sin_dp = ((double)P->sin_2dp_q15)/32768.0;
-            if (fabs(sin_d) < fabs(sin_dp) && a < b) {
+        /* visibility test using Heron's formula to get sine of beam angle */
+            float prev_r = sqrtf(prevp.x*prevp.x + prevp.y*prevp.y);
+            float p = (r + prev_r + distance) * 0.5f;
+            float S2 = fmaxf(p*(p-r)*(p-prev_r)*(p-distance), 0.0f);
+            float S = sqrtf(S2);
+            float sin_d = (r>1e-6f && prev_r>1e-6f) ? (2.0f*S/(r*prev_r)) : 0.0f;
+            if (fabsf(sin_d) < sin_dp && r < prev_r) {
                 cur.is_visible = 0;
             }
-
-            if (cur.num_points >= P->min_group_points) {
-                oe_push_pointset(out, cur);
+            /* finalize current set */
+            if (cur.num_points >= P->min_group_points){ 
+                oe_push_pointset(out, cur); 
             }
-            cur.begin_idx=i; 
-            cur.end_idx=i; 
-            cur.num_points=1; 
-            cur.is_visible = (fabs(sin_d) > fabs(sin_dp) || a < b);
+            /* start a new set */
+            cur.begin_idx = i; cur.end_idx = i; cur.num_points = 1;
+            cur.is_visible = (fabsf(sin_d) > sin_dp || r < prev_r);
         }
     }
-    if (cur.num_points >= P->min_group_points) oe_push_pointset(out, cur);
+    if (cur.num_points >= P->min_group_points){ oe_push_pointset(out, cur); }
 }
 
 /* ---------------- split & merge segmentation ---------------- */
 void oe_detect_segments_rec(const OE_Point* pts, const OE_Params* P, OE_Output* out, OE_PointSet ps){
     if (ps.num_points < P->min_group_points) return;
 
-    OE_Segment seg; seg_iepf_init(pts, ps.begin_idx, ps.end_idx, &seg);
+    OE_Segment s; oe_iepf_fit_segment(pts, ps.begin_idx, ps.end_idx, &s);
 
-    int32_t maxd = 0; int split = -1;
-    for (int i=ps.begin_idx;i<=ps.end_idx;++i){
-        int32_t d = oe_point_to_segment_dist(seg.first_point, seg.last_point, pts[i]);
-        /* adaptive threshold: max_split_distance + range * proportion */
-        int32_t r = (int32_t)sqrt((double)((int64_t)pts[i].x*pts[i].x + (int64_t)pts[i].y*pts[i].y));
-        int32_t thr = P->max_split_distance + (int32_t)(((int64_t)r * P->distance_proportion)/1000000LL);
-        if (d >= maxd && d > thr){ maxd = d; split = i; }
+    /* find split point using distance to infinite line */
+    float maxd = 0.0f; int split_idx = -1; int idx = 0;
+    for (int i=ps.begin_idx; i<=ps.end_idx; ++i, ++idx){
+        float d = oe_point_to_line_dist(s.first_point, s.last_point, pts[i]);
+        if (d >= maxd){
+            float x = pts[i].x, y = pts[i].y;
+            float r = sqrtf(x*x + y*y);
+            float thr = P->max_split_distance + r * P->distance_proportion;
+            if (d > thr){ 
+                maxd = d; 
+                split_idx = i; 
+            }
         }
+    }
 
 
-        if (P->use_split_and_merge && split >= 0){
-        int n1 = split - ps.begin_idx + 1;
-        int n2 = ps.end_idx - split + 1;
+    if (P->use_split_and_merge && split_idx >= 0){
+    /* ensure both subsets are large enough */
+    int n1 = split_idx - ps.begin_idx + 1;
+    int n2 = ps.end_idx - split_idx + 1;
         if (n1 > P->min_group_points && n2 > P->min_group_points){
-            OE_PointSet ps1 = { ps.begin_idx, split, n1, ps.is_visible };
-            OE_PointSet ps2 = { split, ps.end_idx, n2, ps.is_visible };
+            /* clone split point into both */
+            OE_PointSet ps1 = { ps.begin_idx, split_idx, n1, ps.is_visible };
+            OE_PointSet ps2 = { split_idx, ps.end_idx, n2, ps.is_visible };
             oe_detect_segments_rec(pts, P, out, ps1);
             oe_detect_segments_rec(pts, P, out, ps2);
             return;
         }
     }
-    seg.ps_begin = oe_push_pointset(out, ps); 
-    seg.ps_count = (seg.ps_begin>=0)?1:0; 
-    oe_push_segment(out, seg);
+
+
+    /* keep the segment */
+    s.ps_begin = oe_push_pointset(out, ps);
+    s.ps_count = (s.ps_begin>=0) ? 1 : 0;
+    oe_push_segment(out, s);
 }
 
 
 void oe_detect_segments(const OE_Point* pts, const OE_Params* P, OE_Output* out){
-    int Nps = out->num_point_sets; 
-    for(int i=0;i<Nps;++i) {
+    int Nps = out->num_point_sets;
+    for (int i=0; i<Nps; ++i){
         oe_detect_segments_rec(pts, P, out, out->point_sets[i]);
     }
 }
 
 /* proximity test (similar to trueDistanceTo on endpoints) */
 uint8_t oe_segments_prox(const OE_Segment* a, const OE_Segment* b, const OE_Params* P){
-    int t = P->max_merge_separation;
-    if (oe_point_to_segment_dist(a->first_point,a->last_point,b->first_point) < t) return 1;
-    if (oe_point_to_segment_dist(a->first_point,a->last_point,b->last_point) < t) return 1;
-    if (oe_point_to_segment_dist(b->first_point,b->last_point,a->first_point) < t) return 1;
-    if (oe_point_to_segment_dist(b->first_point,b->last_point,a->last_point) < t) return 1;
-    return 0;
+    float t = P->max_merge_separation;
+    return (oe_point_to_segment_dist(a->first_point, a->last_point, b->first_point) < t ||
+            oe_point_to_segment_dist(a->first_point, a->last_point, b->last_point) < t ||
+            oe_point_to_segment_dist(b->first_point, b->last_point, a->first_point) < t ||
+            oe_point_to_segment_dist(b->first_point, b->last_point, a->last_point) < t);
 }
 
 
 /* collinearity: distance of each endpoint to merged best-fit line < spread */
 uint8_t oe_segments_collinear(OE_Segment merged, const OE_Segment* s1, const OE_Segment* s2, const OE_Params* P){
-    int m = P->max_merge_spread;
-    if (oe_point_to_line_dist(merged.first_point, merged.last_point, s1->first_point) >= m) return 0;
-    if (oe_point_to_line_dist(merged.first_point, merged.last_point, s1->last_point) >= m) return 0;
-    if (oe_point_to_line_dist(merged.first_point, merged.last_point, s2->first_point) >= m) return 0;
-    if (oe_point_to_line_dist(merged.first_point, merged.last_point, s2->last_point) >= m) return 0;
-    return 1;
+    float m = P->max_merge_spread;
+    return (oe_point_to_line_dist(merged.first_point, merged.last_point, s1->first_point) < m &&
+            oe_point_to_line_dist(merged.first_point, merged.last_point, s1->last_point) < m &&
+            oe_point_to_line_dist(merged.first_point, merged.last_point, s2->first_point) < m &&
+            oe_point_to_line_dist(merged.first_point, merged.last_point, s2->last_point) < m);
 }
 
 
@@ -242,40 +243,41 @@ uint8_t oe_segments_collinear(OE_Segment merged, const OE_Segment* s1, const OE_
 OE_Segment oe_fit_segment_over_ps(const OE_Point* pts, const OE_PointSet* psets, int ps_begin, int ps_count){
     int b = psets[ps_begin].begin_idx;
     int e = psets[ps_begin + ps_count - 1].end_idx;
-    OE_Segment s; 
-    s.ps_begin = ps_begin; 
-    s.ps_count = ps_count; 
-    s.first_point = pts[b]; 
-    s.last_point = pts[e];
+    OE_Segment s; s.ps_begin = ps_begin; s.ps_count = ps_count; s.first_point = pts[b]; s.last_point = pts[e];
     return s;
 }
 
 
 void oe_merge_segments(const OE_Point* pts, const OE_Params* P, OE_Output* out){
-    for(int i=0;i<out->num_segments;++i){
-        for(int j=i+1;j<out->num_segments;++j){
-            OE_Segment *s1=&out->segments[i], *s2=&out->segments[j];
-            /* enforce CCW by cross sign of first points vs origin (approx) */
-            int64_t cross = (int64_t)s1->first_point.x * s2->first_point.y - (int64_t)s1->first_point.y * s2->first_point.x;
-            if (cross < 0){ 
+    for (int i=0; i<out->num_segments; ++i){
+        for (int j=i+1; j<out->num_segments; ++j){
+            OE_Segment *s1 = &out->segments[i], *s2 = &out->segments[j];
+            /* enforce CCW order as in ROS code (based on cross sign) */
+            OE_Point f1 = s1->first_point, f2 = s2->first_point;
+            if (oe_crossz(f1, f2) < 0) { 
                 OE_Segment* tmp=s1; s1=s2; s2=tmp; 
             }
-            if (!oe_segments_prox(s1,s2,P)) continue;
+            if (!oe_segments_prox(s1, s2, P)) continue;
+            /* merge point sets */
             int base = out->num_point_sets;
-            for(int k=0;k<s1->ps_count;++k){
+            for (int k=0; k<s1->ps_count; ++k) {
                 oe_push_pointset(out, out->point_sets[s1->ps_begin+k]);
             }
-            for(int k=0;k<s2->ps_count;++k) {
+            for (int k=0; k<s2->ps_count; ++k) {
                 oe_push_pointset(out, out->point_sets[s2->ps_begin+k]);
             }
-            int ps_cnt = s1->ps_count + s2->ps_count;
-            OE_Segment merged = oe_fit_segment_over_ps(pts, out->point_sets, base, ps_cnt);
+            int ps_count = s1->ps_count + s2->ps_count;
+            OE_Segment merged = oe_fit_segment_over_ps(pts, out->point_sets, base, ps_count);
             if (oe_segments_collinear(merged, s1, s2, P)){
+                /* replace i with merged, remove j */
                 out->segments[i] = merged;
-                for(int m=j;m<out->num_segments-1;++m) {
-                    out->segments[m]=out->segments[m+1];
+                /* shift segments left from j+1 */
+                for (int m=j; m<out->num_segments-1; ++m) {
+                    out->segments[m] = out->segments[m+1];
                 }
-                out->num_segments--; j=i; /* recheck */
+                out->num_segments--; j = i; /* re-check new segment against others */
+            } else {
+            /* rollback appended pointsets if not merged: simply ignore; harmless but can grow */
             }
         }
     }
@@ -283,28 +285,32 @@ void oe_merge_segments(const OE_Point* pts, const OE_Params* P, OE_Output* out){
 
 
 void oe_detect_circles(const OE_Point* pts, const OE_Params* P, OE_Output* out){
-    for(int si=0; si<out->num_segments; ++si){
-        OE_Segment* s=&out->segments[si];
+    for (int si=0; si<out->num_segments; ++si){
+        OE_Segment* s = &out->segments[si];
+        uint8_t ok_visible = 1;
         if (P->circles_from_visibles){
-            int vis=1; for(int k=0;k<s->ps_count;++k){ 
-                if(!out->point_sets[s->ps_begin+k].is_visible){ 
-                    vis=0; 
+            for (int k=0; k<s->ps_count; ++k){
+                const OE_PointSet* ps = &out->point_sets[s->ps_begin+k];
+                if (!ps->is_visible){ 
+                    ok_visible = 0; 
                     break; 
-                } 
-            }
-            if (!vis) continue;
-        }
-        OE_Point c; int32_t r;
-        if (!oe_fit_circle_kasa(pts, out->point_sets, s->ps_begin, s->ps_count, &c, &r)) continue;
-        int32_t enlarged = r + P->radius_enlargement;
-        if (enlarged < P->max_circle_radius){
-            OE_Circle Cc = { c, enlarged, r, s->ps_begin, s->ps_count };
-            oe_push_circle(out, Cc);
-            if (P->discard_converted_segments){
-                for(int m=si;m<out->num_segments-1;++m) {
-                    out->segments[m]=out->segments[m+1];
                 }
-                out->num_segments--; si--; /* stay */
+            }
+            if (!ok_visible) continue;
+        }
+        /* Fit circle over all contributing point sets */
+        OE_Point c; float r;
+        if (!oe_fit_circle_kasa(pts, out->point_sets, s->ps_begin, s->ps_count, &c, &r)) continue;
+        float enlarged = r + P->radius_enlargement;
+        if (enlarged < P->max_circle_radius){
+            OE_Circle C = { c, enlarged, r, s->ps_begin, s->ps_count };
+            oe_push_circle(out, C);
+            if (P->discard_converted_segments){
+                /* delete this segment */
+                for (int m=si; m<out->num_segments-1; ++m) {
+                    out->segments[m] = out->segments[m+1];
+                }
+                out->num_segments--; si--; /* stay at this index */
             }
         }
     }
@@ -312,40 +318,38 @@ void oe_detect_circles(const OE_Point* pts, const OE_Params* P, OE_Output* out){
 
 
 uint8_t oe_compare_circles(const OE_Circle* a, const OE_Circle* b, const OE_Params* P, OE_Circle* out_merged){
-    if (a==b) return 0;
-    int64_t dx=(int64_t)b->center.x - a->center.x;
-    int64_t dy=(int64_t)b->center.y - a->center.y;
-    double dist = sqrt((double)(dx*dx + dy*dy));
-    if ((b->radius - a->radius) >= dist){ 
+    if (a==b) return 0; // false 
+    OE_Point d = oe_sub(b->center, a->center);
+    float dist = oe_len(d);
+    /* containment */
+    if (b->radius - a->radius >= dist){ 
         *out_merged = *b; return 1; 
     }
-    if ((a->radius - b->radius) >= dist){ 
+    if (a->radius - b->radius >= dist){ 
         *out_merged = *a; return 1; 
     }
-    if ((a->radius + b->radius) >= dist){
-        double t = (double)a->radius / (a->radius + b->radius);
-        double cx = a->center.x + t * (double)dx;
-        double cy = a->center.y + t * (double)dy;
-        double rr = hypot((double)a->center.x - cx, (double)a->center.y - cy) + a->radius;
-        int32_t R = (int32_t)llround(rr + (a->radius > b->radius ? a->radius : b->radius));
-        if (R < P->max_circle_radius){ 
-            *out_merged = (OE_Circle){ {(int32_t)llround(cx),(int32_t)llround(cy)}, R, (int32_t)llround(rr), 0, 0 }; 
-            return 1; 
+    /* overlap -> merge, create circle whose center lies proportionally between centers */
+    if (a->radius + b->radius >= dist){
+        float t = (a->radius)/(a->radius + b->radius);
+        OE_Point center = oe_add(a->center, oe_scale(d, t));
+        float radius = oe_len(oe_sub(a->center, center)) + a->radius; /* as in ROS */
+        OE_Circle c = { center, radius + fmaxf(a->radius, b->radius), radius, 0, 0 };
+        if (c.radius < P->max_circle_radius){ 
+            *out_merged = c; return 1; 
         }
     }
     return 0;
 }
 
 void oe_merge_circles(const OE_Params* P, OE_Output* out){
-    for(int i=0;i<out->num_circles;++i){
-        for(int j=i+1;j<out->num_circles;++j){
-            OE_Circle m; 
-            if (oe_compare_circles(&out->circles[i], &out->circles[j], P, &m)){
-                out->circles[i]=m; 
-                for(int k=j;k<out->num_circles-1;++k) {
-                    out->circles[k]=out->circles[k+1]; 
+    for (int i=0; i<out->num_circles; ++i){
+        for (int j=i+1; j<out->num_circles; ++j){
+            OE_Circle m; if (oe_compare_circles(&out->circles[i], &out->circles[j], P, &m)){
+                out->circles[i] = m;
+                for (int k=j; k<out->num_circles-1; ++k) {
+                    out->circles[k] = out->circles[k+1];
                 }
-                out->num_circles--; j=i;
+                out->num_circles--; j = i; /* re-check */
             }
         }
     }
@@ -368,33 +372,16 @@ void oe_process_points(const OE_Point* pts, int n, const OE_Params* P, const OE_
     int wr = 0;
     for (int i=0; i<out->num_circles; ++i){
         OE_Circle c = out->circles[i];
-        OE_Point tc = apply_tf_q15(opt_tf, c.center);
-        if (tc.x > P->min_x_limit && tc.x < P->max_x_limit && tc.y > P->min_y_limit && tc.y < P->max_y_limit){
-            c.center = tc; 
-            out->circles[wr++] = c;
+        OE_Point tc = oe_rot_apply(opt_tf, c.center);
+        if (tc.x > P->min_x_limit && tc.x < P->max_x_limit &&
+            tc.y > P->min_y_limit && tc.y < P->max_y_limit){
+            c.center = tc; out->circles[wr++] = c;
         }
     }
     out->num_circles = wr;
 
     for (int i=0; i<out->num_segments; ++i){
-        out->segments[i].first_point = apply_tf_q15(opt_tf, out->segments[i].first_point);
-        out->segments[i].last_point = apply_tf_q15(opt_tf, out->segments[i].last_point);
+        out->segments[i].first_point = oe_rot_apply(opt_tf, out->segments[i].first_point);
+        out->segments[i].last_point = oe_rot_apply(opt_tf, out->segments[i].last_point);
     }
 }
-
-
-/* Precompute sin(2*dp) in Q15 from distance_proportion_ppm (approximate) */
-void ensure_sin2dp(OE_Params* P){
-    if (P->sin_2dp_q15!=0) return;
-    float dp = (float)P->distance_proportion / 1e6f; /* unitless */
-    float s = sinf(2.0f * dp);
-    int32_t q = (int32_t)(s * 32768.0f);
-    if (q==0) q = 1; /* avoid degenerate */
-    P->sin_2dp_q15 = q;
-}
-
-void seg_iepf_init(const OE_Point* pts, int b, int e, OE_Segment* s){ 
-    s->first_point=pts[b]; 
-    s->last_point=pts[e]; 
-}
-
