@@ -9,7 +9,11 @@
 
 //* ----------- Data structures ----------- */
 typedef struct { 
-    float x, y; 
+    int x;
+    int y;
+
+    uint16_t distance_mm;
+    uint8_t intensity;
 } OE_Point;
 
 /* A contiguous subset of the input points */
@@ -33,8 +37,8 @@ typedef struct {
 /* Circle obstacle */
 typedef struct {
     OE_Point center;
-    float radius; /* enlarged radius (used for collision) */
-    float true_radius; /* fitted radius before enlargement */
+    int32_t radius; /* enlarged radius (used for collision) */
+    int32_t true_radius; /* fitted radius before enlargement */
     int ps_begin; /* contributing point sets */
     int ps_count;
 } OE_Circle;
@@ -45,7 +49,9 @@ typedef struct {
     uint8_t enabled; /* if true, apply to segments and circles */
     float cos_th; /* cos(theta) */
     float sin_th; /* sin(theta) */
-    float tx, ty; /* translation */
+    int32_t cos_q15; /* cos(theta) in Q15 */
+    int32_t sin_q15; /* sin(theta) in Q15 */
+    int tx, ty; /* translation */
 } OE_Transform;
 
 
@@ -55,20 +61,22 @@ typedef struct {
     uint8_t circles_from_visibles; /* only visible point sets */
     uint8_t discard_converted_segments;/* erase segment if converted to circle */
 
-    int min_group_points; /* minimum points to form a set */
+    uint16_t min_group_points; /* minimum points to form a set */
 
-    float max_group_distance; /* base threshold [m] */
-    float distance_proportion; /* grows with range */
-    float max_split_distance; /* IEPF splitting threshold */
-    float max_merge_separation; /* segment endpoint proximity */
-    float max_merge_spread; /* collinearity tolerance */
+    int max_group_distance; /* base threshold [mm] */
+    int distance_proportion; /* grows with range */
+    int max_split_distance; /* IEPF splitting threshold */
+    int max_merge_separation; /* segment endpoint proximity */
+    int max_merge_spread; /* collinearity tolerance */
 
-    float max_circle_radius; /* discard circles larger than this */
-    float radius_enlargement; /* inflate fitted radius */
+    int max_circle_radius; /* discard circles larger than this */
+    int radius_enlargement; /* inflate fitted radius */
 
     /* Output XY limits for circles */
-    float min_x_limit, max_x_limit;
-    float min_y_limit, max_y_limit;
+    int min_x_limit, max_x_limit; // [mm]
+    int min_y_limit, max_y_limit;
+
+    int32_t sin_2dp_q15; /* = sin(2*distance_proportion) * 32768 (computed on first call if 0) */
 } OE_Params;
 
 /* Output buffers and counters */
@@ -82,6 +90,30 @@ typedef struct {
     OE_Circle circles[OE_MAX_CIRCLES];
     int num_circles;
 } OE_Output;
+
+/* ---- integer helpers ---- */
+static inline int64_t sqi64(int32_t v){ 
+    return (int64_t)v*(int64_t)v; 
+}
+static inline int32_t clamp32(int64_t v){ 
+    if(v>INT32_MAX) return INT32_MAX; 
+    if(v<INT32_MIN) return INT32_MIN; 
+    return (int32_t)v; 
+}
+static inline int32_t isqrt32(int64_t a){ /* integer sqrt for non‑negative a up to ~1e15 */
+    if (a <= 0) return 0; 
+    int64_t x=a; 
+    int64_t r=0; 
+    int i; 
+    for(i=0;i<31;i++){ 
+        r = (r + x/r)/2; 
+        if (r==0) { 
+            r = (int32_t)sqrt((double)a); break; 
+        } 
+    }
+    return (int32_t)(r? r : (int32_t)sqrt((double)a));
+}
+
 
 /* ---- small helpers ---- */
 static inline float oe_dot(OE_Point a, OE_Point b){ 
@@ -106,11 +138,20 @@ static inline float oe_crossz(OE_Point a, OE_Point b){
     return a.x*b.y - a.y*b.x; 
 }
 static inline OE_Point oe_rot_apply(const OE_Transform* tf, OE_Point p){
-if (!tf || !tf->enabled) return p;
-OE_Point r = { tf->cos_th*p.x - tf->sin_th*p.y + tf->tx,
-tf->sin_th*p.x + tf->cos_th*p.y + tf->ty };
-return r;
+    if (!tf || !tf->enabled) return p;
+    OE_Point r = { tf->cos_th*p.x - tf->sin_th*p.y + tf->tx,
+    tf->sin_th*p.x + tf->cos_th*p.y + tf->ty };
+    return r;
 }
+
+/* Rotate point with Q15 cos/sin */
+static inline OE_Point apply_tf_q15(const OE_Transform* tf, OE_Point p){
+    if (!tf || !tf->enabled) return p;
+    int64_t cx = (int64_t)tf->cos_q15, sx = (int64_t)tf->sin_q15;
+    int64_t x = ((cx * p.x - sx * p.y) >> 15) + tf->tx;
+    int64_t y = ((sx * p.x + cx * p.y) >> 15) + tf->ty;
+    OE_Point r = { clamp32(x), clamp32(y) }; return r;
+    }
 
 static inline void oe_reset_output(OE_Output* out) {
     out->num_point_sets = 0;
@@ -119,10 +160,10 @@ static inline void oe_reset_output(OE_Output* out) {
 }
 
 OE_Params oe_default_params(void);
-float oe_point_to_segment_dist(OE_Point a, OE_Point b, OE_Point p);
+int32_t oe_point_to_segment_dist(OE_Point a, OE_Point b, OE_Point p);
 void oe_iepf_fit_segment(const OE_Point* pts, int b, int e, OE_Segment* seg);
-float oe_point_to_line_dist(OE_Point a, OE_Point b, OE_Point p);
-uint8_t oe_fit_circle_kasa(const OE_Point* pts, const OE_PointSet* psets, int ps_begin, int ps_count, OE_Point* center, float* radius);
+int32_t oe_point_to_line_dist(OE_Point a, OE_Point b, OE_Point p);
+uint8_t oe_fit_circle_kasa(const OE_Point* pts, const OE_PointSet* psets, int ps_begin, int ps_count, OE_Point* center, int32_t* radius);
 int oe_push_pointset(OE_Output* out, OE_PointSet ps);
 int oe_push_segment(OE_Output* out, OE_Segment s);
 int oe_push_circle(OE_Output* out, OE_Circle c);
@@ -137,8 +178,7 @@ void oe_detect_circles(const OE_Point* pts, const OE_Params* P, OE_Output* out);
 uint8_t oe_compare_circles(const OE_Circle* a, const OE_Circle* b, const OE_Params* P, OE_Circle* out_merged);
 void oe_merge_circles(const OE_Params* P, OE_Output* out);
 void oe_process_points(const OE_Point* pts, int n, const OE_Params* P, const OE_Transform* opt_tf, OE_Output* out);
-
-
-
+void ensure_sin2dp(OE_Params* P);
+void seg_iepf_init(const OE_Point* pts, int b, int e, OE_Segment* s);
 
 #endif // OBSTACLE_EXTRACTOR_H
