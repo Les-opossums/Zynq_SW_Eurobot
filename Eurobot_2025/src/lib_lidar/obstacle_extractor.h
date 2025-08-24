@@ -121,27 +121,190 @@ static inline void oe_reset_output(OE_Output* out) {
     out->num_circles = 0;
 }
 
+/**
+ * @brief Get the default parameters for the obstacle extractor.
+ * 
+ * @return OE_Params 
+ */
 OE_Params oe_default_params(void);
+
+/**
+ * @brief Distance from point to line segment AB (true distance along segment hull)
+ * 
+ * @param a Start point of the segment
+ * @param b End point of the segment
+ * @param p Point to measure distance from
+ * @return float Distance from point to segment
+ */
 float oe_point_to_segment_dist(OE_Point a, OE_Point b, OE_Point p);
+
+/**
+ * @brief Fit a line segment to a set of points using the Iterative Endpoint Fitting (IEPF) algorithm.
+ * 
+ * @param pts Array of points
+ * @param b Start index of the point set
+ * @param e End index of the point set
+ * @param seg Output segment
+ */
 void oe_iepf_fit_segment(const OE_Point* pts, int b, int e, OE_Segment* seg);
+
+/**
+ * @brief Distance from point to line AB (true distance along line)
+ * 
+ * @param a Start point of the line
+ * @param b End point of the line
+ * @param p Point to measure distance from
+ * @return float Distance from point to line
+ */
 float oe_point_to_line_dist(OE_Point a, OE_Point b, OE_Point p);
+
+/**
+ * @brief Fit a circle to a set of points using the Kasa method.
+ * 
+ * @param pts Array of points
+ * @param psets Pointer to the point sets
+ * @param ps_begin Start index of the point set
+ * @param ps_count Number of point sets
+ * @param center Output center point of the circle
+ * @param radius Output radius of the circle
+ * @return uint8_t 
+ */
 uint8_t oe_fit_circle_kasa(const OE_Point* pts, const OE_PointSet* psets, int ps_begin, int ps_count, OE_Point* center, float* radius);
+
+/**
+ * @brief Push a point set to the output.
+ * 
+ * @param out Pointer to the output structure
+ * @param ps Point set to push
+ * @return int Status code
+ */
 int oe_push_pointset(OE_Output* out, OE_PointSet ps);
+
+/**
+ * @brief Push a segment to the output.
+ * 
+ * @param out Pointer to the output structure
+ * @param s Segment to push
+ * @return int Status code
+ */
 int oe_push_segment(OE_Output* out, OE_Segment s);
+
+/**
+ * @brief Push a circle to the output.
+ * 
+ * @param out Pointer to the output structure
+ * @param c Circle to push
+ * @return int Status code
+ */
 int oe_push_circle(OE_Output* out, OE_Circle c);
+
+/**
+ * @brief Group points into clusters.
+ * 
+ * @param pts Array of points
+ * @param n Number of points
+ * @param P Pointer to the parameters
+ * @param out Pointer to the output structure
+ */
 void oe_group_points(const OE_Point* pts, int n, const OE_Params* P, OE_Output* out);
+
+/**
+ * @brief Detect segments in a set of points.
+ * 
+ * @param pts Array of points
+ * @param P Pointer to the parameters
+ * @param out Pointer to the output structure
+ * @param ps Point set to process
+ */
 void oe_detect_segments_rec(const OE_Point* pts, const OE_Params* P, OE_Output* out, OE_PointSet ps);
+
+/**
+ * @brief Detect segments in a set of points.
+ * 
+ * @param pts Array of points
+ * @param P Pointer to the parameters
+ * @param out Pointer to the output structure
+ */
 void oe_detect_segments(const OE_Point* pts, const OE_Params* P, OE_Output* out);
+
+/**
+ * @brief Check if two segments are close to each other.
+ * 
+ * @param a Pointer to the first segment
+ * @param b Pointer to the second segment
+ * @param P Pointer to the parameters
+ * @return uint8_t 1 if close, 0 otherwise
+ */
 uint8_t oe_segments_prox(const OE_Segment* a, const OE_Segment* b, const OE_Params* P);
+
+/**
+ * @brief Check if two segments are collinear.
+ * 
+ * @param merged Output merged segment
+ * @param s1 Pointer to the first segment
+ * @param s2 Pointer to the second segment
+ * @param P Pointer to the parameters
+ * @return uint8_t 1 if collinear, 0 otherwise
+ */
 uint8_t oe_segments_collinear(OE_Segment merged, const OE_Segment* s1, const OE_Segment* s2, const OE_Params* P);
+
+/**
+ * @brief Fit a segment to a set of points.
+ * 
+ * @param pts Array of points
+ * @param psets Pointer to the point sets
+ * @param ps_begin Start index of the point set
+ * @param ps_count Number of point sets
+ * @return OE_Segment  Fitted segment
+ */
 OE_Segment oe_fit_segment_over_ps(const OE_Point* pts, const OE_PointSet* psets, int ps_begin, int ps_count);
+
+/**
+ * @brief merge segments
+ * 
+ * @param pts Array of points
+ * @param P Pointer to the parameters
+ * @param out Pointer to the output structure
+ */
 void oe_merge_segments(const OE_Point* pts, const OE_Params* P, OE_Output* out);
+
+/**
+ * @brief detect circles
+ * 
+ * @param pts Array of points
+ * @param P Pointer to the parameters
+ * @param out Pointer to the output structure
+ */
 void oe_detect_circles(const OE_Point* pts, const OE_Params* P, OE_Output* out);
+
+/**
+ * @brief Compare two circles.
+ * 
+ * @param a Pointer to the first circle
+ * @param b Pointer to the second circle
+ * @param P Pointer to the parameters
+ * @param out_merged Pointer to the output merged circle
+ * @return uint8_t 1 if merged, 0 otherwise
+ */
 uint8_t oe_compare_circles(const OE_Circle* a, const OE_Circle* b, const OE_Params* P, OE_Circle* out_merged);
+
+/**
+ * @brief Merge circles.
+ * 
+ * @param P Pointer to the parameters
+ * @param out Pointer to the output structure
+ */
 void oe_merge_circles(const OE_Params* P, OE_Output* out);
+
+/**
+ * @brief principal processing function
+ * 
+ * @param pts Array of points
+ * @param n Number of points
+ * @param P Pointer to the parameters
+ * @param opt_tf Pointer to the optional transformation
+ * @param out Pointer to the output structure
+ */
 void oe_process_points(const OE_Point* pts, int n, const OE_Params* P, const OE_Transform* opt_tf, OE_Output* out);
-
-
-
 
 #endif // OBSTACLE_EXTRACTOR_H
