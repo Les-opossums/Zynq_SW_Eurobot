@@ -2,6 +2,7 @@
 #include "ld19crc.h"
 
 
+
 void LD19_init(LD19Instance *self) {
     // Tout mettre à zéro par défaut
     memset(self, 0, sizeof(LD19Instance));
