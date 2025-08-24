@@ -329,7 +329,7 @@ void LD19_print_obstacle(const LD19Instance* ld) {
         printf("Pas de points dans le scan.\n");
         return;
     } else {
-        printf("Nbrpoints: %d\n", n);
+        // printf("Nbrpoints: %d\n", n);
     }
 
     OE_Params p = oe_default_params();
@@ -355,12 +355,13 @@ void LD19_print_obstacle(const LD19Instance* ld) {
     // }
 
     // Cercles détectés
-    // printf("==== Cercles (%d) ====\n", out.num_circles);
-    for (int i = 0; i < out.num_circles; i++) {
-        OE_Circle* c = &out.circles[i];
-        // convert to mm
-        c->center.x *= 1000.0f;
-        c->center.y *= 1000.0f;
-        printf(">circle:%d:%d|xy,clr\n", (int)c->center.x, (int)c->center.y);
+    printf("==== Cercles (%d) ====\n", out.num_circles);    
+    if(out.num_circles>0){
+        printf(">circle:");
+        for (int i = 0; i < out.num_circles; i++) {
+            OE_Circle* c = &out.circles[i];
+            printf("%d:%d;", (int)c->center.x, (int)c->center.y);
+        }
+        printf("|xy\n");
     }
 }
