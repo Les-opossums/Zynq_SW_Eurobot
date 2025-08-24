@@ -7,7 +7,7 @@ OE_Params oe_default_params(void) {
     p.discard_converted_segments = 1;
 
 
-    p.min_group_points = 10;
+    p.min_group_points = 15;
     p.max_group_distance = 0.15f; 
     p.distance_proportion = 0.006f; /* ≈ 2*pi / 1000 */
     p.max_split_distance = 0.08f;
@@ -72,7 +72,7 @@ uint8_t oe_fit_circle_kasa(const OE_Point* pts, const OE_PointSet* psets, int ps
     int N = 0;
     for (int k=0; k < ps_count; ++k){
         const OE_PointSet* ps = &psets[ps_begin+k];
-        for (int i=ps->begin_idx+2; i<=ps->end_idx-2; ++i){
+        for (int i=ps->begin_idx + 5; i<=ps->end_idx - 5; ++i){
             float x = pts[i].x, y = pts[i].y;
             double z = (double)x*(double)x + (double)y*(double)y; // r^2
             Sx += x; 
