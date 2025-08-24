@@ -17,7 +17,7 @@ void LD19_init(LD19Instance *self) {
 
     self->threshold = 0;      // seuil 0
     self->minDist = 0;       // distance min 0 mm
-    self->maxDist = 1000;    // distance max 12 m
+    self->maxDist = 500;    // distance max 12 m
     self->minAngle = 0;       // angle min 0°
     self->maxAngle = 360;   // angle max 360°
 
@@ -302,10 +302,9 @@ uint8_t LD19_isChecksumFail(LD19Instance *self) {
     return isFail;
 }
 
-void LD19_to_oe_points(const LD19Instance* ld, OE_Point* out_pts,int* out_n) {
+void LD19_to_oe_points(const LD19Instance* ld, OE_Point* out_pts, int* out_n) {
     const LD19DataPointHandler* scan = ld->previousScan;
     int n = scan->index;  // nombre de points valides
-    if (n > LD19_MAX_PTS_SCAN) n = LD19_MAX_PTS_SCAN;
 
     for (int i = 0; i < n; i++) {
         const LD19DataPoint* p = &scan->points[i];
@@ -329,42 +328,40 @@ void LD19_print_obstacle(const LD19Instance* ld) {
         printf("Pas de points dans le scan.\n");
         return;
     } else {
-        printf("Nombre de points dans le scan: %d\n", n);
+        // printf("Nombre de points dans le scan: %d\n", n);
     }
 
     OE_Params p = oe_default_params();
     OE_Output out;
     oe_reset_output(&out);
 
-    OE_Transform tf = { .enabled=0 }; // pas de transform pour l’instant
+    OE_Transform tf = { .enabled = 0 }; // pas de transform pour l’instant
     oe_process_points(pts, n, &p, &tf, &out);
 
     // Segments détectés
     // printf("==== Segments (%d) ====\n", out.num_segments);
-    // for (int i = 0; i < out.num_segments; i++) {
-    //     OE_Segment* s = &out.segments[i];
-    //     // convert to mm
-    //     s->first_point.x *= 1000.0f;
-    //     s->first_point.y *= 1000.0f;
-    //     s->last_point.x *= 1000.0f;
-    //     s->last_point.y *= 1000.0f;
-    //     printf(">seg_start:%d:%d|xy,clr\n",
-    //            (int)s->first_point.x, (int)s->first_point.y);
-    //     printf(">seg_end:%d:%d|xy,clr\n",
-    //            (int)s->last_point.x, (int)s->last_point.y);
-    // }
+    for (int i = 0; i < out.num_segments; i++) {
+        OE_Segment* s = &out.segments[i];
+        // convert to mm
+        s->first_point.x *= 1000.0f;
+        s->first_point.y *= 1000.0f;
+        s->last_point.x *= 1000.0f;
+        s->last_point.y *= 1000.0f;
+        printf(">seg_start:%d:%d|xy,clr\n",
+               (int)s->first_point.x, (int)s->first_point.y);
+        printf(">seg_end:%d:%d|xy,clr\n",
+               (int)s->last_point.x, (int)s->last_point.y);
+    }
 
     // Cercles détectés
-    printf("==== Cercles (%d) ====\n", out.num_circles);    
+    // printf("==== Cercles (%d) ====\n", out.num_circles);    
     if(out.num_circles>0){
-        printf(">circle:");
         for (int i = 0; i < out.num_circles; i++) {
             OE_Circle* c = &out.circles[i];
             // convert to mm
             c->center.x *= 1000.0f;
             c->center.y *= 1000.0f;
-            printf("%d:%d;", (int)c->center.x, (int)c->center.y);
+            printf(">circle:%d:%d|xy,clr\n", (int)c->center.x, (int)c->center.y);
         }
-        printf("|xy\n");
     }
 }

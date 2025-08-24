@@ -106,9 +106,12 @@ static inline float oe_crossz(OE_Point a, OE_Point b){
     return a.x*b.y - a.y*b.x; 
 }
 static inline OE_Point oe_rot_apply(const OE_Transform* tf, OE_Point p){
-    if (!tf || !tf->enabled) return p;
-    OE_Point r = { tf->cos_th*p.x - tf->sin_th*p.y + tf->tx,
-    tf->sin_th*p.x + tf->cos_th*p.y + tf->ty };
+    if (!tf || !tf->enabled) return p; // if transform is not enabled
+    
+    OE_Point r = { 
+        tf->cos_th*p.x - tf->sin_th*p.y + tf->tx,
+        tf->sin_th*p.x + tf->cos_th*p.y + tf->ty 
+    };
     return r;
 }
 

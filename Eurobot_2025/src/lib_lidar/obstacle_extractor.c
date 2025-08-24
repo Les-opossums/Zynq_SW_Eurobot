@@ -7,15 +7,15 @@ OE_Params oe_default_params(void) {
     p.discard_converted_segments = 1;
 
 
-    p.min_group_points = 5;
+    p.min_group_points = 10;
     p.max_group_distance = 0.15f; 
-    p.distance_proportion = 0.012f; /* ≈ 2*pi / 500 */
-    p.max_split_distance = 0.15f;
-    p.max_merge_separation = 0.15f;
+    p.distance_proportion = 0.006f; /* ≈ 2*pi / 1000 */
+    p.max_split_distance = 0.08f;
+    p.max_merge_separation = 0.08f;
     p.max_merge_spread = 0.10f;
 
 
-    p.max_circle_radius = 0.2f;
+    p.max_circle_radius = 1.0f;
     p.radius_enlargement = 0.02f;
 
 
@@ -72,7 +72,7 @@ uint8_t oe_fit_circle_kasa(const OE_Point* pts, const OE_PointSet* psets, int ps
     int N = 0;
     for (int k=0; k < ps_count; ++k){
         const OE_PointSet* ps = &psets[ps_begin+k];
-        for (int i=ps->begin_idx; i<=ps->end_idx; ++i){
+        for (int i=ps->begin_idx+2; i<=ps->end_idx-2; ++i){
             float x = pts[i].x, y = pts[i].y;
             double z = (double)x*(double)x + (double)y*(double)y; // r^2
             Sx += x; 
@@ -107,7 +107,7 @@ uint8_t oe_fit_circle_kasa(const OE_Point* pts, const OE_PointSet* psets, int ps
 
 
     double A = Dx/D, B = Dy/D, C = Dc/D;
-    double cx = -A*0.5, cy = -B*0.5;
+    double cx = A*0.5, cy = B*0.5;
     double r2 = cx*cx + cy*cy - C;
     if (r2 <= 0.0) return 0;
 
@@ -182,7 +182,8 @@ void oe_group_points(const OE_Point* pts, int n, const OE_Params* P, OE_Output* 
 void oe_detect_segments_rec(const OE_Point* pts, const OE_Params* P, OE_Output* out, OE_PointSet ps){
     if (ps.num_points < P->min_group_points) return;
 
-    OE_Segment s; oe_iepf_fit_segment(pts, ps.begin_idx, ps.end_idx, &s);
+    OE_Segment s; 
+    oe_iepf_fit_segment(pts, ps.begin_idx, ps.end_idx, &s);
 
     /* find split point using distance to infinite line */
     float maxd = 0.0f; int split_idx = -1; int idx = 0;
@@ -383,9 +384,9 @@ void oe_process_points(const OE_Point* pts, int n, const OE_Params* P, const OE_
     for (int i=0; i<out->num_circles; ++i){
         OE_Circle c = out->circles[i];
         OE_Point tc = oe_rot_apply(opt_tf, c.center);
-        if (tc.x > P->min_x_limit && tc.x < P->max_x_limit &&
-            tc.y > P->min_y_limit && tc.y < P->max_y_limit){
-            c.center = tc; out->circles[wr++] = c;
+        if (tc.x > P->min_x_limit && tc.x < P->max_x_limit && tc.y > P->min_y_limit && tc.y < P->max_y_limit){
+            c.center = tc; 
+            out->circles[wr++] = c;
         }
     }
     out->num_circles = wr;
