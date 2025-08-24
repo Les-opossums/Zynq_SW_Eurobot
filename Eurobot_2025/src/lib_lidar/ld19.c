@@ -12,18 +12,18 @@ void LD19_init(LD19Instance *self) {
     // Valeurs par défaut des settings
     self->useCRC = 1;         // activer CRC par défaut
     self->fullScan = 1;       // utiliser un scan complet
-    self->useFiltering = 0;   // filtrage activé
+    self->useFiltering = 1;   // filtrage activé
     self->upsideDown = 0;     // pas inversé
 
     self->threshold = 0;      // seuil 0
     self->minDist = 0;       // distance min 0 mm
-    self->maxDist = 12000;    // distance max 12 m
+    self->maxDist = 1000;    // distance max 12 m
     self->minAngle = 0;       // angle min 0°
     self->maxAngle = 360;   // angle max 360°
 
     self->xOffset = 0;
     self->yOffset = 0;
-    self->angularOffset = 0.0f;
+    self->angularOffset = 0.0f; 
 
     self->xPosition = 0;    
     self->yPosition = 0;
