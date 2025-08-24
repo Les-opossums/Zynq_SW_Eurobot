@@ -7,16 +7,16 @@ OE_Params oe_default_params(void) {
     p.discard_converted_segments = 1;
 
 
-    p.min_group_points = 3;
-    p.max_group_distance = 0.08f; 
+    p.min_group_points = 5;
+    p.max_group_distance = 0.15f; 
     p.distance_proportion = 0.00628f; /* ≈ 2*pi / 1000 */
     p.max_split_distance = 0.15f;
     p.max_merge_separation = 0.15f;
     p.max_merge_spread = 0.10f;
 
 
-    p.max_circle_radius = 0.30f;
-    p.radius_enlargement = 0.10f;
+    p.max_circle_radius = 1.0f;
+    p.radius_enlargement = 0.02f;
 
 
     p.min_x_limit = -3.0f; p.max_x_limit = 3.0f;
@@ -62,7 +62,6 @@ float oe_point_to_line_dist(OE_Point a, OE_Point b, OE_Point p){
 
 /* Fit a circle with the algebraic Kåsa method. Returns false if ill-conditioned. */
 uint8_t oe_fit_circle_kasa(const OE_Point* pts, const OE_PointSet* psets, int ps_begin, int ps_count, OE_Point* center, float* radius){
-    printf("Fitting circle using Kasa method...\n");
     double Sx=0, Sy=0, Sxx=0, Syy=0, Sxy=0, Szzz=0, Sxxp=0, Syyp=0; /* (
     The classic linear system for x^2 + y^2 + Ax + By + C = 0 is:
     [Sxx Sxy Sx] [A] = [Sx(x^2+y^2)]
@@ -372,8 +371,8 @@ void oe_process_points(const OE_Point* pts, int n, const OE_Params* P, const OE_
     /* stage 1: grouping */
     oe_group_points(pts, n, P, out);
     /* stage 2: segments (split & merge + merging) */
-    // oe_detect_segments(pts, P, out);
-    // oe_merge_segments(pts, P, out);
+    oe_detect_segments(pts, P, out);
+    oe_merge_segments(pts, P, out);
     /* stage 3: circles (fit + merge) */
     oe_detect_circles(pts, P, out);
     oe_merge_circles(P, out);
@@ -391,8 +390,8 @@ void oe_process_points(const OE_Point* pts, int n, const OE_Params* P, const OE_
     }
     out->num_circles = wr;
 
-    // for (int i=0; i<out->num_segments; ++i){
-    //     out->segments[i].first_point = oe_rot_apply(opt_tf, out->segments[i].first_point);
-    //     out->segments[i].last_point = oe_rot_apply(opt_tf, out->segments[i].last_point);
-    // }
+    for (int i=0; i<out->num_segments; ++i){
+        out->segments[i].first_point = oe_rot_apply(opt_tf, out->segments[i].first_point);
+        out->segments[i].last_point = oe_rot_apply(opt_tf, out->segments[i].last_point);
+    }
 }
