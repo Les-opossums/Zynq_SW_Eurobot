@@ -59,5 +59,6 @@
 
 #include "lib_lidar/ld19.h"
 #include "lib_lidar/obstacle_extractor.h"
+#include "lib_lidar/obstacle_tracker.h"
 
 #endif // MAIN_H
