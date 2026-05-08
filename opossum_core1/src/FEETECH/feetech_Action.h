@@ -1,7 +1,7 @@
 #ifndef FEETECH_ACTION_H
 #define FEETECH_ACTION_H
 
-#define DEBUG_FEETECH_ACTION
+// #define DEBUG_FEETECH_ACTION
 
 #define NBR_PINCES 8
 
@@ -39,7 +39,7 @@ uint8_t  stall_count;
 #define STALL_DELTA_THRESHOLD   8    // moins de 8 ticks de mouvement = stall
 #define STALL_CYCLES_NEEDED     5    // 5 cycles consécutifs immobiles
 #define OVERREACH_MARGIN        150  // si pos > cible-100, considéré "arrivé librement"
-#define OVERSHOOT_MARGIN        50 // En ticks (à ajuster selon l'enfoncement voulu dans le sol)
+#define OVERSHOOT_MARGIN        150 // En ticks (à ajuster selon l'enfoncement voulu dans le sol)
 
 
 #define VALVE_ON 1

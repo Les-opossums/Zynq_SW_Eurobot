@@ -273,25 +273,35 @@ void pince_action_loop(Pince_t *pince){
             if(pince->action_done){
                 pince->action_done = 0;
 
-                if(ABS_DIFF(pince->gros_pos.current_position, pince->gros_pos.last_position) < 50){
+                // Tolérance réduite à 15 (au lieu de 50) pour s'assurer qu'on est vraiment au bout de l'overshoot
+                if(ABS_DIFF(pince->gros_pos.current_position, pince->gros_pos.last_position) < 15){
                     #ifdef DEBUG_FEETECH_ACTION
                         printf("pince %d : Cible overshoot atteinte librement, pas de palet (pos=%d)\n",
                             pince->id, pince->gros_pos.current_position);
                     #endif
-                    // *** RESET OBLIGATOIRE : sample_idx vaut encore NBR_VALUES_FOR_MEAN après le baseline ***
-                    pince->sample_idx = 0;
-                    pince->buffer_full = 0;
-                    for(int i = 0; i < NBR_VALUES_FOR_MEAN; i++){
-                        pince->pump_left.samples[i]  = 0;
-                        pince->pump_right.samples[i] = 0;
-                    }
-                    pince->action_step = 18;
+                    
+                    // === ABANDON RAPIDE (Gain de temps) ===
+                    // 1. Éteindre les pompes
+                    PutFEETECH(pince->id_pump, PUMP_CMD_1, PUMP_OFF);
+                    PutFEETECH(pince->id_pump, PUMP_CMD_2, PUMP_OFF);
+                    // 2. Casser le vide
+                    PutFEETECH(pince->id_pump, VALVE_CMD_1, VALVE_ON);
+                    PutFEETECH(pince->id_pump, VALVE_CMD_2, VALVE_ON);
+                    
+                    // 3. Forcer l'échec
+                    pince->succes_left = 0;
+                    pince->succes_right = 0;
+                    
+                    // 4. Passer directement à l'étape de remontée (skip l'analyse des pompes)
+                    pince->action_step = 20;
                 } else {
                     pince->action_step = 162;
                 }
 
                 if(Timer_ms1 - pince->gros_pos.cmd_timer >= 3000){
-                    printf("pince %d : Timeout descente (pos=%d)\n", pince->id, pince->gros_pos.current_position);
+                    #ifdef DEBUG_FEETECH_ACTION
+                        printf("pince %d : Timeout descente (pos=%d)\n", pince->id, pince->gros_pos.current_position);
+                    #endif
                     pince->action_step = 500;
                 }
             }
@@ -1377,8 +1387,8 @@ uint8_t pince_action_debug_cmd(void){
     if (Get_Param_u32(&val_2))
         return PARAM_ERROR_CODE;
 
-    Pince_t *pince_0 = &robot_pinces[6];
-    Pince_t *pince_1 = &robot_pinces[7];
+    Pince_t *pince_0 = &robot_pinces[2];
+    Pince_t *pince_1 = &robot_pinces[3];
     
     if (val_1 == 0){
         pince_0->current_command = CMD_RAMASSER_ALL;
