@@ -342,7 +342,7 @@ void pince_action_loop(Pince_t *pince){
             pince->action_step = 19;
             break;
 
-        case 19: // Acquisition et Décision (Analyse par Pic Maximum ET Minimum)
+        case 19: // Acquisition et Décision (Analyse par Moyenne Glissante)
             if(pince->action_done){
                 pince->action_done = 0;
                 
@@ -364,48 +364,34 @@ void pince_action_loop(Pince_t *pince){
                 } 
                 // 3. Buffer plein : on prend la décision
                 else {
-                    uint16_t max_left  = 0,      min_left  = 0xFFFF;
-                    uint16_t max_right = 0,      min_right = 0xFFFF;
-                    
-                    // Chercher MAX ET MIN pour chaque côté
-                    // (certaines pompes chutent en courant quand le vide est formé,
-                    //  d'autres montent — on capture les deux comportements)
+                    uint32_t sum_gauche = 0;
+                    uint32_t sum_droite = 0;
+
+                    // Calcul de la somme pour la moyenne
                     for(int i = 0; i < NBR_VALUES_FOR_MEAN; i++){
-                        if(pince->pump_left.samples[i]  > max_left)  max_left  = pince->pump_left.samples[i];
-                        if(pince->pump_left.samples[i]  < min_left)  min_left  = pince->pump_left.samples[i];
-                        if(pince->pump_right.samples[i] > max_right) max_right = pince->pump_right.samples[i];
-                        if(pince->pump_right.samples[i] < min_right) min_right = pince->pump_right.samples[i];
+                        sum_gauche += pince->pump_left.samples[i];
+                        sum_droite += pince->pump_right.samples[i];
                     }
 
-                    // Delta = la plus grande déviation dans un sens ou dans l'autre
+                    // Calcul de la moyenne
+                    uint32_t mean_gauche = sum_gauche / NBR_VALUES_FOR_MEAN;
+                    uint32_t mean_droite = sum_droite / NBR_VALUES_FOR_MEAN;
+
                     uint32_t delta_pct_l = 0;
-                    if(max_left > pince->pump_left.baseline_current){
-                        uint32_t d = ((uint32_t)(max_left - pince->pump_left.baseline_current) * 100)
-                                    / (pince->pump_left.baseline_current + 1);
-                        if(d > delta_pct_l) delta_pct_l = d;
-                    }
-                    if(min_left < pince->pump_left.baseline_current){
-                        uint32_t d = ((uint32_t)(pince->pump_left.baseline_current - min_left) * 100)
-                                    / (pince->pump_left.baseline_current + 1);
-                        if(d > delta_pct_l) delta_pct_l = d;
-                    }
-
                     uint32_t delta_pct_r = 0;
-                    if(max_right > pince->pump_right.baseline_current){
-                        uint32_t d = ((uint32_t)(max_right - pince->pump_right.baseline_current) * 100)
-                                    / (pince->pump_right.baseline_current + 1);
-                        if(d > delta_pct_r) delta_pct_r = d;
+
+                    // Calcul du pourcentage de déviation par rapport à la baseline
+                    if (pince->pump_left.baseline_current > 0) {
+                        delta_pct_l = (ABS_DIFF(mean_gauche, pince->pump_left.baseline_current) * 100) / pince->pump_left.baseline_current;
                     }
-                    if(min_right < pince->pump_right.baseline_current){
-                        uint32_t d = ((uint32_t)(pince->pump_right.baseline_current - min_right) * 100)
-                                    / (pince->pump_right.baseline_current + 1);
-                        if(d > delta_pct_r) delta_pct_r = d;
+                    if (pince->pump_right.baseline_current > 0) {
+                        delta_pct_r = (ABS_DIFF(mean_droite, pince->pump_right.baseline_current) * 100) / pince->pump_right.baseline_current;
                     }
 
                     pince->succes_left  = 0;
                     pince->succes_right = 0;
 
-                    // Validation du succès par rapport au seuil
+                    // Validation du succès par rapport au seuil défini dans .h
                     if(pince->current_command == CMD_RAMASSER_G || pince->current_command == CMD_RAMASSER_ALL){
                         pince->succes_left  = (delta_pct_l >= CURRENT_RATIO_CATCH_PCT);
                     }
@@ -428,10 +414,10 @@ void pince_action_loop(Pince_t *pince){
                     }
 
                     #ifdef DEBUG_FEETECH_ACTION
-                        printf("pince %d : G max=%d min=%d baseline=%d delta=%d%% -> Succes:%d | D max=%d min=%d baseline=%d delta=%d%% -> Succes:%d\n",
+                        printf("pince %d : G mean=%d baseline=%d delta=%d%% -> Succes:%d | D mean=%d baseline=%d delta=%d%% -> Succes:%d\n",
                             pince->id,
-                            max_left,  min_left,  pince->pump_left.baseline_current,  (int)delta_pct_l, pince->succes_left,
-                            max_right, min_right, pince->pump_right.baseline_current, (int)delta_pct_r, pince->succes_right);
+                            (int)mean_gauche, pince->pump_left.baseline_current,  (int)delta_pct_l, pince->succes_left,
+                            (int)mean_droite, pince->pump_right.baseline_current, (int)delta_pct_r, pince->succes_right);
                     #endif
 
                     // 4. On passe à la remontée
@@ -1391,8 +1377,8 @@ uint8_t pince_action_debug_cmd(void){
     if (Get_Param_u32(&val_2))
         return PARAM_ERROR_CODE;
 
-    Pince_t *pince_0 = &robot_pinces[0];
-    Pince_t *pince_1 = &robot_pinces[1];
+    Pince_t *pince_0 = &robot_pinces[6];
+    Pince_t *pince_1 = &robot_pinces[7];
     
     if (val_1 == 0){
         pince_0->current_command = CMD_RAMASSER_ALL;
