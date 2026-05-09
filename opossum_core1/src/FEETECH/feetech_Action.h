@@ -23,12 +23,12 @@
 
 #define CURRENT_VARIATION_CATCH 100 //62
 
-#define CURRENT_RATIO_CATCH_PCT  7 // 7% variabtion on current
+#define CURRENT_RATIO_CATCH_PCT  5 // 5% variabtion on current
 #define CONFIRM_CYCLES_NEEDED  5 
 
 #define RETRY_COUNT_MAX 5
 
-#define LOAD_THRESHOLD_CONTACT   300   // à calibrer (~30% de 1023)
+#define LOAD_THRESHOLD_CONTACT   200   // à calibrer (~30% de 1023)
 #define ADDR_LOAD_MASK           0x3FF // bits 0-9 = magnitude
 
 // Ajouter dans GrosPos_t :
@@ -38,8 +38,7 @@ uint8_t  stall_count;
 // Defines
 #define STALL_DELTA_THRESHOLD   8    // moins de 8 ticks de mouvement = stall
 #define STALL_CYCLES_NEEDED     5    // 5 cycles consécutifs immobiles
-#define OVERREACH_MARGIN        150  // si pos > cible-100, considéré "arrivé librement"
-#define OVERSHOOT_MARGIN        150 // En ticks (à ajuster selon l'enfoncement voulu dans le sol)
+#define OVERSHOOT_MARGIN        60 // En ticks (à ajuster selon l'enfoncement voulu dans le sol)
 
 
 #define VALVE_ON 1
@@ -176,7 +175,7 @@ typedef struct {
     uint16_t deposer_pos;
     uint16_t lacher_pos;
     uint16_t pousser_pos;
-    
+
     uint16_t present_load;
 
     uint16_t current_position;

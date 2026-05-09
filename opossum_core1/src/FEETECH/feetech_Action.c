@@ -1453,8 +1453,8 @@ uint8_t pince_action_debug_cmd(void){
     if (Get_Param_u32(&val_2))
         return PARAM_ERROR_CODE;
 
-    Pince_t *pince_0 = &robot_pinces[2];
-    Pince_t *pince_1 = &robot_pinces[3];
+    Pince_t *pince_0 = &robot_pinces[1];
+    Pince_t *pince_1 = &robot_pinces[0];
     
     if (val_1 == 0){
         pince_0->current_command = CMD_RAMASSER_ALL;
