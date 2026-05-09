@@ -1277,6 +1277,64 @@ void pince_action_loop(Pince_t *pince){
             }
             break;
 
+        /* ---------------------------------------------------- */
+        /* ------------- POUSSER UN ELEMENT Jenga (700) ------- */
+        /* ---------------------------------------------------- */
+        case 700: // Déplacer le gros servo en position intermédiaire
+            pince->pending_feedback_cmd = CMD_POUSSER;
+            PutFEETECH_Ext_Done(pince->id_gros, FEETECH_GOAL_POSITION_L, pince->gros_pos.pousser_pos, &pince->action_done);
+            pince->gros_pos.cmd_timer = Timer_ms1;
+            pince->action_step = 701;
+            break;
+
+        case 701: // Lecture de la position courante pour vérifier l'arrivée
+            if(pince->action_done){
+                pince->action_done = 0;
+                GetFEETECH_Ext_Done(pince->id_gros, FEETECH_PRESENT_POSITION_L, &pince->gros_pos.current_position, &pince->action_done);
+                pince->action_step = 702;
+            }
+            break;
+
+        case 702: // Validation de la tolérance (+/- 100)
+            if(pince->action_done){
+                if((pince->gros_pos.pousser_pos - 100) <= pince->gros_pos.current_position && pince->gros_pos.current_position <= (pince->gros_pos.pousser_pos + 100)){
+                    pince->action_step = 0; // Séquence terminée
+                    printf("PINCEFEEDBACK %d %d 1 1\n", pince->id, CMD_POUSSER); // Renvoi le succes à la stratégie
+                } else {
+                    pince->action_step = 701; // On re-vérifie si on n'y est pas encore
+                }
+            }
+            break;
+
+        /* ---------------------------------------------------- */
+        /* ------------- RETOUR DEPUIS POUSSER (800) ---------- */
+        /* ---------------------------------------------------- */
+        case 800: // Ordonner la remontée à idle_position
+            pince->pending_feedback_cmd = CMD_POUSSER_RETOUR;
+            PutFEETECH_Ext_Done(pince->id_gros, FEETECH_GOAL_POSITION_L, pince->gros_pos.idle_position, &pince->action_done);
+            pince->gros_pos.cmd_timer = Timer_ms1;
+            pince->action_step = 801;
+            break;
+
+        case 801: // Lecture de la position
+            if(pince->action_done){
+                pince->action_done = 0;
+                GetFEETECH_Ext_Done(pince->id_gros, FEETECH_PRESENT_POSITION_L, &pince->gros_pos.current_position, &pince->action_done);
+                pince->action_step = 802;
+            }
+            break;
+
+        case 802: // Validation
+            if(pince->action_done){
+                if((pince->gros_pos.idle_position - 100) <= pince->gros_pos.current_position && pince->gros_pos.current_position <= (pince->gros_pos.idle_position + 100)){
+                    pince->action_step = 0; 
+                    printf("PINCEFEEDBACK %d %d 1 1\n", pince->id, CMD_POUSSER_RETOUR);
+                } else {
+                    pince->action_step = 801; 
+                }
+            }
+            break;
+
         default:
             break;
         
@@ -1372,6 +1430,14 @@ uint8_t pince_action_cmd(void){
         case 6:
             pince->current_command = CMD_MONTER;
             pince->action_step = 100;
+            break;
+        case 7:
+            pince->current_command = CMD_POUSSER;
+            pince->action_step = 700;
+            break;
+        case 8:
+            pince->current_command = CMD_POUSSER_RETOUR;
+            pince->action_step = 800;
             break;
     }
     return 0;

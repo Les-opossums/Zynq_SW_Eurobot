@@ -144,6 +144,15 @@ uint8_t  stall_count;
 #define PINCE_8_GAUCHE_SORTIE_POS 380 //300
 #define PINCE_8_GAUCHE_RETRAIT_POS 512
 
+// ---------------- POSITION POUSSER ----------------- //
+#define PINCE_1_GROS_POUSSER_POS ((PINCE_1_GROS_IDLE_POS + PINCE_1_GROS_RAMASSER_POS) / 2)
+#define PINCE_2_GROS_POUSSER_POS ((PINCE_2_GROS_IDLE_POS + PINCE_2_GROS_RAMASSER_POS) / 2)
+#define PINCE_3_GROS_POUSSER_POS ((PINCE_3_GROS_IDLE_POS + PINCE_3_GROS_RAMASSER_POS) / 2)
+#define PINCE_4_GROS_POUSSER_POS ((PINCE_4_GROS_IDLE_POS + PINCE_4_GROS_RAMASSER_POS) / 2)
+#define PINCE_5_GROS_POUSSER_POS ((PINCE_5_GROS_IDLE_POS + PINCE_5_GROS_RAMASSER_POS) / 2)
+#define PINCE_6_GROS_POUSSER_POS ((PINCE_6_GROS_IDLE_POS + PINCE_6_GROS_RAMASSER_POS) / 2)
+#define PINCE_7_GROS_POUSSER_POS ((PINCE_7_GROS_IDLE_POS + PINCE_7_GROS_RAMASSER_POS) / 2)
+#define PINCE_8_GROS_POUSSER_POS ((PINCE_8_GROS_IDLE_POS + PINCE_8_GROS_RAMASSER_POS) / 2)
 
 typedef enum {
     CMD_IDLE = 0,
@@ -155,7 +164,9 @@ typedef enum {
     CMD_LACHER_ALL,
     CMD_DEPOSE_G_RETOURNE_D,
     CMD_DEPOSE_D_RETOURNE_G,
-    CMD_MONTER
+    CMD_MONTER,
+    CMD_POUSSER,
+    CMD_POUSSER_RETOUR
 } Pince_Command_t;
 
 
@@ -164,6 +175,8 @@ typedef struct {
     uint16_t ramasser_pos;
     uint16_t deposer_pos;
     uint16_t lacher_pos;
+    uint16_t pousser_pos;
+    
     uint16_t present_load;
 
     uint16_t current_position;
