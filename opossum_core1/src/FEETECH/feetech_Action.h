@@ -28,7 +28,7 @@
 
 #define RETRY_COUNT_MAX 5
 
-#define LOAD_THRESHOLD_CONTACT   200   // à calibrer (~30% de 1023)
+#define LOAD_THRESHOLD_CONTACT   150   // à calibrer (~30% de 1023)
 #define ADDR_LOAD_MASK           0x3FF // bits 0-9 = magnitude
 
 // Ajouter dans GrosPos_t :
