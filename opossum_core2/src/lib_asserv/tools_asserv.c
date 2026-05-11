@@ -12,8 +12,11 @@ float limit_float(float valeur, float inf, float sup) {
 
 // angle principal
 
-float principal_angle(float angle) {
-    return fmodf(angle + PI, 2 * PI) - PI;
+float principal_angle(float a) {
+    a = fmodf(a, 2.0f * PI);          // ramène dans (-2π, 2π)
+    if (a >  PI) a -= 2.0f * PI;
+    if (a < -PI) a += 2.0f * PI;
+    return a;
 }
 
 float maximum3(float a, float b, float c) {
