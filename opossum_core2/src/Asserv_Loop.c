@@ -83,7 +83,7 @@ void Init_Asserv(void) {
     R_lidar[2]  = PROCESS_NOISE_LIDAR_THETA * PROCESS_NOISE_LIDAR_THETA;
 
     en_kalman.enable_lidar_kalman = 1;
-    en_kalman.enable_camera_kalman = 0;
+    en_kalman.enable_camera_kalman = 1;
 
     asserv_init();
 
