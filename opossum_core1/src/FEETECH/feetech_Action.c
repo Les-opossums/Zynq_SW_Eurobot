@@ -431,19 +431,19 @@ void pince_action_loop(Pince_t *pince){
                     #endif
 
                     // 4. On passe à la remontée
-                    pince->action_step = 20;
+                    pince->action_step = 2000;
                 }
             }
+            break;
+        
+        case 2000:
+            printf("PINCEFEEDBACK %d 1 %d %d\n", pince->id, pince->succes_left, pince->succes_right);
+            pince->action_step = 20;
             break;
         
         case 20: //remonter la pince
             PutFEETECH_Ext_Done(pince->id_gros, FEETECH_GOAL_POSITION_L, pince->gros_pos.idle_position, &pince->action_done);
             pince->action_timer = Timer_ms1;
-            pince->action_step = 2000;
-            break;
-
-        case 2000:
-            printf("PINCEFEEDBACK %d 1 %d %d\n", pince->id, pince->succes_left, pince->succes_right);
             pince->action_step = 21;
             break;
 
@@ -929,6 +929,7 @@ void pince_action_loop(Pince_t *pince){
                         printf("pince : %d : Courant bas, pompes coupees, palet relache.\n", pince->id);
                     #endif
                     pince->retry_count = 0;
+                    printf("PINCEFEEDBACK %d 2 %d %d\n", pince->id, pince->succes_left, pince->succes_right);
                     pince->action_step = 309;
                 } else {
                     pince->retry_count++;
@@ -971,9 +972,9 @@ void pince_action_loop(Pince_t *pince){
                     #ifdef DEBUG_FEETECH_ACTION
                         printf("Pince remontee at position %d\n", pince->action_position);
                     #endif
-                    pince->succes_left = 1;
-                    pince->succes_right = 1;
-                    printf("PINCEFEEDBACK %d 2 %d %d\n", pince->id, pince->succes_left, pince->succes_right);
+                    // pince->succes_left = 1;
+                    // pince->succes_right = 1;
+                    // printf("PINCEFEEDBACK %d 2 %d %d\n", pince->id, pince->succes_left, pince->succes_right);
                     pince->action_step = 0; // FIN DU CYCLE
                 } else if (Timer_ms1 - pince->action_timer >= 3000){
                     #ifdef DEBUG_FEETECH_ACTION
