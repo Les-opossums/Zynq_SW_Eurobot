@@ -439,6 +439,11 @@ void pince_action_loop(Pince_t *pince){
         case 20: //remonter la pince
             PutFEETECH_Ext_Done(pince->id_gros, FEETECH_GOAL_POSITION_L, pince->gros_pos.idle_position, &pince->action_done);
             pince->action_timer = Timer_ms1;
+            pince->action_step = 2000;
+            break;
+
+        case 2000:
+            printf("PINCEFEEDBACK %d 1 %d %d\n", pince->id, pince->succes_left, pince->succes_right);
             pince->action_step = 21;
             break;
 
@@ -456,7 +461,6 @@ void pince_action_loop(Pince_t *pince){
                     #ifdef DEBUG_FEETECH_ACTION
                         printf("pince : %d : Pince action done at position %d\n", pince->id, pince->action_position);
                     #endif
-                    printf("PINCEFEEDBACK %d 1 %d %d\n", pince->id, pince->succes_left, pince->succes_right);
                     pince->action_done = 0;
                     pince->action_step = 0;
                 } else {
