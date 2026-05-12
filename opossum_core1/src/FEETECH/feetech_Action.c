@@ -377,39 +377,50 @@ void pince_action_loop(Pince_t *pince){
                     uint32_t sum_gauche = 0;
                     uint32_t sum_droite = 0;
 
-                    // Calcul de la somme pour la moyenne
                     for(int i = 0; i < NBR_VALUES_FOR_MEAN; i++){
                         sum_gauche += pince->pump_left.samples[i];
                         sum_droite += pince->pump_right.samples[i];
                     }
 
-                    // Calcul de la moyenne
                     uint32_t mean_gauche = sum_gauche / NBR_VALUES_FOR_MEAN;
                     uint32_t mean_droite = sum_droite / NBR_VALUES_FOR_MEAN;
 
                     uint32_t delta_pct_l = 0;
                     uint32_t delta_pct_r = 0;
 
-                    // Calcul du pourcentage de déviation par rapport à la baseline
-                    if (pince->pump_left.baseline_current > 0) {
-                        delta_pct_l = (ABS_DIFF(mean_gauche, pince->pump_left.baseline_current) * 100) / pince->pump_left.baseline_current;
-                    }
-                    if (pince->pump_right.baseline_current > 0) {
-                        delta_pct_r = (ABS_DIFF(mean_droite, pince->pump_right.baseline_current) * 100) / pince->pump_right.baseline_current;
-                    }
+                    if(pince->pump_left.baseline_current > 0)
+                        delta_pct_l = (ABS_DIFF(mean_gauche, pince->pump_left.baseline_current) * 100)
+                                    / pince->pump_left.baseline_current;
+                    if(pince->pump_right.baseline_current > 0)
+                        delta_pct_r = (ABS_DIFF(mean_droite, pince->pump_right.baseline_current) * 100)
+                                    / pince->pump_right.baseline_current;
 
-                    pince->succes_left  = 0;
-                    pince->succes_right = 0;
+                    // --- Niveaux de détection ---
+                    uint8_t catch_l_hard = 0, catch_l_soft = 0;
+                    uint8_t catch_r_hard = 0, catch_r_soft = 0;
 
-                    // Validation du succès par rapport au seuil défini dans .h
                     if(pince->current_command == CMD_RAMASSER_G || pince->current_command == CMD_RAMASSER_ALL){
-                        pince->succes_left  = (delta_pct_l >= CURRENT_RATIO_CATCH_PCT);
+                        catch_l_hard = (delta_pct_l >= CURRENT_RATIO_CATCH_PCT);
+                        catch_l_soft = (delta_pct_l >= CURRENT_RATIO_CATCH_PCT_LENIENT);
                     }
                     if(pince->current_command == CMD_RAMASSER_D || pince->current_command == CMD_RAMASSER_ALL){
-                        pince->succes_right = (delta_pct_r >= CURRENT_RATIO_CATCH_PCT);
+                        catch_r_hard = (delta_pct_r >= CURRENT_RATIO_CATCH_PCT);
+                        catch_r_soft = (delta_pct_r >= CURRENT_RATIO_CATCH_PCT_LENIENT);
                     }
 
-                    // Coupure des pompes qui ont raté + ouverture valve pour casser le vide inutile
+                    // --- Décision finale ---
+                    // En mode ALL : bénéfice du doute si le partenaire réussit clairement
+                    // et que le côté concerné dépasse au moins le seuil souple
+                    if(pince->current_command == CMD_RAMASSER_ALL){
+                        pince->succes_left  = catch_l_hard || (catch_r_hard && catch_l_soft);
+                        pince->succes_right = catch_r_hard || (catch_l_hard && catch_r_soft);
+                    } else {
+                        // En mode G ou D seul : seuil dur uniquement, pas de partenaire
+                        pince->succes_left  = catch_l_hard;
+                        pince->succes_right = catch_r_hard;
+                    }
+
+                    // --- Coupure des pompes qui ont vraiment raté ---
                     if(pince->current_command == CMD_RAMASSER_G || pince->current_command == CMD_RAMASSER_ALL){
                         if(!pince->succes_left){
                             PutFEETECH(pince->id_pump, PUMP_CMD_1, PUMP_OFF);
@@ -424,13 +435,14 @@ void pince_action_loop(Pince_t *pince){
                     }
 
                     #ifdef DEBUG_FEETECH_ACTION
-                        printf("pince %d : G mean=%d baseline=%d delta=%d%% -> Succes:%d | D mean=%d baseline=%d delta=%d%% -> Succes:%d\n",
+                        printf("pince %d : G mean=%d base=%d delta=%d%% (h:%d s:%d)->%d | D mean=%d base=%d delta=%d%% (h:%d s:%d)->%d\n",
                             pince->id,
-                            (int)mean_gauche, pince->pump_left.baseline_current,  (int)delta_pct_l, pince->succes_left,
-                            (int)mean_droite, pince->pump_right.baseline_current, (int)delta_pct_r, pince->succes_right);
+                            (int)mean_gauche, pince->pump_left.baseline_current,  (int)delta_pct_l,
+                            catch_l_hard, catch_l_soft, pince->succes_left,
+                            (int)mean_droite, pince->pump_right.baseline_current, (int)delta_pct_r,
+                            catch_r_hard, catch_r_soft, pince->succes_right);
                     #endif
 
-                    // 4. On passe à la remontée
                     pince->action_step = 2000;
                 }
             }

@@ -23,7 +23,9 @@
 
 #define CURRENT_VARIATION_CATCH 100 //62
 
-#define CURRENT_RATIO_CATCH_PCT  5 // 5% variabtion on current
+#define CURRENT_RATIO_CATCH_PCT          6   // Seuil dur : succès autonome
+#define CURRENT_RATIO_CATCH_PCT_LENIENT  3   // Seuil souple : bénéfice du doute si l'autre côté a réussi
+
 #define CONFIRM_CYCLES_NEEDED  5 
 
 #define RETRY_COUNT_MAX 5
