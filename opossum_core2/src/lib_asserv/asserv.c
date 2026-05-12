@@ -201,7 +201,7 @@ void speed_asserv_break_step(void) {
         speed_order.vt = 0;
         
         motion_free();
-        printf("Pos,done\n");
+        printf("Break,done\n");
         motion_done = 1;
     }
 }
