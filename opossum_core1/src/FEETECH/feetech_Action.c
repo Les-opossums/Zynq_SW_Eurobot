@@ -293,7 +293,7 @@ void pince_action_loop(Pince_t *pince){
                     pince->succes_right = 0;
                     
                     // 4. Passer directement à l'étape de remontée (skip l'analyse des pompes)
-                    pince->action_step = 20;
+                    pince->action_step = 2000;
                 } else {
                     pince->action_step = 162;
                 }
