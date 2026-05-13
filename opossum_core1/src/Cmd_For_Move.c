@@ -1,5 +1,39 @@
 #include "main.h"
 
+#define MOVE_SEQ_FIFO_SIZE 16
+
+typedef struct {
+    Position positions[MOVE_SEQ_FIFO_SIZE];
+    int head;
+    int tail;
+    int count;
+} MoveSeqFifo;
+
+static MoveSeqFifo move_seq_fifo = {0};
+static int         move_seq_active = 0;  // 1 = un move est en cours
+
+static int move_seq_push(Position pos) {
+    if (move_seq_fifo.count >= MOVE_SEQ_FIFO_SIZE) return 0;
+    move_seq_fifo.positions[move_seq_fifo.tail] = pos;
+    move_seq_fifo.tail = (move_seq_fifo.tail + 1) % MOVE_SEQ_FIFO_SIZE;
+    move_seq_fifo.count++;
+    return 1;
+}
+
+static int move_seq_pop(Position *pos) {
+    if (move_seq_fifo.count == 0) return 0;
+    *pos = move_seq_fifo.positions[move_seq_fifo.head];
+    move_seq_fifo.head = (move_seq_fifo.head + 1) % MOVE_SEQ_FIFO_SIZE;
+    move_seq_fifo.count--;
+    return 1;
+}
+
+static void move_seq_clear(void) {
+    move_seq_fifo.head  = 0;
+    move_seq_fifo.tail  = 0;
+    move_seq_fifo.count = 0;
+    move_seq_active     = 0;
+}
 
 //MOVE
 uint8_t Move_Cmd(void) {
@@ -7,6 +41,7 @@ uint8_t Move_Cmd(void) {
         xil_printf("INVALID COMMAND : AU\n");
         return 0;
     }else{
+        move_seq_clear();
         if (Get_Param_Float(&local_data.cmd_position.x))     return PARAM_ERROR_CODE;
         if (Get_Param_Float(&local_data.cmd_position.y))     return PARAM_ERROR_CODE;
         if (Get_Param_Float(&local_data.cmd_position.t))     return PARAM_ERROR_CODE;
@@ -58,11 +93,12 @@ uint8_t FREE_Cmd(void) {
 
 // block
 uint8_t BLOCK_Cmd(void) {
-    if (AU_state) {
-        printf("INVALID COMMAND : AU\n");
-        return 0;
+    if (AU_state) { 
+        printf("INVALID COMMAND : AU\n"); 
+        return 0; 
     }else{
-        local_data.asserv_mode = 4; // Mode blocage
+        move_seq_clear();
+        local_data.asserv_mode = 4;
         SEND_FIELD(&local_data, asserv_mode);
         return 0;
     }
@@ -384,5 +420,44 @@ void Speed_Timed_Loop(void) {
         //        (double)local_data.speed_robot.vx,             // vitesse mesurée X
         //        (double)local_data.speed_robot.vy,             // vitesse mesurée Y
         //        (double)local_data.speed_robot.vt);            // vitesse mesurée Theta
+    }
+}
+
+
+// Appelée par la commande MOVESEX : enfile une position
+uint8_t Move_Seq_Cmd(void) {
+    if (AU_state) { printf("INVALID COMMAND : AU\n"); return 0; }
+
+    Position pos;
+    if (Get_Param_Float(&pos.x)) return PARAM_ERROR_CODE;
+    if (Get_Param_Float(&pos.y)) return PARAM_ERROR_CODE;
+    if (Get_Param_Float(&pos.t)) return PARAM_ERROR_CODE;
+
+    if (!move_seq_push(pos)) {
+        printf("MOVESEX,FIFO_FULL\n");
+        return 1;
+    }
+    // printf("MOVESEX,queued %d\n", move_seq_fifo.count);
+    return 0;
+}
+
+// À appeler dans la main loop de Core 0 — dépile et envoie le prochain move
+void Move_Seq_Loop(void) {
+    CHECK_FIELD(&local_data, asserv_done);   // lit asserv_done depuis Core 1
+
+    if (move_seq_active && local_data.asserv_done) {
+        move_seq_active = 0;                 // move terminé, on est prêt pour le suivant
+    }
+
+    if (!move_seq_active && move_seq_fifo.count > 0) {
+        Position pos;
+        if (move_seq_pop(&pos)) {
+            local_data.cmd_position = pos;
+            SEND_FIELD(&local_data, cmd_position);
+            move_seq_active = 1;
+            // printf("MOVESEX,start %.4f %.4f %.4f rem:%d\n",
+            //        (double)pos.x, (double)pos.y, (double)pos.t,
+            //        move_seq_fifo.count);
+        }
     }
 }

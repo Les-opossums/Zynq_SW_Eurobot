@@ -135,6 +135,8 @@ int main()
                 pince_loop();
             }
             
+            Move_Seq_Loop();
+
             LED_CLASSIC_MODE();
         }
         previous_AU_state = AU_state;

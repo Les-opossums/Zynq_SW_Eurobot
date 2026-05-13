@@ -60,6 +60,7 @@ const Command Command_List[] = {
     { "VMAX", VMAX_Cmd},
     { "VTMAX", VTMAX_Cmd},
     { "MOVE", Move_Cmd},
+    { "MOVESEX", Move_Cmd},
     { "SPEED", Speed_Cmd},
     { "ASPEED", Absolute_Speed_Cmd},
     { "FREE", FREE_Cmd},
