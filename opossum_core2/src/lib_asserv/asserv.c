@@ -64,6 +64,10 @@ void asserv_init(void) {
 // consignes de deplacements du robot
 void motion_block(void) {
     asserv_mode = ASSERV_MODE_BREAK;
+    speed_order_constrained.vx = 0.0f;
+    speed_order_constrained.vy = 0.0f;
+    speed_order_constrained.vt = 0.0f;
+    asserv_mode = ASSERV_MODE_BREAK;
 }
 
 void motion_off(void) {
@@ -195,11 +199,10 @@ void speed_asserv_break_step(void) {
     } else {
         emergency_break_requested = 0;
         
-        // CORRECTION : Forcer la consigne interne à 0 pour tuer le "fantôme"
         speed_order.vx = 0;
         speed_order.vy = 0;
         speed_order.vt = 0;
-        
+        pid_vitesse_reset();
         motion_free();
         printf("Break,done\n");
         motion_done = 1;
