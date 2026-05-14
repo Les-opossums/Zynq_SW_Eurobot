@@ -5,18 +5,6 @@ uint16_t i_Current_Cmd = 0;
 uint16_t i_Lecture_Current_Cmd = 0;
 
 const Command Command_List[] = {
-
-    { "PRINTCMD", Print_All_CMD_Cmd},
-    { "HELP", Print_All_CMD_Cmd},
-    { "TEST", Test_Interpreteur},
-    { "VERSION", Version_cmd},
-
-    //pump command
-//    { "PUMP", Pump_cmd},
-
-    // valve command
-//    { "VALVE", Valve_cmd},
-
     // Asserv print
     { "SETLIDAR", Set_Lidar_Cmd},
     { "SETCAMERA1", Set_Camera_1_Cmd},
@@ -24,6 +12,9 @@ const Command Command_List[] = {
     { "SETCAMERA3", Set_Camera_3_Cmd},
     { "ENKALMAN", Enable_Kalman_Cmd},
     { "LIDARNOISE", Set_Lidar_Noise_Cmd},
+
+    { "MOVE", Move_Cmd},
+    { "MOVESEX", Move_Cmd},
 
     #ifdef FEETECH
         { "STSSEND", Send_FEETECH_Cmd},
@@ -39,17 +30,10 @@ const Command Command_List[] = {
     #ifdef PWM
         { "SERVO", Servo_cmd},
     #endif
-//    { "LED", LED_cmd},
 
     { "ODOSPACING", Set_Odo_Spacing_Cmd},
 
     { "PDE", Activate_Position_Sending_Func},
-
-    // Stepper command
-//    { "STEPPER", Stepper_cmd},
-//    { "STEPPER1", Stepper_1_cmd},
-//    { "HELP_STEPPER", Stepper_help_cmd},
-
     { "LED", LED_cmd},
 
     //odometry command
@@ -59,8 +43,6 @@ const Command Command_List[] = {
     //asserv command
     { "VMAX", VMAX_Cmd},
     { "VTMAX", VTMAX_Cmd},
-    { "MOVE", Move_Cmd},
-    { "MOVESEX", Move_Cmd},
     { "SPEED", Speed_Cmd},
     { "ASPEED", Absolute_Speed_Cmd},
     { "FREE", FREE_Cmd},
@@ -68,7 +50,13 @@ const Command Command_List[] = {
     { "PWM", PWM_Func},
     { "SPEEDTEST", Speed_Timed_Cmd},
 
-    { "GETPOS", Get_Pos_Cmd}
+    { "GETPOS", Get_Pos_Cmd},
+
+    //ihm cmd
+    { "PRINTCMD", Print_All_CMD_Cmd},
+    { "HELP", Print_All_CMD_Cmd},
+    { "TEST", Test_Interpreteur},
+    { "VERSION", Version_cmd}
 };
 
 const uint16_t Command_List_Length = sizeof (Command_List) / sizeof (Command_List[0]);
