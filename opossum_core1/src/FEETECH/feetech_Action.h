@@ -167,7 +167,8 @@ typedef enum {
     CMD_DEPOSE_D_RETOURNE_G,
     CMD_MONTER,
     CMD_POUSSER,
-    CMD_POUSSER_RETOUR
+    CMD_POUSSER_RETOUR,
+    CMD_APPROCHE_BAS
 } Pince_Command_t;
 
 

@@ -1352,6 +1352,61 @@ void pince_action_loop(Pince_t *pince){
             }
             break;
 
+        /* ---------------------------------------------------- */
+        /* ------------- APPROCHE POSITION BASSE (900) -------- */
+        /* ---------------------------------------------------- */
+        case 900: // Calculer et ordonner le déplacement vers ramasser_pos ± 50
+            pince->pending_feedback_cmd = CMD_APPROCHE_BAS;
+
+            // Même logique de sens que la descente (gestion montage miroir)
+            int16_t approche_offset = 0;
+            if (pince->gros_pos.ramasser_pos > pince->gros_pos.idle_position) {
+                approche_offset = -50; // On s'arrête 50 ticks avant d'atteindre le bas
+            } else {
+                approche_offset = 50;
+            }
+            pince->action_position = (uint32_t)((int32_t)pince->gros_pos.ramasser_pos + approche_offset);
+
+            #ifdef DEBUG_FEETECH_ACTION
+                printf("pince : %d : Approche position basse -> cible=%d (ramasser=%d)\n",
+                    pince->id, (uint16_t)pince->action_position, pince->gros_pos.ramasser_pos);
+            #endif
+
+            PutFEETECH_Ext_Done(pince->id_gros, FEETECH_GOAL_POSITION_L, (uint16_t)pince->action_position, &pince->action_done);
+            pince->action_timer = Timer_ms1;
+            pince->action_step = 901;
+            break;
+
+        case 901: // Attendre l'envoi de l'ordre, puis lire la position
+            if(pince->action_done){
+                pince->action_done = 0;
+                GetFEETECH_Ext_Done(pince->id_gros, FEETECH_PRESENT_POSITION_L, &pince->gros_pos.current_position, &pince->action_done);
+                pince->action_step = 902;
+            }
+            break;
+
+        case 902: // Vérifier l'arrivée à ±50 ticks de la cible
+            if(pince->action_done){
+                pince->action_done = 0;
+                if(ABS_DIFF((uint16_t)pince->action_position, pince->gros_pos.current_position) < 50){
+                    #ifdef DEBUG_FEETECH_ACTION
+                        printf("pince : %d : Approche basse atteinte (pos=%d)\n", pince->id, pince->gros_pos.current_position);
+                    #endif
+                    pince->action_step = 0;
+                    printf("PINCEFEEDBACK %d %d 1 1\n", pince->id, CMD_APPROCHE_BAS);
+                } else if (Timer_ms1 - pince->action_timer >= 3000) {
+                    #ifdef DEBUG_FEETECH_ACTION
+                        printf("pince : %d : Timeout approche basse (pos=%d)\n", pince->id, pince->gros_pos.current_position);
+                    #endif
+                    pince->succes_left = 0;
+                    pince->succes_right = 0;
+                    pince->action_step = 500; // Séquence d'abandon
+                } else {
+                    pince->action_step = 901; // Continuer à vérifier
+                }
+            }
+            break;
+
         default:
             break;
         
@@ -1455,6 +1510,10 @@ uint8_t pince_action_cmd(void){
         case 8:
             pince->current_command = CMD_POUSSER_RETOUR;
             pince->action_step = 800;
+            break;
+        case 9:
+            pince->current_command = CMD_APPROCHE_BAS;
+            pince->action_step = 900;
             break;
     }
     return 0;
