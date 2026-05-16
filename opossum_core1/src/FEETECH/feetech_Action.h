@@ -129,7 +129,7 @@ uint8_t  stall_count;
 
 // ---------------- PINCE 6 ----------------- //
 #define PINCE_7_GROS_IDLE_POS 2450
-#define PINCE_7_GROS_RAMASSER_POS 3565
+#define PINCE_7_GROS_RAMASSER_POS 3600
 #define PINCE_7_GROS_DEPOSER_POS 3420
 #define PINCE_7_GROS_LACHER_POS 2200
 #define PINCE_7_GROS_END_OF_MATCH_POS 3420
