@@ -82,6 +82,6 @@ int check_from_other_core(void *data_out, size_t size,
 
 // Fonction pour envoyer le signal matériel
 void trigger_core1_interrupt(void) {
-    // Déclenche l'interruption SGI 14 sur le Core 1
-    XScuGic_SoftwareIntr(&InterruptController, SHARE_MEM_SGI_INT_ID, SGI_TARGET_CORE_1);
+    // XSCUGIC_SPI_CPU1_MASK est la macro officielle Xilinx qui vaut 0x02
+    XScuGic_SoftwareIntr(&InterruptController, SHARE_MEM_SGI_INT_ID, XSCUGIC_SPI_CPU1_MASK);
 }

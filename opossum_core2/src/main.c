@@ -1,6 +1,7 @@
 #include "main.h"
 #include "lib_asserv/Lib_Asserv.h"
 
+extern volatile uint32_t sgi_debug_count;
 // #define COMM_VAL (*(volatile unsigned long *)(0xFFFF0000))
 extern u32 MMUTable;
 
@@ -42,8 +43,9 @@ int main()
     
 
     while(1){
-        if(Timer_ms1 - old_timer_ms1 >= 100) {
+        if(Timer_ms1 - old_timer_ms1 >= 1000) {
             old_timer_ms1 = Timer_ms1;
+            // printf("SGI recues : %lu\r\n", sgi_debug_count);
         }
 
         AU_Loop();

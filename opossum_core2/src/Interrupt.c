@@ -2,6 +2,8 @@
 
 XScuGic InterruptController;
 
+volatile uint32_t sgi_debug_count = 0;
+
 // Déclaration externe de ta fonction de traitement de la mémoire partagée
 extern void check_for_cmd_loop(void);
 
@@ -11,7 +13,7 @@ extern void check_for_cmd_loop(void);
  */
 static void SharedMem_InterruptHandler(void *CallbackRef) {
     (void)CallbackRef; // Évite le warning "unused variable"
-    
+    sgi_debug_count++;
     // On traite directement toutes les commandes reçues d'un coup
     check_for_cmd_loop();
 }
