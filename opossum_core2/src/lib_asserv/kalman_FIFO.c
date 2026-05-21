@@ -225,8 +225,5 @@ int kalman_fifo_insert_camera(KalmanFIFO* fifo, Set_camera* data, uint8_t cam_id
     } else {
         camera_consecutive_rejections[cam_id] = 0;
     }
-    
-    // -------------------------------
-
     return idx;
 }
