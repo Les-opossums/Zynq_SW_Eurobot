@@ -60,7 +60,6 @@ float R_camera[3] = {R_CAMERA_MIN_XY * R_CAMERA_MIN_XY,
                      R_CAMERA_MIN_XY * R_CAMERA_MIN_XY, 
                      R_CAMERA_MIN_T * R_CAMERA_MIN_T};
 
-uint8_t camera_consecutive_rejections[3] = {0, 0, 0};
 
 extern volatile uint32_t new_cmd_from_core0;
 
@@ -325,6 +324,7 @@ void Set_Kalman_Enable_Cmd(Enable_Kalman enable_kalman) {
 }
 
 
+int count_lidar_cycle = 0; // nombre de cycles de la boucle d'asserv avant d'initialiser le kalman avec le lidar, pour laisser le temps au filtre de se stabiliser
 
 void Process_Shared_Memory_Commands(void) {
     if (CHECK_FIELD(&local_data, cmd_position)) { motion_pos(local_data.cmd_position); }
@@ -340,13 +340,26 @@ void Process_Shared_Memory_Commands(void) {
     if (CHECK_FIELD(&local_data, vmax)) { set_Constraint_vitesse_xy_max(local_data.vmax); }
     if (CHECK_FIELD(&local_data, vtmax)){ set_Constraint_vt_max(local_data.vtmax); }
     if (CHECK_FIELD(&local_data, amax)) { set_Constraint_a_xy_max(local_data.amax); }
-    if (CHECK_FIELD(&local_data, cmd_esc)){ Asserv_PWM_calculator(&local_data.cmd_esc); }
+    if (CHECK_FIELD(&local_data, cmd_esc)) { Wanted_Forced_Consigne = local_data.cmd_esc; }
     if (CHECK_FIELD(&local_data, enable_kalman)){ Set_Kalman_Enable_Cmd(local_data.enable_kalman); }
     if (CHECK_FIELD(&local_data, odo_spacing)){ odo_set_spacing(local_data.odo_spacing); }
     if (CHECK_FIELD(&local_data, kalman_noise_lidar)){ Set_Lidar_Noise_Cmd(local_data.kalman_noise_lidar); }
 
     if (!kalman_initialized) {
-        // init lidar si besoin (inchangé)
+        // Attendre quelques cycles lidar pour laisser le filtre se stabiliser
+        if (CHECK_FIELD(&local_data, set_lidar)) {
+            if (count_lidar_cycle < 10) {
+                count_lidar_cycle++;
+            } else {
+                Position init_pos = {
+                    local_data.set_lidar.lidar_position_x,
+                    local_data.set_lidar.lidar_position_y,
+                    local_data.set_lidar.lidar_position_t
+                };
+                kalman_init_with_lidar(&kalman_fifo, &init_pos);
+                kalman_initialized = 1;
+            }
+        }
         return;
     }
 

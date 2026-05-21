@@ -181,6 +181,8 @@ int kalman_fifo_insert_lidar(KalmanFIFO* fifo, Set_lidar* data, float R_lidar[3]
     return idx;
 }
 
+uint8_t camera_consecutive_rejections[3] = {0, 0, 0};
+
 int kalman_fifo_insert_camera(KalmanFIFO* fifo, Set_camera* data, uint8_t cam_id) {
     if (cam_id >= 3) return -1; // 0-indexé !
     if (data->delay < 0 || data->delay > 200) return -1;
@@ -196,12 +198,35 @@ int kalman_fifo_insert_camera(KalmanFIFO* fifo, Set_camera* data, uint8_t cam_id
     fifo->observations[idx].z_camera[cam_id][0] = data->camera_position_x;
     fifo->observations[idx].z_camera[cam_id][1] = data->camera_position_y;
     fifo->observations[idx].z_camera[cam_id][2] = data->camera_position_t;
+
     fifo->observations[idx].r_camera[cam_id][0] = R[0];
     fifo->observations[idx].r_camera[cam_id][1] = R[1];
     fifo->observations[idx].r_camera[cam_id][2] = R[2];
 
-    float z[3] = {data->camera_position_x, data->camera_position_y, data->camera_position_t};
-    kalman_update(&fifo->buffer[idx], z, R, 0);
+
+    // Si on a rejeté la caméra trop de fois consécutivement
+    // on force son acceptation pour recaler le robot
+    if (camera_consecutive_rejections[cam_id] > 50) {
+        fifo->observations[idx].bypass_camera_rejection[cam_id] = 1;
+    } else {
+        fifo->observations[idx].bypass_camera_rejection[cam_id] = 0;
+    }
+
+    // Vecteur de mesure pour le test
+    float z_test[3] = {data->camera_position_x, data->camera_position_y, data->camera_position_t};
+    
+    // Test de l'update pour évaluer l'écart (l'état modifié ici sera écrasé lors de la vraie repropagation)
+    uint8_t accepted = kalman_update(&fifo->buffer[idx], z_test, R,
+                                     fifo->observations[idx].bypass_camera_rejection[cam_id]);
+
+    // On suit la même logique que ton lidar : accepted == 1 signifie que la mesure a été rejetée par le filtre
+    if (accepted == 1) {
+        camera_consecutive_rejections[cam_id]++;
+    } else {
+        camera_consecutive_rejections[cam_id] = 0;
+    }
+    
+    // -------------------------------
 
     return idx;
 }
