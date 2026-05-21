@@ -2,7 +2,7 @@
 
 XScuGic InterruptController;
 
-volatile uint32_t sgi_debug_count = 0;
+volatile uint32_t new_cmd_from_core0 = 0;
 
 // Déclaration externe de ta fonction de traitement de la mémoire partagée
 extern void check_for_cmd_loop(void);
@@ -13,9 +13,8 @@ extern void check_for_cmd_loop(void);
  */
 static void SharedMem_InterruptHandler(void *CallbackRef) {
     (void)CallbackRef; // Évite le warning "unused variable"
-    sgi_debug_count++;
-    // On traite directement toutes les commandes reçues d'un coup
-    check_for_cmd_loop();
+    
+    new_cmd_from_core0 = 1; // Indique au main loop qu'il y a une nouvelle commande à traiter
 }
 
 int SetupInterruptSystem(XScuGic *GicInstancePtr) {

@@ -62,6 +62,8 @@ float R_camera[3] = {R_CAMERA_MIN_XY * R_CAMERA_MIN_XY,
 
 uint8_t camera_consecutive_rejections[3] = {0, 0, 0};
 
+extern volatile uint32_t new_cmd_from_core0;
+
 void Init_Asserv(void) {
     Consigne.command1 = 0;
     Consigne.command2 = 0;
@@ -103,6 +105,12 @@ void Asserv_Loop(void)
                         tampon3 = Timer_us1;
                         #endif
             Last_Timer_Asserv += ODO_EVERY_MS;
+
+            if (new_cmd_from_core0) {
+                new_cmd_from_core0 = 0;
+                check_for_cmd_loop();
+            }
+
             odo_speed_step(speed_motor_1, speed_motor_2, speed_motor_3, speed_motor_4);       
             Asserv_State = 2;
                         #ifdef DEBUG_TIMING
