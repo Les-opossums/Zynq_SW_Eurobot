@@ -71,5 +71,8 @@ void kalman_fifo_repropagate(KalmanFIFO* fifo, int delay_index, float dt_s, floa
  */
 void kalman_init_with_lidar(KalmanFIFO* fifo, Position* lidar_pos);
 
+// Dans lib_asserv/kalman_FIFO.h, avec les autres fonctions kalman_fifo_*
+int kalman_fifo_insert_lidar(KalmanFIFO* fifo, Set_lidar* set_lidar, float R_lidar[3]);
+int kalman_fifo_insert_camera(KalmanFIFO* fifo, Set_camera* set_camera, uint8_t cam_id);
 
 #endif // __KALMAN_FIFO_H_

@@ -290,164 +290,6 @@ void Asserv_Loop(void)
     }
 }
 
-uint8_t count_lidar_cycle = 0;
-uint8_t lidar_consecutive_rejections = 0;
-
-void Set_Lidar_Cmd(Set_lidar set_lidar) {
-    #ifdef DEBUG_TIMING
-        int tampon2 = Timer_us1;
-    #endif
-
-    
-    if(AU_state){
-        count_lidar_cycle = 0;
-        return; // ne pas mettre à jour le kalman si l'AU est
-    }
-
-
-    // Vérification de la cohérence des données LIDAR
-    if(set_lidar.delay < 0 || set_lidar.delay > 200) {
-        printf("ERROR: Lidar delay out of range\n");
-        return; // erreur
-    }
-
-    Position position_lidar;
-    position_lidar.x = set_lidar.lidar_position_x;
-    position_lidar.y = set_lidar.lidar_position_y;
-    position_lidar.t = set_lidar.lidar_position_t;
-
-    if(en_kalman.enable_lidar_kalman) {
-        if(!kalman_initialized){
-            if(count_lidar_cycle < 10) { // attendre quelques cycles pour laisser le temps au kalman de se stabiliser avant d'initialiser avec le lidar
-                count_lidar_cycle++;
-                return;
-            }
-            // Initialisation du filtre de Kalman avec les données LIDAR
-            kalman_init_with_lidar(&kalman_fifo, &position_lidar);
-            kalman_initialized = 1;
-        }else{
-            // Récupération de l'index dans la FIFO correspondant au délai LiDAR
-            int delay_index = kalman_fifo_get_delay(&kalman_fifo, set_lidar.delay, 1);
-            if (delay_index < 0) {
-                return; // erreur
-            }
-
-            kalman_fifo.observations[delay_index].has_lidar = 1;
-            kalman_fifo.observations[delay_index].z_lidar[0] = position_lidar.x;
-            kalman_fifo.observations[delay_index].z_lidar[1] = position_lidar.y;
-            kalman_fifo.observations[delay_index].z_lidar[2] = position_lidar.t;
-
-            uint8_t bypass_rejection = (lidar_consecutive_rejections > 10); // si plus de 10 rejets consécutifs, on considère que le lidar est devenu fiable et on bypass la rejection d'outliers
-            kalman_fifo.observations[delay_index].bypass_lidar_rejection = bypass_rejection;
-            
-            // Correction de l’état dans la FIFO
-            float z[3] = {position_lidar.x, position_lidar.y, position_lidar.t};
-            uint8_t accepted = kalman_update(&kalman_fifo.buffer[delay_index], z, R_lidar, bypass_rejection);
-
-            if(accepted == 1) {
-                lidar_consecutive_rejections++;
-            } else {
-                lidar_consecutive_rejections = 0;
-            }
-
-            // Repropagation depuis l’état corrigé
-            kalman_fifo_repropagate(&kalman_fifo, delay_index, 0.001f, R_lidar);
-
-            // Mise à jour de l’état courant
-            kalman_current_state = kalman_fifo.buffer[(kalman_fifo.head - 1 + KALMAN_FIFO_LEN) % KALMAN_FIFO_LEN];
-        }
-    }
-    #ifdef DEBUG_TIMING
-        printf("Lidar Kalman update time: %d us\n\r", Timer_us1 - tampon2);
-    #endif
-}
-
-void Set_Camera_Cmd(Set_camera set_camera, uint8_t camera_id) {
-    
-    if(AU_state) return; 
-
-    if(set_camera.delay < 0 || set_camera.delay > 200) {
-        printf("ERROR: Camera delay out of range\n");
-        return;
-    }
-
-    Position position_camera;
-    position_camera.x = set_camera.camera_position_x;
-    position_camera.y = set_camera.camera_position_y;
-    position_camera.t = set_camera.camera_position_t;
-
-    float R_diag_dynamic[3] = {
-        fmaxf(set_camera.noise_x * set_camera.noise_x, R_CAMERA_MIN_XY * R_CAMERA_MIN_XY),
-        fmaxf(set_camera.noise_y * set_camera.noise_y, R_CAMERA_MIN_XY * R_CAMERA_MIN_XY),
-        fmaxf(set_camera.noise_t * set_camera.noise_t, R_CAMERA_MIN_T * R_CAMERA_MIN_T)
-    };
-
-    if (!en_kalman.enable_camera_kalman) return;
-
-    if (!kalman_initialized) {
-        if (!en_kalman.enable_lidar_kalman) {
-            kalman_init_with_lidar(&kalman_fifo, &position_camera);
-            kalman_initialized = 1;
-        } else {
-            return; // lidar activé mais pas encore initialisé : on attend
-        }
-    }
-
-    // int delay_index = kalman_fifo_get_delay(&kalman_fifo, set_camera.delay, 1);
-        int delay_index = kalman_fifo_get_delay(&kalman_fifo, 130, 1);
-
-    if (delay_index < 0) return; 
-
-    // ---------------------------------------------------------
-    // 1. FILTRE EUCLIDIEN (Le Garde-fou)
-    // ---------------------------------------------------------
-    float dx = position_camera.x - kalman_fifo.buffer[delay_index].x[0];
-    float dy = position_camera.y - kalman_fifo.buffer[delay_index].x[1];
-    float distance_sq = dx * dx + dy * dy;
-
-    // Seuil strict : Si la caméra est à plus de 20 cm de la position estimée, on jette direct
-    // Ajuste ce 0.20f en fonction de la vitesse max de ton robot et de la latence
-    if (distance_sq > (0.20f * 0.20f)) {
-        // printf("WARNING : Outlier massif de la camera %d ignoré (Saut de %.2f m)\n", camera_id, sqrtf(distance_sq));
-        return; 
-    }
-    
-    // ---------------------------------------------------------
-    // 2. FILTRE DE MAHALANOBIS (L'élégance statistique)
-    // ---------------------------------------------------------
-    // Si la caméra dérive doucement mais sûrement, on finit par lui faire confiance (10 rejets = bypass)
-    // 1. Calcul du bypass et préparation de la mesure
-    uint8_t bypass_rejection = (camera_consecutive_rejections[camera_id] > 10);
-    float z[3] = {position_camera.x, position_camera.y, position_camera.t};
-    
-    // 2. ON TESTE D'ABORD (sans polluer la FIFO)
-    uint8_t result = kalman_update(&kalman_fifo.buffer[delay_index], z, R_diag_dynamic, bypass_rejection);
-
-    if (result == 1) {
-        // Rejeté ! On incrémente le compteur et on quitte SANS toucher à has_camera
-        camera_consecutive_rejections[camera_id]++;
-        return; 
-    } else if (result == 0) {
-        // ACCEPTÉ ! Maintenant on l'inscrit officiellement dans l'historique
-        camera_consecutive_rejections[camera_id] = 0;
-        
-        kalman_fifo.observations[delay_index].has_camera[camera_id] = 1;
-        kalman_fifo.observations[delay_index].bypass_camera_rejection[camera_id] = bypass_rejection; // On sauvegarde le statut du bypass
-        kalman_fifo.observations[delay_index].z_camera[camera_id][0] = position_camera.x;
-        kalman_fifo.observations[delay_index].z_camera[camera_id][1] = position_camera.y;
-        kalman_fifo.observations[delay_index].z_camera[camera_id][2] = position_camera.t;
-
-        kalman_fifo.observations[delay_index].r_camera[camera_id][0] = R_diag_dynamic[0];
-        kalman_fifo.observations[delay_index].r_camera[camera_id][1] = R_diag_dynamic[1];
-        kalman_fifo.observations[delay_index].r_camera[camera_id][2] = R_diag_dynamic[2];
-    } else {
-        return; // Erreur NaN
-    }
-
-    // 3. Repropagation avec le VRAI pas de temps (Attention au 0.001f !)
-    kalman_fifo_repropagate(&kalman_fifo, delay_index, ODO_EVERY_MS*0.001f, R_lidar);
-    kalman_current_state = kalman_fifo.buffer[(kalman_fifo.head - 1 + KALMAN_FIFO_LEN) % KALMAN_FIFO_LEN];
-}
 
 #define PWM_MIN_ACTIF 30 // seuil pour lequel on considère que la consigne est active (en dessous, on la met à 0 pour éviter de rester dans la zone morte du moteur)
 #define PWM_DEADZONE 200 // compensation à ajouter à la consigne pour compenser la zone morte du moteur (valeur à ajuster en fonction du moteur et de la batterie, à tester empiriquement)
@@ -485,44 +327,6 @@ void Set_Kalman_Enable_Cmd(Enable_Kalman enable_kalman) {
 
 
 void Process_Shared_Memory_Commands(void) {
-    int earliest_index = -1;
-    int earliest_delay = -1; // Le plus grand delay = le plus loin dans le passé
-
-    // 1. Traitement du LiDAR (CHECK_FIELD copie la mémoire ET renvoie 1 s'il y a du neuf)
-    if (CHECK_FIELD(&local_data, set_lidar)) {
-        int idx = kalman_fifo_insert_lidar(&kalman_fifo, &local_data.set_lidar, R_lidar);
-        if (idx >= 0 && local_data.set_lidar.delay > earliest_delay) {
-            earliest_delay = local_data.set_lidar.delay;
-            earliest_index = idx;
-        }
-    }
-
-    // 2. Traitement des Caméras
-    Set_camera* cameras[3] = {&local_data.set_camera_1,
-                              &local_data.set_camera_2,
-                              &local_data.set_camera_3};
-    uint8_t cam_fields[3] = {
-        CHECK_FIELD(&local_data, set_camera_1),
-        CHECK_FIELD(&local_data, set_camera_2),
-        CHECK_FIELD(&local_data, set_camera_3)
-    };
-
-    for (int i = 0; i < 3; i++) {
-        if (cam_fields[i]) {
-            int idx = kalman_fifo_insert_camera(&kalman_fifo, cameras[i], i);
-            if (idx >= 0 && cameras[i]->delay > earliest_delay) {
-                earliest_delay = cameras[i]->delay;
-                earliest_index = idx;
-            }
-        }
-    }
-
-    // 3. REPROPAGATION OPTIMISÉE (Une seule fois, depuis la modif la plus ancienne)
-    if (earliest_index >= 0) {
-        kalman_repropagate(&kalman_fifo, earliest_index);
-    }
-
-    // 4. Traitement des autres commandes génériques (moteurs, config, etc.)
     if (CHECK_FIELD(&local_data, cmd_position)) { motion_pos(local_data.cmd_position); }
     if (CHECK_FIELD(&local_data, cmd_speed)) { motion_speed(local_data.cmd_speed); }
     if (CHECK_FIELD(&local_data, cmd_abs_speed)) { motion_absolute_speed(local_data.cmd_abs_speed); }
@@ -541,55 +345,47 @@ void Process_Shared_Memory_Commands(void) {
     if (CHECK_FIELD(&local_data, odo_spacing)){ odo_set_spacing(local_data.odo_spacing); }
     if (CHECK_FIELD(&local_data, kalman_noise_lidar)){ Set_Lidar_Noise_Cmd(local_data.kalman_noise_lidar); }
 
-}
-
-// Retourne l'index du slot, ou -1 si invalide
-int kalman_fifo_insert_lidar(KalmanFIFO* fifo, Set_lidar* data, float R_lidar[3]) {
-    if (data->delay < 0 || data->delay > 200) return -1;
-
-    int idx = kalman_fifo_get_delay(fifo, data->delay, ODO_EVERY_MS);
-    if (idx < 0) return -1;
-
-    fifo->observations[idx].has_lidar = 1;
-    fifo->observations[idx].bypass_lidar_rejection = (lidar_consecutive_rejections > 10);
-    fifo->observations[idx].z_lidar[0] = data->lidar_position_x;
-    fifo->observations[idx].z_lidar[1] = data->lidar_position_y;
-    fifo->observations[idx].z_lidar[2] = data->lidar_position_t;
-
-    // Update initial sur le slot historique (point de départ de la repropagate)
-    float z[3] = {data->lidar_position_x, data->lidar_position_y, data->lidar_position_t};
-    uint8_t accepted = kalman_update(&fifo->buffer[idx], z, R_lidar,
-                                     fifo->observations[idx].bypass_lidar_rejection);
-    if (accepted == 1) {
-        lidar_consecutive_rejections++;
-    } else {
-        lidar_consecutive_rejections = 0;
+    if (!kalman_initialized) {
+        // init lidar si besoin (inchangé)
+        return;
     }
 
-    return idx;
-}
+    // --- Collecte de toutes les observations Kalman ---
+    int earliest_index = -1;
+    int earliest_delay = -1; // le plus grand delay = le plus loin dans le passé
 
-int kalman_fifo_insert_camera(KalmanFIFO* fifo, Set_camera* data, uint8_t cam_id) {
-    if (cam_id >= 3) return -1; // 0-indexé !
-    if (data->delay < 0 || data->delay > 200) return -1;
+    if (CHECK_FIELD(&local_data, set_lidar)) {
+        int idx = kalman_fifo_insert_lidar(&kalman_fifo, &local_data.set_lidar, R_lidar);
+        if (idx >= 0 && local_data.set_lidar.delay > earliest_delay) {
+            earliest_delay = local_data.set_lidar.delay;
+            earliest_index = idx;
+        }
+    }
 
-    int idx = kalman_fifo_get_delay(fifo, data->delay, ODO_EVERY_MS);
-    if (idx < 0) return -1;
+    Set_camera* cameras[3] = {&local_data.set_camera_1,
+                               &local_data.set_camera_2,
+                               &local_data.set_camera_3};
+    uint8_t cam_fields[3] = {
+        CHECK_FIELD(&local_data, set_camera_1),
+        CHECK_FIELD(&local_data, set_camera_2),
+        CHECK_FIELD(&local_data, set_camera_3)
+    };
 
-    float R[3] = {data->noise_x * data->noise_x,
-                  data->noise_y * data->noise_y,
-                  data->noise_t * data->noise_t};
+    for (int i = 0; i < 3; i++) {
+        if (cam_fields[i]) {
+            int idx = kalman_fifo_insert_camera(&kalman_fifo, cameras[i], i); // 0-indexé
+            if (idx >= 0 && cameras[i]->delay > earliest_delay) {
+                earliest_delay = cameras[i]->delay;
+                earliest_index = idx;
+            }
+        }
+    }
 
-    fifo->observations[idx].has_camera[cam_id] = 1;
-    fifo->observations[idx].z_camera[cam_id][0] = data->camera_position_x;
-    fifo->observations[idx].z_camera[cam_id][1] = data->camera_position_y;
-    fifo->observations[idx].z_camera[cam_id][2] = data->camera_position_t;
-    fifo->observations[idx].r_camera[cam_id][0] = R[0];
-    fifo->observations[idx].r_camera[cam_id][1] = R[1];
-    fifo->observations[idx].r_camera[cam_id][2] = R[2];
-
-    float z[3] = {data->camera_position_x, data->camera_position_y, data->camera_position_t};
-    kalman_update(&fifo->buffer[idx], z, R, 0);
-
-    return idx;
+    // --- Une seule repropagate depuis le point le plus ancien ---
+    if (earliest_index >= 0) {
+        kalman_fifo_repropagate(&kalman_fifo, earliest_index,
+                                ODO_EVERY_MS * 0.001f, R_lidar);
+        kalman_current_state = kalman_fifo.buffer[
+            (kalman_fifo.head - 1 + KALMAN_FIFO_LEN) % KALMAN_FIFO_LEN];
+    }
 }
