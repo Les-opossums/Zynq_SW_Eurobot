@@ -71,4 +71,5 @@ void kalman_fifo_repropagate(KalmanFIFO* fifo, int delay_index, float dt_s, floa
  */
 void kalman_init_with_lidar(KalmanFIFO* fifo, Position* lidar_pos);
 
+
 #endif // __KALMAN_FIFO_H_

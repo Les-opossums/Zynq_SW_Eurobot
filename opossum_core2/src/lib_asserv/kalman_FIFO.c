@@ -152,3 +152,4 @@ void kalman_init_with_lidar(KalmanFIFO* fifo, Position* lidar_pos) {
     fifo->head = 0;
     fifo->count = 0;
 }
+

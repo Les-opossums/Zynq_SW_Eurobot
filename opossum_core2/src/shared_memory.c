@@ -144,32 +144,3 @@ int check_from_other_core(void *data_out, size_t size,
     }
     return 0; // Rien à lire
 }
-
-int check_for_cmd_state = 0;
-int old_check_timer_ms1 = 0;
-
-int previous_timer = 0;
-
-void check_for_cmd_loop(void){
-    if(CHECK_FIELD(&local_data, cmd_position)){ motion_pos(local_data.cmd_position); }
-    if(CHECK_FIELD(&local_data, cmd_speed)){ motion_speed(local_data.cmd_speed); }
-    if(CHECK_FIELD(&local_data, cmd_abs_speed)){ motion_absolute_speed(local_data.cmd_abs_speed); }
-    
-    if(CHECK_FIELD(&local_data, asserv_mode)){
-        if(local_data.asserv_mode == 0){ motion_free(); } 
-        else if(local_data.asserv_mode == 4){ motion_block(); }
-    }
-
-    if(CHECK_FIELD(&local_data, set_lidar)){ Set_Lidar_Cmd(local_data.set_lidar); }
-    if(CHECK_FIELD(&local_data, set_pos)){ set_position(local_data.set_pos); }
-    if(CHECK_FIELD(&local_data, vmax)){ set_Constraint_vitesse_xy_max(local_data.vmax); }
-    if(CHECK_FIELD(&local_data, vtmax)){ set_Constraint_vt_max(local_data.vtmax); }
-    if(CHECK_FIELD(&local_data, amax)){ set_Constraint_a_xy_max(local_data.amax); }
-    if(CHECK_FIELD(&local_data, cmd_esc)){ Asserv_PWM_calculator(&local_data.cmd_esc); }
-    if(CHECK_FIELD(&local_data, enable_kalman)){ Set_Kalman_Enable_Cmd(local_data.enable_kalman); }
-    if(CHECK_FIELD(&local_data, odo_spacing)){ odo_set_spacing(local_data.odo_spacing); }
-    if(CHECK_FIELD(&local_data, set_camera_1)){ Set_Camera_Cmd(local_data.set_camera_1, 1); }
-    if(CHECK_FIELD(&local_data, set_camera_2)){ Set_Camera_Cmd(local_data.set_camera_2, 2); }
-    if(CHECK_FIELD(&local_data, set_camera_3)){ Set_Camera_Cmd(local_data.set_camera_3, 3); }
-    if(CHECK_FIELD(&local_data, kalman_noise_lidar)){ Set_Lidar_Noise_Cmd(local_data.kalman_noise_lidar); }
-}

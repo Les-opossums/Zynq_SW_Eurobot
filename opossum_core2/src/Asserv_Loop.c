@@ -108,7 +108,7 @@ void Asserv_Loop(void)
 
             if (new_cmd_from_core0) {
                 new_cmd_from_core0 = 0;
-                check_for_cmd_loop();
+                Process_Shared_Memory_Commands();
             }
 
             odo_speed_step(speed_motor_1, speed_motor_2, speed_motor_3, speed_motor_4);       
@@ -480,4 +480,116 @@ void Set_Lidar_Noise_Cmd(Set_lidar_noise kalman_noise_lidar) {
 void Set_Kalman_Enable_Cmd(Enable_Kalman enable_kalman) {
     en_kalman.enable_lidar_kalman = enable_kalman.enable_lidar_kalman;
     en_kalman.enable_camera_kalman = enable_kalman.enable_camera_kalman;
+}
+
+
+
+void Process_Shared_Memory_Commands(void) {
+    int earliest_index = -1;
+    int earliest_delay = -1; // Le plus grand delay = le plus loin dans le passé
+
+    // 1. Traitement du LiDAR (CHECK_FIELD copie la mémoire ET renvoie 1 s'il y a du neuf)
+    if (CHECK_FIELD(&local_data, set_lidar)) {
+        int idx = kalman_fifo_insert_lidar(&kalman_fifo, &local_data.set_lidar, R_lidar);
+        if (idx >= 0 && local_data.set_lidar.delay > earliest_delay) {
+            earliest_delay = local_data.set_lidar.delay;
+            earliest_index = idx;
+        }
+    }
+
+    // 2. Traitement des Caméras
+    Set_camera* cameras[3] = {&local_data.set_camera_1,
+                              &local_data.set_camera_2,
+                              &local_data.set_camera_3};
+    uint8_t cam_fields[3] = {
+        CHECK_FIELD(&local_data, set_camera_1),
+        CHECK_FIELD(&local_data, set_camera_2),
+        CHECK_FIELD(&local_data, set_camera_3)
+    };
+
+    for (int i = 0; i < 3; i++) {
+        if (cam_fields[i]) {
+            int idx = kalman_fifo_insert_camera(&kalman_fifo, cameras[i], i);
+            if (idx >= 0 && cameras[i]->delay > earliest_delay) {
+                earliest_delay = cameras[i]->delay;
+                earliest_index = idx;
+            }
+        }
+    }
+
+    // 3. REPROPAGATION OPTIMISÉE (Une seule fois, depuis la modif la plus ancienne)
+    if (earliest_index >= 0) {
+        kalman_repropagate(&kalman_fifo, earliest_index);
+    }
+
+    // 4. Traitement des autres commandes génériques (moteurs, config, etc.)
+    if (CHECK_FIELD(&local_data, cmd_position)) { motion_pos(local_data.cmd_position); }
+    if (CHECK_FIELD(&local_data, cmd_speed)) { motion_speed(local_data.cmd_speed); }
+    if (CHECK_FIELD(&local_data, cmd_abs_speed)) { motion_absolute_speed(local_data.cmd_abs_speed); }
+    
+    if (CHECK_FIELD(&local_data, asserv_mode)) {
+        if (local_data.asserv_mode == 0) { motion_free(); } 
+        else if (local_data.asserv_mode == 4) { motion_block(); }
+    }
+
+    if (CHECK_FIELD(&local_data, set_pos)) { set_position(local_data.set_pos); }
+    if (CHECK_FIELD(&local_data, vmax)) { set_Constraint_vitesse_xy_max(local_data.vmax); }
+    if (CHECK_FIELD(&local_data, vtmax)){ set_Constraint_vt_max(local_data.vtmax); }
+    if (CHECK_FIELD(&local_data, amax)) { set_Constraint_a_xy_max(local_data.amax); }
+    if (CHECK_FIELD(&local_data, cmd_esc)){ Asserv_PWM_calculator(&local_data.cmd_esc); }
+    if (CHECK_FIELD(&local_data, enable_kalman)){ Set_Kalman_Enable_Cmd(local_data.enable_kalman); }
+    if (CHECK_FIELD(&local_data, odo_spacing)){ odo_set_spacing(local_data.odo_spacing); }
+    if (CHECK_FIELD(&local_data, kalman_noise_lidar)){ Set_Lidar_Noise_Cmd(local_data.kalman_noise_lidar); }
+
+}
+
+// Retourne l'index du slot, ou -1 si invalide
+int kalman_fifo_insert_lidar(KalmanFIFO* fifo, Set_lidar* data, float R_lidar[3]) {
+    if (data->delay < 0 || data->delay > 200) return -1;
+
+    int idx = kalman_fifo_get_delay(fifo, data->delay, ODO_EVERY_MS);
+    if (idx < 0) return -1;
+
+    fifo->observations[idx].has_lidar = 1;
+    fifo->observations[idx].bypass_lidar_rejection = (lidar_consecutive_rejections > 10);
+    fifo->observations[idx].z_lidar[0] = data->lidar_position_x;
+    fifo->observations[idx].z_lidar[1] = data->lidar_position_y;
+    fifo->observations[idx].z_lidar[2] = data->lidar_position_t;
+
+    // Update initial sur le slot historique (point de départ de la repropagate)
+    float z[3] = {data->lidar_position_x, data->lidar_position_y, data->lidar_position_t};
+    uint8_t accepted = kalman_update(&fifo->buffer[idx], z, R_lidar,
+                                     fifo->observations[idx].bypass_lidar_rejection);
+    if (accepted == 1) {
+        lidar_consecutive_rejections++;
+    } else {
+        lidar_consecutive_rejections = 0;
+    }
+
+    return idx;
+}
+
+int kalman_fifo_insert_camera(KalmanFIFO* fifo, Set_camera* data, uint8_t cam_id) {
+    if (cam_id >= 3) return -1; // 0-indexé !
+    if (data->delay < 0 || data->delay > 200) return -1;
+
+    int idx = kalman_fifo_get_delay(fifo, data->delay, ODO_EVERY_MS);
+    if (idx < 0) return -1;
+
+    float R[3] = {data->noise_x * data->noise_x,
+                  data->noise_y * data->noise_y,
+                  data->noise_t * data->noise_t};
+
+    fifo->observations[idx].has_camera[cam_id] = 1;
+    fifo->observations[idx].z_camera[cam_id][0] = data->camera_position_x;
+    fifo->observations[idx].z_camera[cam_id][1] = data->camera_position_y;
+    fifo->observations[idx].z_camera[cam_id][2] = data->camera_position_t;
+    fifo->observations[idx].r_camera[cam_id][0] = R[0];
+    fifo->observations[idx].r_camera[cam_id][1] = R[1];
+    fifo->observations[idx].r_camera[cam_id][2] = R[2];
+
+    float z[3] = {data->camera_position_x, data->camera_position_y, data->camera_position_t};
+    kalman_update(&fifo->buffer[idx], z, R, 0);
+
+    return idx;
 }
