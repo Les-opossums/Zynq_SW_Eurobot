@@ -91,14 +91,17 @@ void kalman_fifo_repropagate(KalmanFIFO* fifo, int delay_index, float dt_s, floa
         memcpy(next, current, sizeof(KalmanState)); // Copie une fois
 
         // 1. Prédiction odométrique classique
-        kalman_predict(next, speed, dt_s);
+        kalman_predict(next, dt_s);
 
-        // 2. Si une mesure Lidar avait eu lieu à 'next_i', on la réapplique !
+        // 2. Correction EKF avec la mesure d'odométrie 
+        kalman_update_odo(next, speed);
+
+        // 3. Si une mesure Lidar avait eu lieu à 'next_i', on la réapplique !
         if (fifo->observations[next_i].has_lidar) {
             kalman_update(next, fifo->observations[next_i].z_lidar, R_lidar, fifo->observations[next_i].bypass_lidar_rejection);
         }
 
-        // 3. Si une mesure Caméra avait eu lieu à 'next_i', on la réapplique ! 
+        // 4. Si une mesure Caméra avait eu lieu à 'next_i', on la réapplique ! 
         for(int cam_id = 0; cam_id < 3; cam_id++) {
             if (fifo->observations[next_i].has_camera[cam_id]) {
                 kalman_update(next, 

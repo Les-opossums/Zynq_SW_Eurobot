@@ -55,10 +55,9 @@ void kalman_init(KalmanState* state);
  * Applique la prédiction du modèle EKF à partir des vitesses dans le repère robot.
  * 
  * @param state L’état courant à prédire.
- * @param speed Vitesse du robot dans le repère robot.
  * @param dt Pas de temps (s).
  */
-void kalman_predict(KalmanState* state, Speed* speed, float dt);
+void kalman_predict(KalmanState* state, float dt);
 
 /**
  * Applique la correction EKF à partir d’une mesure z = [x, y, theta] dans le repère monde.
@@ -82,5 +81,7 @@ void kalman_predict(KalmanState* state, Speed* speed, float dt);
  *      - 5 : Clamp de sécurité post update
  */
 uint8_t kalman_update(KalmanState* state, float z[STATE_SIZE], float R_diag[3], uint8_t bypass_outlier_rejection);
+
+uint8_t kalman_update_odo(KalmanState* state, Speed* measured_speed);
 
 #endif // __KALMAN_H_

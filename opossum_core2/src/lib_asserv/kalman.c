@@ -16,28 +16,78 @@ void kalman_init(KalmanState* state) {
     state->P[5][5] = 1.0f;                     // vtheta: ±30°/s
 }
 
-void kalman_predict(KalmanState* state, Speed* speed, float dt) {
+void kalman_predict(KalmanState* state, float dt) {
+    // 1. --- Récupération de l'état actuel ---
+    float x = state->x[0];
+    float y = state->x[1];
+    float theta = state->x[2];
+    
+    // Les vitesses sont désormais celles estimées par le filtre, dans le REPÈRE ROBOT
+    float vx = state->x[3]; 
+    float vy = state->x[4]; 
+    float vtheta = state->x[5];
 
-    // 1. --- Prédiction d'état (Runge-Kutta 2) ---
-    float angle_mid = principal_angle(state->x[2] + speed->vt * dt * 0.5f);
+    // --- Modèle cinématique (Vitesse Constante) ---
+    // Utilisation de Runge-Kutta 2 (angle au milieu du pas) pour plus de précision
+    float angle_mid = principal_angle(theta + vtheta * dt * 0.5f);
     float cos_t = cosf(angle_mid);
     float sin_t = sinf(angle_mid);
 
-    float v_dx = speed->vx * cos_t - speed->vy * sin_t;
-    float v_dy = speed->vx * sin_t + speed->vy * cos_t;
-    float v_ang = speed->vt;
+    // Transformation des vitesses robot -> monde pour la mise à jour de la position
+    float dx = (vx * cos_t - vy * sin_t) * dt;
+    float dy = (vx * sin_t + vy * cos_t) * dt;
 
-    state->x[0] += v_dx * dt;
-    state->x[1] += v_dy * dt;
-    state->x[2]  = principal_angle(state->x[2] + v_ang * dt);
-    state->x[3]  = v_dx;   // directement observé par l'odométrie
-    state->x[4]  = v_dy;
-    state->x[5]  = v_ang;
+    // Mise à jour de l'état prédit
+    state->x[0] = x + dx;
+    state->x[1] = y + dy;
+    state->x[2] = principal_angle(theta + vtheta * dt);
+    // state->x[3], x[4], x[5] restent inchangés (hypothèse de vitesse constante)
 
-    // 2. --- Bruit de processus Q dynamique ---
-    float abs_vx = fabsf(speed->vx);
-    float abs_vy = fabsf(speed->vy);
-    float abs_vt = fabsf(speed->vt);
+    // 2. --- Matrice Jacobienne F ---
+    // Dérivées partielles de la position par rapport à l'angle (theta)
+    float F02 = (-vx * sin_t - vy * cos_t) * dt;
+    float F12 = ( vx * cos_t - vy * sin_t) * dt;
+
+    // Dérivées partielles de la position par rapport aux vitesses (vx, vy)
+    float F03 = cos_t * dt;
+    float F04 = -sin_t * dt;
+    float F13 = sin_t * dt;
+    float F14 = cos_t * dt;
+
+    // 3. --- Propagation de la covariance : P_new = F * P * F^T ---
+    // Optimisation extrême pour architecture ARM : on calcule F*P et F*P*F^T de manière explicite
+    // en ignorant toutes les multiplications par 0 ou 1 de la matrice F.
+    
+    float P[6][6];
+    memcpy(P, state->P, sizeof(P)); // Copie locale pour lire les valeurs de l'étape k-1
+
+    float FP[6][6];
+    // Étape A : FP = F * P
+    for (int j = 0; j < 6; j++) {
+        FP[0][j] = P[0][j] + F02 * P[2][j] + F03 * P[3][j] + F04 * P[4][j];
+        FP[1][j] = P[1][j] + F12 * P[2][j] + F13 * P[3][j] + F14 * P[4][j];
+        FP[2][j] = P[2][j] + dt * P[5][j];
+        FP[3][j] = P[3][j];
+        FP[4][j] = P[4][j];
+        FP[5][j] = P[5][j];
+    }
+
+    float P_new[6][6];
+    // Étape B : P_new = FP * F^T
+    for (int i = 0; i < 6; i++) {
+        P_new[i][0] = FP[i][0] + FP[i][2] * F02 + FP[i][3] * F03 + FP[i][4] * F04;
+        P_new[i][1] = FP[i][1] + FP[i][2] * F12 + FP[i][3] * F13 + FP[i][4] * F14;
+        P_new[i][2] = FP[i][2] + FP[i][5] * dt;
+        P_new[i][3] = FP[i][3];
+        P_new[i][4] = FP[i][4];
+        P_new[i][5] = FP[i][5];
+    }
+
+    // 4. --- Bruit de processus Q dynamique ---
+    // Basé sur les vitesses estimées par le filtre
+    float abs_vx = fabsf(vx);
+    float abs_vy = fabsf(vy);
+    float abs_vt = fabsf(vtheta);
 
     float q_var_x  = powf(PROCESS_NOISE_ODOM_BASE_X     + PROCESS_NOISE_ODOM_VEL_X     * abs_vx, 2.0f);
     float q_var_y  = powf(PROCESS_NOISE_ODOM_BASE_Y     + PROCESS_NOISE_ODOM_VEL_Y     * abs_vy, 2.0f);
@@ -46,61 +96,22 @@ void kalman_predict(KalmanState* state, Speed* speed, float dt) {
     float q_var_vy = PROCESS_NOISE_ODOM_VY     * PROCESS_NOISE_ODOM_VY;
     float q_var_vt = PROCESS_NOISE_ODOM_VTHETA * PROCESS_NOISE_ODOM_VTHETA;
 
-    // 3. --- Propagation de P avec le vrai Jacobien F ---
-    //
-    // Les vitesses x[3..5] sont DIRECTEMENT ÉCRASÉES par l'odométrie à chaque pas.
-    // Elles ne sont pas prédites depuis l'état précédent.
-    // Le vrai Jacobien F pour le bloc position est donc :
-    //
-    //   F_pos = [ 1   0   F02 ]     F02 = (-vx*sin_t - vy*cos_t) * dt
-    //           [ 0   1   F12 ]     F12 = ( vx*cos_t - vy*sin_t) * dt
-    //           [ 0   0   1   ]
-    //
-    // et F pour le bloc vitesse est 0 (overwrite direct, pas de dynamique d'état).
-    // Tous les cross-termes position/vitesse sont nuls après predict.
+    // Ajout du bruit Q sur la diagonale (P_new = F*P*F^T + Q)
+    P_new[0][0] += q_var_x;
+    P_new[1][1] += q_var_y;
+    P_new[2][2] += q_var_t;
+    P_new[3][3] += q_var_vx;
+    P_new[4][4] += q_var_vy;
+    P_new[5][5] += q_var_vt;
 
-    float F02 = (-speed->vx * sin_t - speed->vy * cos_t) * dt;
-    float F12 = ( speed->vx * cos_t - speed->vy * sin_t) * dt;
-
-    // Extraction du bloc position de P avant modification (évite les aliasing)
-    float P00 = state->P[0][0];
-    float P01 = state->P[0][1];
-    float P02_val = state->P[0][2];
-    float P11 = state->P[1][1];
-    float P12_val = state->P[1][2];
-    float P22 = state->P[2][2];
-
-    // P_new = F_pos * P_pos * F_pos^T + Q_pos
-    state->P[0][0] = P00 + 2.0f*F02*P02_val + F02*F02*P22 + q_var_x;
-    state->P[1][1] = P11 + 2.0f*F12*P12_val + F12*F12*P22 + q_var_y;
-    state->P[2][2] = P22 + q_var_t;
-
-    float new_P01 = P01 + F02*P12_val + F12*P02_val + F02*F12*P22;
-    float new_P02 = P02_val + F02*P22;
-    float new_P12 = P12_val + F12*P22;
-
-    state->P[0][1] = state->P[1][0] = new_P01;
-    state->P[0][2] = state->P[2][0] = new_P02;
-    state->P[1][2] = state->P[2][1] = new_P12;
-
-    // Bloc vitesse : directement observé par l'odométrie → incertitude = bruit odométrique seul.
-    // Tous les cross-termes position/vitesse sont nuls (pas de prédiction couplée).
-    state->P[0][3] = state->P[3][0] = 0.0f;
-    state->P[0][4] = state->P[4][0] = 0.0f;
-    state->P[0][5] = state->P[5][0] = 0.0f;
-    state->P[1][3] = state->P[3][1] = 0.0f;
-    state->P[1][4] = state->P[4][1] = 0.0f;
-    state->P[1][5] = state->P[5][1] = 0.0f;
-    state->P[2][3] = state->P[3][2] = 0.0f;
-    state->P[2][4] = state->P[4][2] = 0.0f;
-    state->P[2][5] = state->P[5][2] = 0.0f;
-
-    state->P[3][3] = q_var_vx;
-    state->P[4][4] = q_var_vy;
-    state->P[5][5] = q_var_vt;
-    state->P[3][4] = state->P[4][3] = 0.0f;
-    state->P[3][5] = state->P[5][3] = 0.0f;
-    state->P[4][5] = state->P[5][4] = 0.0f;
+    // 5. --- Symétrisation pour éviter les dérives numériques ---
+    for (int i = 0; i < 6; ++i) {
+        for (int j = i; j < 6; ++j) {
+            float s = 0.5f * (P_new[i][j] + P_new[j][i]);
+            state->P[i][j] = s;
+            state->P[j][i] = s;
+        }
+    }
 }
 
 // Seuil de la loi du Chi-Carré pour 3 degrés de liberté (x, y, theta) à 99% de confiance
@@ -259,4 +270,138 @@ uint8_t kalman_update(KalmanState* state, float z[3], float R_diag[3], uint8_t b
     }
 
     return 0; // update réussi
+}
+
+float R_odo[3] = {0.05f, 0.05f, 0.1f}; 
+
+uint8_t kalman_update_odo(KalmanState* state, Speed* measured_speed) {
+    // 1. --- Calcul de l'innovation (y = z - Hx) ---
+    // Mesure z = [vx_odo, vy_odo, vtheta_odo]
+    // L'état observé est la vitesse : x[3], x[4], x[5]
+    float y0 = measured_speed->vx - state->x[3];
+    float y1 = measured_speed->vy - state->x[4];
+    float y2 = measured_speed->vt - state->x[5];
+
+    // 2. --- Matrice de covariance de l'innovation S = H * P * H^T + R ---
+    // Puisque H = [0_3x3  I_3x3], H*P*H^T sélectionne le bloc 3x3 en bas à droite de P
+    float S[3][3];
+    S[0][0] = state->P[3][3] + R_odo[0];
+    S[0][1] = state->P[3][4];
+    S[0][2] = state->P[3][5];
+
+    S[1][0] = state->P[4][3];
+    S[1][1] = state->P[4][4] + R_odo[1];
+    S[1][2] = state->P[4][5];
+
+    S[2][0] = state->P[5][3];
+    S[2][1] = state->P[5][4];
+    S[2][2] = state->P[5][5] + R_odo[2];
+
+    // 3. --- Inversion de S (3x3) ---
+    // Calcul du déterminant
+    float det = S[0][0]*(S[1][1]*S[2][2] - S[1][2]*S[2][1])
+              - S[0][1]*(S[1][0]*S[2][2] - S[1][2]*S[2][0])
+              + S[0][2]*(S[1][0]*S[2][1] - S[1][1]*S[2][0]);
+
+    // Fallback de régularisation si la matrice est singulière (copié de ta version existante)
+    if (fabsf(det) < S_INV_EPS) {
+        S[0][0] += S_INV_EPS;
+        S[1][1] += S_INV_EPS;
+        S[2][2] += S_INV_EPS;
+        det = S[0][0]*(S[1][1]*S[2][2] - S[1][2]*S[2][1])
+            - S[0][1]*(S[1][0]*S[2][2] - S[1][2]*S[2][0])
+            + S[0][2]*(S[1][0]*S[2][1] - S[1][1]*S[2][0]);
+        if (fabsf(det) < S_INV_EPS) return 3; // Abandon
+    }
+
+    float invDet = 1.0f / det;
+    float S_inv[3][3];
+
+    S_inv[0][0] =  (S[1][1]*S[2][2] - S[1][2]*S[2][1]) * invDet;
+    S_inv[0][1] = -(S[0][1]*S[2][2] - S[0][2]*S[2][1]) * invDet;
+    S_inv[0][2] =  (S[0][1]*S[1][2] - S[0][2]*S[1][1]) * invDet;
+
+    S_inv[1][0] = -(S[1][0]*S[2][2] - S[1][2]*S[2][0]) * invDet;
+    S_inv[1][1] =  (S[0][0]*S[2][2] - S[0][2]*S[2][0]) * invDet;
+    S_inv[1][2] = -(S[0][0]*S[1][2] - S[0][2]*S[1][0]) * invDet;
+
+    S_inv[2][0] =  (S[1][0]*S[2][1] - S[1][1]*S[2][0]) * invDet;
+    S_inv[2][1] = -(S[0][0]*S[2][1] - S[0][1]*S[2][0]) * invDet;
+    S_inv[2][2] =  (S[0][0]*S[1][1] - S[0][1]*S[1][0]) * invDet;
+
+    // (Note : On ne fait pas de rejet d'outliers par distance de Mahalanobis ici,
+    // car l'odométrie est supposée continue. Les rejets sont utiles pour le Lidar).
+
+    // 4. --- Gain de Kalman K = P * H^T * S_inv ---
+    // H^T sélectionne les colonnes 3, 4 et 5 de P
+    float K[6][3];
+    for (int i = 0; i < 6; ++i) {
+        for (int j = 0; j < 3; ++j) {
+            K[i][j] = state->P[i][3] * S_inv[0][j]
+                    + state->P[i][4] * S_inv[1][j]
+                    + state->P[i][5] * S_inv[2][j];
+        }
+    }
+
+    // 5. --- Mise à jour de l'état : x = x + K * y ---
+    float dy[3] = { y0, y1, y2 };
+    for (int i = 0; i < 6; ++i) {
+        float delta = K[i][0]*dy[0] + K[i][1]*dy[1] + K[i][2]*dy[2];
+        if (i == 2) {
+            state->x[i] = principal_angle(state->x[i] + delta);
+        } else {
+            state->x[i] += delta;
+        }
+    }
+
+    // 6. --- Mise à jour de la covariance P via la forme de Joseph ---
+    // P = (I - KH)P(I - KH)^T + KRK^T
+    // Optimisation : on déroule les calculs sachant que H = [0 I]
+    float P_new[6][6];
+    float AP[6][6];
+
+    // Calcul de AP = (I - K*H)*P
+    // Pour H = [0 I], le bloc de gauche de (I-KH) est l'identité, le bloc de droite est -K
+    for (int i = 0; i < 6; ++i) {
+        for (int j = 0; j < 6; ++j) {
+            float val = state->P[i][j];
+            // On soustrait la contribution de la partie droite de P (colonnes 3,4,5)
+            val -= K[i][0] * state->P[3][j];
+            val -= K[i][1] * state->P[4][j];
+            val -= K[i][2] * state->P[5][j];
+            AP[i][j] = val;
+        }
+    }
+
+    // Calcul de P_new = AP * (I - K*H)^T
+    for (int i = 0; i < 6; ++i) {
+        for (int j = 0; j < 6; ++j) {
+            float val = AP[i][j];
+            val -= AP[i][3] * K[j][0];
+            val -= AP[i][4] * K[j][1];
+            val -= AP[i][5] * K[j][2];
+            P_new[i][j] = val;
+        }
+    }
+
+    // Ajout du terme de bruit K * R * K^T
+    for (int i = 0; i < 6; ++i) {
+        for (int j = 0; j < 6; ++j) {
+            float add = K[i][0] * R_odo[0] * K[j][0]
+                      + K[i][1] * R_odo[1] * K[j][1]
+                      + K[i][2] * R_odo[2] * K[j][2];
+            P_new[i][j] += add;
+        }
+    }
+
+    // Symétrisation et copie finale
+    for (int i = 0; i < 6; ++i) {
+        for (int j = i; j < 6; ++j) {
+            float s = 0.5f * (P_new[i][j] + P_new[j][i]);
+            state->P[i][j] = s;
+            state->P[j][i] = s;
+        }
+    }
+
+    return 0; // Succès
 }

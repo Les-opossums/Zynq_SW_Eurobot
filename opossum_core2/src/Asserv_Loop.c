@@ -126,7 +126,8 @@ void Asserv_Loop(void)
                         #ifdef DEBUG_TIMING
                         tampon3 = Timer_us1;
                         #endif
-        kalman_predict(&kalman_current_state, &speed_robot_odom, ODO_EVERY_MS*0.001f);
+        kalman_predict(&kalman_current_state, ODO_EVERY_MS*0.001f);
+        kalman_update_odo(&kalman_current_state, &speed_robot_odom);
         kalman_fifo_push(&kalman_fifo, &kalman_current_state, &speed_robot_odom);
         Asserv_Odo_Count ++;
                         #ifdef DEBUG_TIMING
