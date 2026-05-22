@@ -3,6 +3,10 @@
 
 
 // ******************************    Variables    *******************************
+// Ajouter après les déclarations existantes en haut du fichier
+#define CTRL_POS_ALPHA 1.0f
+Position control_pos;   // position filtrée utilisée par le contrôleur
+
 int asserv_mode; // asservissement off par defaut (refer to asserv_init function)
 int motion_done;
 
@@ -53,6 +57,10 @@ void asserv_init(void) {
 	Wanted_Speed.vx = 0;
 	Wanted_Speed.vy = 0;
 	Wanted_Speed.vt = 0;
+
+    control_pos.x = 0.0f;
+    control_pos.y = 0.0f;
+    control_pos.t = 0.0f;
 
     current_stop_distance = DEFAULT_STOP_DISTANCE;
     default_stop_distance = DEFAULT_STOP_DISTANCE;
@@ -217,10 +225,14 @@ void pos_asserv_step(void) {
     float y_o = Wanted_Pos.y;
     float t_o = Wanted_Pos.t;
 
-    // --- État actuel (Kalman)
-    float x = kalman_current_state.x[0];
-    float y = kalman_current_state.x[1];
-    float t = kalman_current_state.x[2];
+    // --- Filtre passe-bas : lisse les sauts discrets des corrections Kalman
+    control_pos.x += CTRL_POS_ALPHA * (kalman_current_state.x[0] - control_pos.x);
+    control_pos.y += CTRL_POS_ALPHA * (kalman_current_state.x[1] - control_pos.y);
+    control_pos.t  = principal_angle(control_pos.t + CTRL_POS_ALPHA * principal_angle(kalman_current_state.x[2] - control_pos.t));
+
+    float x = control_pos.x;
+    float y = control_pos.y;
+    float t = control_pos.t;
 
     // --- Erreurs
     float rdx = x_o - x;
@@ -275,10 +287,13 @@ void pos_asserv_step(void) {
 
 
 float radial_speed_calculation(float distance) {
-    float v_profile      = sqrtf(2.0f * robot_a_max * distance * 0.85f);
+    float v_raw           = sqrtf(2.0f * robot_a_max * distance * 0.85f);
+    float v_min           = 0.03f; // 3 cm/s : évite le gain infini quand d → 0
+    float v_profile       = (v_raw > v_min) ? v_raw : v_min;
     float v_braking_limit = sqrtf(2.0f * robot_a_max * distance);
     return fminf(v_profile, fminf(v_braking_limit, v_max));
 }
+
 float angular_speed_calculation(float angle) {
     float fabs_angle = fabsf(angle);
     int sign = 1;
