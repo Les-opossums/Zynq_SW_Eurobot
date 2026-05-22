@@ -18,7 +18,7 @@
 #define DEFAULT_CONSTRAINT_VT_MAX 6.0f
 
 #define DEFAULT_CONSTRAINT_A_MAX 1.2f
-#define DEFAULT_CONSTRAINT_AT_MAX 8.0f
+#define DEFAULT_CONSTRAINT_AT_MAX 4.0f
 
 #define ASSERV_BLOCK_TIME_LIMIT 1   // 1s "blocké" avant de tout couper
 
