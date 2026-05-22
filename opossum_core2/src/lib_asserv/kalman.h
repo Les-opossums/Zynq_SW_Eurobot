@@ -29,7 +29,7 @@
 
 #define PROCESS_NOISE_LIDAR_X       0.03f
 #define PROCESS_NOISE_LIDAR_Y       0.03f
-#define PROCESS_NOISE_LIDAR_THETA   0.001f
+#define PROCESS_NOISE_LIDAR_THETA   0.03f
 
 #define R_CAMERA_MIN_XY 0.1f 
 #define R_CAMERA_MIN_T 0.3f  

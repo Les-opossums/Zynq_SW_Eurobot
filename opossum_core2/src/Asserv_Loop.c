@@ -367,7 +367,7 @@ void Process_Shared_Memory_Commands(void) {
     int earliest_index = -1;
     int earliest_delay = -1; // le plus grand delay = le plus loin dans le passé
 
-    if (CHECK_FIELD(&local_data, set_lidar)) {
+    if (CHECK_FIELD(&local_data, set_lidar) && en_kalman.enable_lidar_kalman) {
         int idx = kalman_fifo_insert_lidar(&kalman_fifo, &local_data.set_lidar, R_lidar);
         if (idx >= 0 && local_data.set_lidar.delay > earliest_delay) {
             earliest_delay = local_data.set_lidar.delay;
@@ -385,7 +385,7 @@ void Process_Shared_Memory_Commands(void) {
     };
 
     for (int i = 0; i < 3; i++) {
-        if (cam_fields[i]) {
+        if (cam_fields[i] && en_kalman.enable_camera_kalman) {
             int idx = kalman_fifo_insert_camera(&kalman_fifo, cameras[i], i); // 0-indexé
             if (idx >= 0 && cameras[i]->delay > earliest_delay) {
                 earliest_delay = cameras[i]->delay;
