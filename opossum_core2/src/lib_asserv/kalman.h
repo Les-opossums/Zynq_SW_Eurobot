@@ -2,37 +2,54 @@
 #define __KALMAN_H_
 
 #define STATE_SIZE 6  // x, y, theta
-#define HISTORY_LEN 200  // pour 200 ms à 1 kHz
+#define HISTORY_LEN 500  // pour 200 ms à 1 kHz
 
 #define LIDAR_DELAY 90 // 100 ms
 
-#define PROCESS_NOISE_ODOM_X 0.02f
-#define PROCESS_NOISE_ODOM_Y 0.02f
-#define PROCESS_NOISE_ODOM_THETA 0.03f
+// ============================================================================
+// MATRICE Q : BRUIT DE PROCESSUS (CONFIANCE EN LA PRÉDICTION / KINÉMATIQUE)
+// ============================================================================
 
 // 1. Bruit de base (Robot à l'arrêt absolu)
-// Valeurs infimes, juste pour éviter que la matrice P ne devienne numériquement nulle
-#define PROCESS_NOISE_ODOM_BASE_X      0.0001f // m par pas de temps
-#define PROCESS_NOISE_ODOM_BASE_Y      0.0001f
-#define PROCESS_NOISE_ODOM_BASE_THETA  0.005f // rad par pas de temps
+// Valeurs infimes pour garantir que la matrice P reste inversible et définie positive.
+#define PROCESS_NOISE_BASE_X      0.0001f // m par pas de 1 ms (soit 0.1 mm)
+#define PROCESS_NOISE_BASE_Y      0.0001f // m par pas de 1 ms
+#define PROCESS_NOISE_BASE_THETA  0.001f  // rad par pas de 1 ms
 
-// 2. Facteur de patinage (Robot en mouvement)
-// Représente le pourcentage d'erreur généré par la vitesse.
-// Ex: 0.05f signifie que 5% de la vitesse se transforme en incertitude de position.
-#define PROCESS_NOISE_ODOM_VEL_X       0.01f   // était 0.05
-#define PROCESS_NOISE_ODOM_VEL_Y       0.01f   // était 0.05
-#define PROCESS_NOISE_ODOM_VEL_THETA   0.02f   // était 0.05
+// 2. Facteur de glissement dynamique (Robot en mouvement)
+// Les roues holonomes avec des M2006 patinent lors de fortes accélérations.
+// 0.02f = 2% de l'odométrie est considérée comme de l'incertitude pure.
+#define PROCESS_NOISE_VEL_X       0.02f   
+#define PROCESS_NOISE_VEL_Y       0.02f   
+#define PROCESS_NOISE_VEL_THETA   0.05f   // La rotation glisse souvent plus que la translation
 
-#define PROCESS_NOISE_ODOM_VX       0.02f
-#define PROCESS_NOISE_ODOM_VY       0.02f
-#define PROCESS_NOISE_ODOM_VTHETA   0.05f
+// 3. Incertitude sur le modèle de vitesse (Modèle à vitesse constante)
+// Les M2006 peuvent changer de vitesse brutalement. Il faut un Q_vitesse assez 
+// élevé pour autoriser le filtre à suivre ces fortes accélérations sans trop de retard.
+#define PROCESS_NOISE_VX          0.10f   // m/s
+#define PROCESS_NOISE_VY          0.10f   // m/s
+#define PROCESS_NOISE_VTHETA      0.20f   // rad/s
 
-#define PROCESS_NOISE_LIDAR_X       0.03f
-#define PROCESS_NOISE_LIDAR_Y       0.03f
-#define PROCESS_NOISE_LIDAR_THETA   0.03f
+// ============================================================================
+// MATRICE R : BRUIT DE MESURE (CONFIANCE EN LES CAPTEURS)
+// ============================================================================
 
-#define R_CAMERA_MIN_XY 0.1f 
-#define R_CAMERA_MIN_T 0.3f  
+// 1. Odométrie interne (Encodeurs des M2006)
+// Utilisé dans kalman_update_odo. Écart-type en m/s.
+#define OBS_NOISE_ODO_VX          0.05f   
+#define OBS_NOISE_ODO_VY          0.05f   
+#define OBS_NOISE_ODO_VTHETA      0.10f   
+
+// 2. Lidar (Triangulation via Raspberry Pi)
+// Le Lidar est très précis, mais la triangulation peut osciller de quelques cm.
+#define OBS_NOISE_LIDAR_X         0.02f   // 2 cm d'écart-type
+#define OBS_NOISE_LIDAR_Y         0.02f   
+#define OBS_NOISE_LIDAR_THETA     0.02f   
+
+// 3. Caméra JeVois Pro
+// Susceptible au flou de mouvement et aux imprécisions de détection des balises.
+#define OBS_NOISE_CAMERA_XY       0.08f   // 8 cm d'écart-type
+#define OBS_NOISE_CAMERA_THETA    0.15f
 
 #define S_INV_EPS 1e-6f
 

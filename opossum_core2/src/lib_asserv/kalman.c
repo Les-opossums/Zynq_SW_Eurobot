@@ -89,12 +89,13 @@ void kalman_predict(KalmanState* state, float dt) {
     float abs_vy = fabsf(vy);
     float abs_vt = fabsf(vtheta);
 
-    float q_var_x  = powf(PROCESS_NOISE_ODOM_BASE_X     + PROCESS_NOISE_ODOM_VEL_X     * abs_vx, 2.0f);
-    float q_var_y  = powf(PROCESS_NOISE_ODOM_BASE_Y     + PROCESS_NOISE_ODOM_VEL_Y     * abs_vy, 2.0f);
-    float q_var_t  = powf(PROCESS_NOISE_ODOM_BASE_THETA + PROCESS_NOISE_ODOM_VEL_THETA * abs_vt, 2.0f);
-    float q_var_vx = PROCESS_NOISE_ODOM_VX     * PROCESS_NOISE_ODOM_VX;
-    float q_var_vy = PROCESS_NOISE_ODOM_VY     * PROCESS_NOISE_ODOM_VY;
-    float q_var_vt = PROCESS_NOISE_ODOM_VTHETA * PROCESS_NOISE_ODOM_VTHETA;
+    float q_var_x  = powf(PROCESS_NOISE_BASE_X     + PROCESS_NOISE_VEL_X     * abs_vx, 2.0f);
+    float q_var_y  = powf(PROCESS_NOISE_BASE_Y     + PROCESS_NOISE_VEL_Y     * abs_vy, 2.0f);
+    float q_var_t  = powf(PROCESS_NOISE_BASE_THETA + PROCESS_NOISE_VEL_THETA * abs_vt, 2.0f);
+    
+    float q_var_vx = PROCESS_NOISE_VX     * PROCESS_NOISE_VX;
+    float q_var_vy = PROCESS_NOISE_VY     * PROCESS_NOISE_VY;
+    float q_var_vt = PROCESS_NOISE_VTHETA * PROCESS_NOISE_VTHETA;
 
     // Ajout du bruit Q sur la diagonale (P_new = F*P*F^T + Q)
     P_new[0][0] += q_var_x;
@@ -272,7 +273,11 @@ uint8_t kalman_update(KalmanState* state, float z[3], float R_diag[3], uint8_t b
     return 0; // update réussi
 }
 
-float R_odo[3] = {0.05f, 0.05f, 0.1f}; 
+float R_odo[3] = {
+    OBS_NOISE_ODO_VX * OBS_NOISE_ODO_VX, 
+    OBS_NOISE_ODO_VY * OBS_NOISE_ODO_VY, 
+    OBS_NOISE_ODO_VTHETA * OBS_NOISE_ODO_VTHETA
+};
 
 uint8_t kalman_update_odo(KalmanState* state, Speed* measured_speed) {
     // 1. --- Calcul de l'innovation (y = z - Hx) ---

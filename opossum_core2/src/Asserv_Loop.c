@@ -56,9 +56,9 @@ int tampon4 = 0;
 // Définition des profils de bruit
 float R_lidar[3];
 
-float R_camera[3] = {R_CAMERA_MIN_XY * R_CAMERA_MIN_XY,
-                     R_CAMERA_MIN_XY * R_CAMERA_MIN_XY, 
-                     R_CAMERA_MIN_T * R_CAMERA_MIN_T};
+float R_camera[3] = {OBS_NOISE_CAMERA_XY * OBS_NOISE_CAMERA_XY,
+                     OBS_NOISE_CAMERA_XY * OBS_NOISE_CAMERA_XY, 
+                     OBS_NOISE_CAMERA_THETA * OBS_NOISE_CAMERA_THETA};
 
 
 extern volatile uint32_t new_cmd_from_core0;
@@ -79,9 +79,9 @@ void Init_Asserv(void) {
     old_Consigne.command3 = 0;
     old_Consigne.command4 = 0;
 
-    R_lidar[0]  = PROCESS_NOISE_LIDAR_X * PROCESS_NOISE_LIDAR_X;
-    R_lidar[1]  = PROCESS_NOISE_LIDAR_Y * PROCESS_NOISE_LIDAR_Y;
-    R_lidar[2]  = PROCESS_NOISE_LIDAR_THETA * PROCESS_NOISE_LIDAR_THETA;
+    R_lidar[0]  = OBS_NOISE_LIDAR_X * OBS_NOISE_LIDAR_X;
+    R_lidar[1]  = OBS_NOISE_LIDAR_Y * OBS_NOISE_LIDAR_Y;
+    R_lidar[2]  = OBS_NOISE_LIDAR_THETA * OBS_NOISE_LIDAR_THETA;
 
     en_kalman.enable_lidar_kalman = 1;
     en_kalman.enable_camera_kalman = 0;
