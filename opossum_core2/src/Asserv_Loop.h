@@ -31,8 +31,6 @@ void Asserv_Loop(void);
 void Set_Lidar_Noise_Cmd(Set_lidar_noise kalman_noise_lidar);
 void Set_Kalman_Enable_Cmd(Enable_Kalman enable_kalman);
 
-void Apply_Deadzone_Compensation(ESC_Command* cmd);
-
 void Process_Shared_Memory_Commands(void);
 
 #endif // __ASSERV_MASTER_H

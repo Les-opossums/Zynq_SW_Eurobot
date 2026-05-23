@@ -207,30 +207,6 @@ void Asserv_Loop(void)
     }
 }
 
-
-
-#define PWM_MIN_ACTIF 30 // seuil pour lequel on considère que la consigne est active (en dessous, on la met à 0 pour éviter de rester dans la zone morte du moteur)
-#define PWM_DEADZONE 200 // compensation à ajouter à la consigne pour compenser la zone morte du moteur (valeur à ajuster en fonction du moteur et de la batterie, à tester empiriquement)
-
-
-void Apply_Deadzone_Compensation(ESC_Command* cmd) {
-    if (cmd->command1 > PWM_MIN_ACTIF)      cmd->command1 += PWM_DEADZONE;
-    else if (cmd->command1 < -PWM_MIN_ACTIF) cmd->command1 -= PWM_DEADZONE;
-    else                                     cmd->command1 = 0;
-
-    if (cmd->command2 > PWM_MIN_ACTIF)      cmd->command2 += PWM_DEADZONE;
-    else if (cmd->command2 < -PWM_MIN_ACTIF) cmd->command2 -= PWM_DEADZONE;
-    else                                     cmd->command2 = 0;
-
-    if (cmd->command3 > PWM_MIN_ACTIF)      cmd->command3 += PWM_DEADZONE;
-    else if (cmd->command3 < -PWM_MIN_ACTIF) cmd->command3 -= PWM_DEADZONE;
-    else                                     cmd->command3 = 0;
-
-    if (cmd->command4 > PWM_MIN_ACTIF)      cmd->command4 += PWM_DEADZONE;
-    else if (cmd->command4 < -PWM_MIN_ACTIF) cmd->command4 -= PWM_DEADZONE;
-    else                                     cmd->command4 = 0;
-}
-
 void Set_Lidar_Noise_Cmd(Set_lidar_noise kalman_noise_lidar) {
     R_lidar[0]  = kalman_noise_lidar.process_noise_lidar_x * kalman_noise_lidar.process_noise_lidar_x;
     R_lidar[1]  = kalman_noise_lidar.process_noise_lidar_y * kalman_noise_lidar.process_noise_lidar_y;
