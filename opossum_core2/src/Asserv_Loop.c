@@ -1,6 +1,8 @@
 #include "main.h"
 #include "lib_asserv/Lib_Asserv.h"
 
+#define CTRL_POS_ALPHA 0.5f // coefficient du filtre passe-bas pour la position de contrôle (entre 0 et 1, plus c'est petit plus le filtrage est fort)
+
 uint16_t auto_printpos_delay = 100;
 
 uint8_t Debug_Timing = 0;
@@ -30,6 +32,7 @@ float wheel_speed4 = 0;
 uint8_t stop = 0;
 
 Position position_lidar;
+Position control_pos;
 
 int Last_Timer_Asserv = 0;
 int Asserv_State = 0;
@@ -91,204 +94,116 @@ void Init_Asserv(void) {
     Last_Timer_Asserv = Timer_ms1;
 }
 
+// Variables de synchronisation
+static int  last_odo_ms   = 0;
+static int  odo_count     = 0;
+static uint8_t slow_loop_due = 0;
+
 void Asserv_Loop(void)
 {
-	if (Asserv_State == 0) {
-        //----------------------------------
-        // ODO step 1:
-        // - calcul de la vitesse du robot 
-        //-----------------------------------
-        if ((Timer_ms1 - Last_Timer_Asserv) > ODO_EVERY_MS) {
-            
-                        #ifdef DEBUG_TIMING
-                        tampon3 = Timer_us1;
-                        #endif
-            Last_Timer_Asserv += ODO_EVERY_MS;
+	// =================================================================
+    // SECTION 1 — FAST LOOP : ODO + Kalman predict — cadencé à 1ms
+    // =================================================================
+    if ((Timer_ms1 - last_odo_ms) >= ODO_EVERY_MS) {
+        last_odo_ms += ODO_EVERY_MS;
 
-            if (new_cmd_from_core0) {
-                new_cmd_from_core0 = 0;
-                Process_Shared_Memory_Commands();
-            }
+        // Capture atomique des vitesses moteurs
+        // (protection contre écriture concurrente du CAN ISR)
+        int s1, s2, s3, s4;
+        uint32_t cpsr = mfcpsr();
+        mtcpsr(cpsr | 0x80);          // __disable_irq() sur Cortex-A9
+        s1 = speed_motor_1;
+        s2 = speed_motor_2;
+        s3 = speed_motor_3;
+        s4 = speed_motor_4;
+        mtcpsr(cpsr);                 // __enable_irq()
 
-            odo_speed_step(speed_motor_1, speed_motor_2, speed_motor_3, speed_motor_4);       
-            Asserv_State = 2;
-                        #ifdef DEBUG_TIMING
-                        tampon4 += Timer_us1 - tampon3;
-                        #endif
-            
-        }
+        odo_speed_step(s1, s2, s3, s4);
+        odo_position_step(ODO_EVERY_MS * 0.001f);   // BUG CORRIGÉ
 
-    } else if (Asserv_State == 2) {
-        // -----------------------------------
-        // ODO step 2:
-        // - calcul du kalman + history
-        // -----------------------------------
-                        #ifdef DEBUG_TIMING
-                        tampon3 = Timer_us1;
-                        #endif
-        kalman_predict(&kalman_current_state, ODO_EVERY_MS*0.001f);
+        kalman_predict(&kalman_current_state, ODO_EVERY_MS * 0.001f);
         kalman_update_odo(&kalman_current_state, &speed_robot_odom);
         kalman_fifo_push(&kalman_fifo, &kalman_current_state, &speed_robot_odom);
-        Asserv_Odo_Count ++;
-                        #ifdef DEBUG_TIMING
-                        tampon4 += Timer_us1 - tampon3;
-                        #endif
 
-        if (Asserv_Odo_Count >= ASSERV_EVERY){
-            Asserv_Odo_Count = 0;
-            Asserv_State ++;
-        } else {
-            Asserv_State = 0;
+        odo_count++;
+        if (odo_count >= ASSERV_EVERY) {
+            odo_count    = 0;
+            slow_loop_due = 1;
         }
+    }
 
-    } else if (Asserv_State == 3) {
-        // -----------------------------------
-        // ODO step 3:
-        // - calcul de la vitesse du robot
-        // -----------------------------------
-                        #ifdef DEBUG_TIMING
-                        tampon3 = Timer_us1;
-                        #endif
+    // =================================================================
+    // SECTION 2 — COMMANDS : fusion Kalman — dès que disponible
+    //
+    // Pas de section temporisée : s'exécute dans le même tour de boucle
+    // que la détection du flag. Latence typique < 50μs après la SGI.
+    // Aucun conflit avec le CAN ISR (variables disjointes).
+    // =================================================================
+    if (new_cmd_from_core0) {
+        new_cmd_from_core0 = 0;
+        Process_Shared_Memory_Commands();
+    }
+
+    // =================================================================
+    // SECTION 3 — SLOW LOOP : contrôle position — cadencé à ASSERV_EVERY ms
+    // =================================================================
+    if (slow_loop_due) {
+        slow_loop_due = 0;
+
         odo_speed_cumulate_step(ASSERV_EVERY);
-                        #ifdef DEBUG_TIMING
-                        tampon4 += Timer_us1 - tampon3;
-                        #endif
-        Asserv_State = 4;
 
-    } else if (Asserv_State == 4) {
-        // -----------------------------------
-        // ODO step 4:
-        // - mise a jour de la position du robot dans la mémoire partagée
-        // - mse a jour de la vitesse du robot dans la mémoire partagée
-        // -----------------------------------
-        local_data.kalman_out.x = kalman_current_state.x[0];
-        local_data.kalman_out.y = kalman_current_state.x[1];
-        local_data.kalman_out.t = kalman_current_state.x[2];
+        // Filtre passe-bas position de contrôle
+        control_pos.x += CTRL_POS_ALPHA * (kalman_current_state.x[0] - control_pos.x);
+        control_pos.y += CTRL_POS_ALPHA * (kalman_current_state.x[1] - control_pos.y);
+        control_pos.t  = principal_angle(control_pos.t + CTRL_POS_ALPHA * principal_angle(kalman_current_state.x[2] - control_pos.t));
 
-        local_data.speed_robot = speed_robot_asserv;
-        local_data.cmd_speed_constrained = speed_order_constrained;
- 
+        // Mise à jour mémoire partagée
+        local_data.kalman_out.x             = kalman_current_state.x[0];
+        local_data.kalman_out.y             = kalman_current_state.x[1];
+        local_data.kalman_out.t             = kalman_current_state.x[2];
+        local_data.speed_robot              = speed_robot_asserv;
+        local_data.cmd_speed_constrained    = speed_order_constrained;
         SEND_FIELD(&local_data, kalman_out);
         SEND_FIELD(&local_data, speed_robot);
         SEND_FIELD(&local_data, cmd_speed_constrained);
 
-        Asserv_State = 10;
-    
-    } else if (Asserv_State == 10) {
-        //-----------------------------------
-        // motion step
-        //-----------------------------------
-                        #ifdef DEBUG_TIMING
-                        tampon3 = Timer_us1;
-                        #endif
+        // Contrôle mouvement
         motion_step();
-                        #ifdef DEBUG_TIMING
-                        tampon4 += Timer_us1 - tampon3;
-                        #endif
-        Asserv_State = 20;
-
-    } else if (Asserv_State == 20) {
-        //-----------------------------------
-        // spped constrain
-        //-----------------------------------
-                        #ifdef DEBUG_TIMING
-                        tampon3 = Timer_us1;
-                        #endif
         constrain_speed_order();
-                        #ifdef DEBUG_TIMING
-                        tampon4 += Timer_us1 - tampon3;
-                        #endif
-        Asserv_State = 21;
+        constrain_acceleration_order(ASSERV_EVERY * ODO_EVERY_MS * 0.001f);
 
-    } else if (Asserv_State == 21) {
-        //-----------------------------------
-        // acceleration constrain
-        //-----------------------------------
-                        #ifdef DEBUG_TIMING
-                        tampon3 = Timer_us1;
-                        #endif
-        constrain_acceleration_order(ASSERV_EVERY*ODO_EVERY_MS*0.001f);
-                        #ifdef DEBUG_TIMING
-                        tampon4 += Timer_us1 - tampon3;
-                        #endif
-
-        // printf("ROBOTDATA %.4f %.4f %.4f %.4f %.4f %.4f\n",
-        //    (double)speed_order_constrained.vx,
-        //    (double)speed_order_constrained.vy,
-        //    (double)speed_order_constrained.vt,
-        //    (double)speed_robot_asserv.vx,
-        //    (double)speed_robot_asserv.vy,
-        //    (double)speed_robot_asserv.vt);
-
-        Asserv_State = 30;
-
-    } else if (Asserv_State == 30) {
-        //-----------------------------------
-        // consigne
-        //-----------------------------------
-                        #ifdef DEBUG_TIMING
-                        tampon3 = Timer_us1;
-                        #endif
+        // PID → commandes moteurs
         Asserv_PWM_calculator(&Consigne);
-                        #ifdef DEBUG_TIMING
-                        tampon4 += Timer_us1 - tampon3;
-                        #endif
-        Asserv_State = 40;
 
-
-    } else if (Asserv_State == 40) {
-        if ((Wanted_Forced_Consigne.command1 != 0) || 
-            (Wanted_Forced_Consigne.command2 != 0) || 
-            (Wanted_Forced_Consigne.command3 != 0) ||
-            (Wanted_Forced_Consigne.command4 != 0)) {
-
+        // Forced command override
+        if (Wanted_Forced_Consigne.command1 != 0 || Wanted_Forced_Consigne.command2 != 0 ||
+            Wanted_Forced_Consigne.command3 != 0 || Wanted_Forced_Consigne.command4 != 0) {
             Consigne = Wanted_Forced_Consigne;
-        } else {
-            // Apply_Deadzone_Compensation(&Consigne);
-        }
-        
-        float Abs_Consigne1 = Abs_Ternaire(Consigne.command1);
-        float Abs_Consigne2 = Abs_Ternaire(Consigne.command2);
-        float Abs_Consigne3 = Abs_Ternaire(Consigne.command3);
-        float Abs_Consigne4 = Abs_Ternaire(Consigne.command4);
-        
-        float Consigne_Max = Max_Quatre(Abs_Consigne1, Abs_Consigne2, Abs_Consigne3, Abs_Consigne4);
-
-        if (Consigne_Max > 10000) {
-            float Consigne_rapport = 10000.0/Consigne_Max;
-            Consigne.command1 *= Consigne_rapport;
-            Consigne.command2 *= Consigne_rapport;
-            Consigne.command3 *= Consigne_rapport;
-            Consigne.command4 *= Consigne_rapport;
         }
 
-        old_Consigne = Consigne;
-       
-        Asserv_State = 50;
+        // Normalisation 10000
+        float c_max = Max_Quatre(Abs_Ternaire(Consigne.command1), Abs_Ternaire(Consigne.command2),
+                                 Abs_Ternaire(Consigne.command3), Abs_Ternaire(Consigne.command4));
+        if (c_max > 10000.0f) {
+            float r = 10000.0f / c_max;
+            Consigne.command1 *= r; Consigne.command2 *= r;
+            Consigne.command3 *= r; Consigne.command4 *= r;
+        }
 
-    } else if (Asserv_State == 50) {
-        if(AU_state){
+        // Arrêt d'urgence
+        if (AU_state) {
             asserv_off_step();
-        }else{
+        } else {
             motor1_current_order = Consigne.command1;
             motor2_current_order = Consigne.command2;
             motor3_current_order = Consigne.command3;
             motor4_current_order = Consigne.command4;
         }
-        CAN_transmit_motor(motor1_current_order, motor2_current_order, motor3_current_order, motor4_current_order);
-        Asserv_State = 0;
-            #ifdef DEBUG_TIMING
-            printf("Long asserv time: %d us\n\r", tampon4);
-            tampon4 = 0;
-            #endif
-
-        
-        
-
-    } else {
-        Asserv_State = 0;
+        CAN_transmit_motor(motor1_current_order, motor2_current_order,
+                           motor3_current_order, motor4_current_order);
     }
 }
+
 
 
 #define PWM_MIN_ACTIF 30 // seuil pour lequel on considère que la consigne est active (en dessous, on la met à 0 pour éviter de rester dans la zone morte du moteur)
