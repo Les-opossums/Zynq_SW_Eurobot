@@ -58,8 +58,8 @@ static int t_start = 0;
 static float v_sum = 0.0f;
 static int n_samples = 0;
 
-#define CALIB_SETTLE_MS     800    // temps d'attente stabilisation
-#define CALIB_SAMPLE_MS     200    // durée de mesure
+#define CALIB_SETTLE_MS     2000    // temps d'attente stabilisation
+#define CALIB_SAMPLE_MS     500    // durée de mesure
 #define CALIB_N_POINTS      10     // nombre de paliers de courant
 
 // Paliers de courant positifs testés (unités C610, roue libre)
