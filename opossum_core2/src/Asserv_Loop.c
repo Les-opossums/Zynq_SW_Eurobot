@@ -176,7 +176,7 @@ void Asserv_Loop(void)
         Asserv_PWM_calculator(&Consigne);
 
         // Traitement de la calibration asynchrone
-        step_wheel_ff_calibration();
+        // step_wheel_ff_calibration();
 
         // Forced command override
         if (Wanted_Forced_Consigne.command1 != 0 || Wanted_Forced_Consigne.command2 != 0 ||
