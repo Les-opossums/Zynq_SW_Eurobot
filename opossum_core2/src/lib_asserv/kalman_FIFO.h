@@ -21,6 +21,11 @@ typedef struct {
     KalmanState buffer[KALMAN_FIFO_LEN];
     Speed speed_robot[KALMAN_FIFO_LEN];
     Observations observations[KALMAN_FIFO_LEN];
+
+    float z_imu_theta[KALMAN_FIFO_LEN]; 
+    float z_imu_vtheta[KALMAN_FIFO_LEN];
+    uint8_t has_imu[KALMAN_FIFO_LEN];
+
     int head; // index de la tête de la FIFO
     int count; // nombre d'éléments dans la FIFO actuellement valides
 } KalmanFIFO;
