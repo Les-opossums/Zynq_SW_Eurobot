@@ -51,6 +51,11 @@
 #define OBS_NOISE_CAMERA_XY       0.08f   // 8 cm d'écart-type
 #define OBS_NOISE_CAMERA_THETA    0.15f
 
+// 4. IMU (Inertial Measurement Unit)
+// Le capteur IMU fournit des mesures d'angle et de vitesse angulaire.
+#define OBS_NOISE_IMU_THETA       0.02f   // 2 deg d'écart-type
+#define OBS_NOISE_IMU_VTHETA      0.05f   // 5 deg/s d'écart-type
+
 #define S_INV_EPS 1e-6f
 
 
@@ -99,6 +104,24 @@ void kalman_predict(KalmanState* state, float dt);
  */
 uint8_t kalman_update(KalmanState* state, float z[STATE_SIZE], float R_diag[3], uint8_t bypass_outlier_rejection);
 
+/**
+ * @brief Update spécifique pour l'odométrie interne (encodeurs des M2006), qui observe les vitesses (vx, vy, vtheta).
+ * 
+ * @param state 
+ * @param measured_speed 
+ * @return uint8_t 
+ */
 uint8_t kalman_update_odo(KalmanState* state, Speed* measured_speed);
+
+
+/**
+ * @brief Update spécifique pour l'IMU, qui observe l'angle (theta) et la vitesse angulaire (vtheta).
+ * 
+ * @param state 
+ * @param measured_theta 
+ * @param measured_vtheta 
+ * @return uint8_t 
+ */
+uint8_t kalman_update_imu(KalmanState* state, float measured_theta, float measured_vtheta);
 
 #endif // __KALMAN_H_

@@ -410,3 +410,106 @@ uint8_t kalman_update_odo(KalmanState* state, Speed* measured_speed) {
 
     return 0; // Succès
 }
+
+
+float R_imu[2] = {
+    OBS_NOISE_IMU_THETA * OBS_NOISE_IMU_THETA, 
+    OBS_NOISE_IMU_VTHETA * OBS_NOISE_IMU_VTHETA
+};
+
+uint8_t kalman_update_imu(KalmanState* state, float measured_theta, float measured_vtheta) {
+    // 1. --- Calcul de l'innovation (y = z - Hx) ---
+    // Mesure z = [theta_imu, vtheta_imu]
+    // L'état observé correspond aux index 2 (theta) et 5 (vtheta)
+    float y0 = principal_angle(measured_theta - state->x[2]);
+    float y1 = measured_vtheta - state->x[5];
+
+    // 2. --- Matrice de covariance de l'innovation S = H * P * H^T + R ---
+    // H sélectionne les lignes/colonnes 2 et 5
+    float S[2][2];
+    S[0][0] = state->P[2][2] + R_imu[0];
+    S[0][1] = state->P[2][5];
+    
+    S[1][0] = state->P[5][2];
+    S[1][1] = state->P[5][5] + R_imu[1];
+
+    // 3. --- Inversion de S (2x2) ---
+    float det = S[0][0]*S[1][1] - S[0][1]*S[1][0];
+    
+    // Fallback de régularisation si la matrice est singulière
+    if (fabsf(det) < S_INV_EPS) {
+        S[0][0] += S_INV_EPS;
+        S[1][1] += S_INV_EPS;
+        det = S[0][0]*S[1][1] - S[0][1]*S[1][0];
+        if (fabsf(det) < S_INV_EPS) return 3; // Abandon
+    }
+
+    float invDet = 1.0f / det;
+    float S_inv[2][2];
+    S_inv[0][0] =  S[1][1] * invDet;
+    S_inv[0][1] = -S[0][1] * invDet;
+    S_inv[1][0] = -S[1][0] * invDet;
+    S_inv[1][1] =  S[0][0] * invDet;
+
+    // 4. --- Gain de Kalman K = P * H^T * S_inv ---
+    // H^T sélectionne les colonnes 2 et 5 de P
+    float K[6][2];
+    for (int i = 0; i < 6; ++i) {
+        K[i][0] = state->P[i][2] * S_inv[0][0] + state->P[i][5] * S_inv[1][0];
+        K[i][1] = state->P[i][2] * S_inv[0][1] + state->P[i][5] * S_inv[1][1];
+    }
+
+    // 5. --- Mise à jour de l'état : x = x + K * y ---
+    for (int i = 0; i < 6; ++i) {
+        float delta = K[i][0]*y0 + K[i][1]*y1;
+        if (i == 2) {
+            state->x[i] = principal_angle(state->x[i] + delta);
+        } else {
+            state->x[i] += delta;
+        }
+    }
+
+    // 6. --- Mise à jour de la covariance P via la forme de Joseph ---
+    float P_new[6][6];
+    float AP[6][6];
+
+    // Calcul de AP = (I - K*H)*P
+    for (int i = 0; i < 6; ++i) {
+        for (int j = 0; j < 6; ++j) {
+            float val = state->P[i][j];
+            val -= K[i][0] * state->P[2][j];
+            val -= K[i][1] * state->P[5][j];
+            AP[i][j] = val;
+        }
+    }
+
+    // Calcul de P_new = AP * (I - K*H)^T
+    for (int i = 0; i < 6; ++i) {
+        for (int j = 0; j < 6; ++j) {
+            float val = AP[i][j];
+            val -= AP[i][2] * K[j][0];
+            val -= AP[i][5] * K[j][1];
+            P_new[i][j] = val;
+        }
+    }
+
+    // Ajout du terme de bruit K * R * K^T
+    for (int i = 0; i < 6; ++i) {
+        for (int j = 0; j < 6; ++j) {
+            float add = K[i][0] * R_imu[0] * K[j][0]
+                      + K[i][1] * R_imu[1] * K[j][1];
+            P_new[i][j] += add;
+        }
+    }
+
+    // Symétrisation et copie finale
+    for (int i = 0; i < 6; ++i) {
+        for (int j = i; j < 6; ++j) {
+            float s = 0.5f * (P_new[i][j] + P_new[j][i]);
+            state->P[i][j] = s;
+            state->P[j][i] = s;
+        }
+    }
+
+    return 0; // Succès
+}
