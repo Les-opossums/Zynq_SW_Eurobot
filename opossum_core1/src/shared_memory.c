@@ -15,42 +15,47 @@ int send_to_other_core(const void *data, size_t size,
                         volatile void *dest,
                         volatile uint32_t *flag_valid,
                         volatile uint32_t *flag_ack) {
-    // Si la donnée précédente n'a pas encore été lue, on refuse d'envoyer
     if (*flag_valid && !(*flag_ack)) {
         return 0; // Pas encore consommé
     }
 
-    // Copie mémoire
     void *non_volatile_dst = (void *)(uintptr_t)dest;
     memcpy(non_volatile_dst, data, size);
 
-    __asm__ volatile("dsb sy" ::: "memory");
-
+    // On lève les drapeaux
     *flag_valid = 1;
     *flag_ack = 0;
+
+    // BARRIÈRE CRITIQUE : On force l'écriture des drapeaux en OCM 
+    // AVANT d'envoyer l'interruption
+    __asm__ volatile("dsb sy" ::: "memory");
+
+    // On prévient le Core 1 immédiatement
+    trigger_core1_interrupt();
 
     return 1; // Succès
 }
 
-
+// Fais la même modification pour send_to_other_core_blocking
 void send_to_other_core_blocking(const void *data, size_t size,
                                  volatile void *dest,
                                  volatile uint32_t *flag_valid,
                                  volatile uint32_t *flag_ack) {
-    // Attendre que la donnée ait été consommée
     while (*flag_valid && !(*flag_ack)) {
-        // Attente active : peut être optimisée par __WFE() ou sleep
+        // Attente active
     }
 
     void *non_volatile_dst = (void *)(uintptr_t)dest;
     memcpy(non_volatile_dst, data, size);
 
-    // Barrière de synchronisation
-    __asm__ volatile("dsb sy" ::: "memory");
-
-    // Signale que la donnée est prête
     *flag_valid = 1;
     *flag_ack = 0;
+
+    // Barrière synchro avant interruption
+    __asm__ volatile("dsb sy" ::: "memory");
+
+    // On prévient le Core 1
+    trigger_core1_interrupt();
 }
 
 // Fonction générique de réception
@@ -73,4 +78,10 @@ int check_from_other_core(void *data_out, size_t size,
         return 1; // Nouvelle donnée reçue
     }
     return 0; // Rien à lire
+}
+
+// Fonction pour envoyer le signal matériel
+void trigger_core1_interrupt(void) {
+    // XSCUGIC_SPI_CPU1_MASK est la macro officielle Xilinx qui vaut 0x02
+    XScuGic_SoftwareIntr(&InterruptController, SHARE_MEM_SGI_INT_ID, XSCUGIC_SPI_CPU1_MASK);
 }

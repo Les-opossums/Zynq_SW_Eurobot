@@ -25,4 +25,6 @@
 #include "kalman.h"
 #include "kalman_FIFO.h"
 
+#include "wheel_feedforward.h"
+
 #endif // _LIB_ASSERV_H_

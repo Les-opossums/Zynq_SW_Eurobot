@@ -4,6 +4,9 @@
 #include "shared_memory_structure.h"
 #define SHARED_MEMORY_BASEADDR 0xFFFF0000 // Base address for shared memory
 
+#define SHARE_MEM_SGI_INT_ID    14          // ID de l'interruption logicielle (SGI)
+#define SGI_TARGET_CORE_1       0x00000002  // Bit 1 = Cibler le Core 1 (0x1 = Core 0, 0x2 = Core 1)
+
 extern volatile sharedCommand *shared_mem;
 extern sharedCommand local_data;
 
@@ -84,6 +87,9 @@ int check_from_other_core(void *data_out, size_t size,
 
 
 
-
-
+/**
+ * @brief This function triggers an interrupt on the other core to signal that new data is available in shared memory
+ * 
+ */
+void trigger_core1_interrupt(void);
 #endif // SHARED_MEMORY_H

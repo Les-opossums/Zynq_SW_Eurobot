@@ -18,17 +18,19 @@ extern int16_t Rotor_RPM2;
 extern int16_t Rotor_RPM3;
 extern int16_t Rotor_RPM4;
 
+extern int kalman_initialized;
+
+extern float R_lidar[3];
+extern float R_camera[3];
+
 
 void Init_Asserv(void);
 
 void Asserv_Loop(void);
 
-void Set_Lidar_Cmd(Set_lidar set_lidar);
-void Set_Camera_Cmd(Set_camera set_camera, uint8_t camera_id);
 void Set_Lidar_Noise_Cmd(Set_lidar_noise kalman_noise_lidar);
 void Set_Kalman_Enable_Cmd(Enable_Kalman enable_kalman);
 
-
-void Apply_Deadzone_Compensation(ESC_Command* cmd);
+void Process_Shared_Memory_Commands(void);
 
 #endif // __ASSERV_MASTER_H

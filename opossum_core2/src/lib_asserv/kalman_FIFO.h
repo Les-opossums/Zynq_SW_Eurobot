@@ -71,4 +71,24 @@ void kalman_fifo_repropagate(KalmanFIFO* fifo, int delay_index, float dt_s, floa
  */
 void kalman_init_with_lidar(KalmanFIFO* fifo, Position* lidar_pos);
 
+/**
+ * @brief Insère une mesure lidar dans la FIFO
+ * 
+ * @param fifo fifo de kalman
+ * @param set_lidar structure contenant les données du lidar (position + délai)
+ * @param R_lidar les profils de bruit lidar
+ * @return int 
+ */
+int kalman_fifo_insert_lidar(KalmanFIFO* fifo, Set_lidar* set_lidar, float R_lidar[3]);
+
+/**
+ * @brief Insère une mesure caméra dans la FIFO
+ * 
+ * @param fifo fifo de kalman
+ * @param set_camera structure contenant les données de la caméra (position + délai + bruit)
+ * @param cam_id l'id de la caméra (0, 1 ou 2)
+ * @return int 
+ */
+int kalman_fifo_insert_camera(KalmanFIFO* fifo, Set_camera* set_camera, uint8_t cam_id);
+
 #endif // __KALMAN_FIFO_H_

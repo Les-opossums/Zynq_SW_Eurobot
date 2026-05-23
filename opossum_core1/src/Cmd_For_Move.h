@@ -48,6 +48,13 @@ uint8_t FREE_Cmd(void);
 uint8_t BLOCK_Cmd(void);
 
 /**
+ * @brief Interpreter function for starting wheel feedforward calibration.
+ * 
+ * @return uint8_t 
+ */
+uint8_t Start_Wheel_FF_Calibration_Cmd(void);
+
+/**
  * @brief Interpreter function for the Asserv Done command.
  * 
  * @return uint8_t 
