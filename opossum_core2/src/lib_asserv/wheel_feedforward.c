@@ -80,6 +80,8 @@ void step_wheel_ff_calibration(void) {
     if (calib_state == CALIB_IDLE) return;
 
     switch (calib_state) {
+        case CALIB_IDLE:
+            break;
         case CALIB_INIT:
             wheel_idx = 0;
             current_idx = 0;
@@ -181,6 +183,10 @@ void step_wheel_ff_calibration(void) {
             Wanted_Forced_Consigne.command3 = 0;
             Wanted_Forced_Consigne.command4 = 0;
             printf("FF_CALIBRATION_ALL_END\n");
+            calib_state = CALIB_IDLE;
+            break;
+        
+        default:
             calib_state = CALIB_IDLE;
             break;
     }
