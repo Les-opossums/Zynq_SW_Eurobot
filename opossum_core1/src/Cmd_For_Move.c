@@ -104,6 +104,17 @@ uint8_t BLOCK_Cmd(void) {
     }
 }
 
+uint8_t Start_Wheel_FF_Calibration_Cmd(void) {
+    if (AU_state) { 
+        printf("INVALID COMMAND : AU\n"); 
+        return 0; 
+    }else{
+        local_data.asserv_mode = 5;
+        SEND_FIELD(&local_data, asserv_mode);
+        return 0;
+    }
+}
+
 uint8_t Asserv_Done_Cmd(void) {
     // lecture de la mémoire partagée
     CHECK_FIELD(&local_data, asserv_done);

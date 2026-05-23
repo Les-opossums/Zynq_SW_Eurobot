@@ -9,8 +9,9 @@ typedef struct {
 
 extern WheelFF wheel_ff[4];
 
+void start_wheel_ff_calibration(void);
+void step_wheel_ff_calibration(void);
+
 float compute_feedforward(WheelFF* ff, float v_cmd);
-void  wheel_ff_calibrate(uint8_t wheel_id);
-void  wheel_ff_calibrate_all(void);
 
 #endif

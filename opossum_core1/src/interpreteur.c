@@ -49,6 +49,7 @@ const Command Command_List[] = {
     { "BLOCK", BLOCK_Cmd},
     { "PWM", PWM_Func},
     { "SPEEDTEST", Speed_Timed_Cmd},
+    { "CALIBFF", Start_Wheel_FF_Calibration_Cmd},
 
     { "GETPOS", Get_Pos_Cmd},
 

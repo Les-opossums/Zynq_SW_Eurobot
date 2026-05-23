@@ -1,13 +1,14 @@
 #include "lib_asserv.h"
-#include "../Timer.h"
+
+extern volatile int Timer_ms1;
 
 // Valeurs par défaut — à remplacer après calibration
 // Format : {I_static, B, v_deadzone}
 WheelFF wheel_ff[4] = {
-    {350.0f, 180.0f, 0.04f},  // roue 0 : avant-droite
-    {350.0f, 180.0f, 0.04f},  // roue 1 : arrière-droite
-    {350.0f, 180.0f, 0.04f},  // roue 2 : arrière-gauche
-    {350.0f, 180.0f, 0.04f},  // roue 3 : avant-gauche
+    {228.0f, 1576.0f, 0.04f},
+    {161.0f, 1633.6f, 0.04f},
+    {188.0f, 1598.3f, 0.04f},
+    {344.6f, 1630.1f, 0.04f},
 };
 
 float compute_feedforward(WheelFF* ff, float v_cmd) {
@@ -36,6 +37,27 @@ float compute_feedforward(WheelFF* ff, float v_cmd) {
 // Usage : appeler wheel_ff_calibrate(0) ... (3) via commande série
 // ----------------------------------------------------------------
 
+// --- Variables globales pour la machine à états de calibration ---
+typedef enum {
+    CALIB_IDLE = 0,
+    CALIB_INIT,
+    CALIB_APPLY_CURRENT,
+    CALIB_WAIT_SETTLE,
+    CALIB_SAMPLING,
+    CALIB_DONE_SAMPLE,
+    CALIB_PAUSE,
+    CALIB_FINISH
+} FF_Calib_State;
+
+static FF_Calib_State calib_state = CALIB_IDLE;
+static int wheel_idx = 0;
+static int current_idx = 0;
+static int calib_sign = 1;
+static int t_start = 0;
+
+static float v_sum = 0.0f;
+static int n_samples = 0;
+
 #define CALIB_SETTLE_MS     800    // temps d'attente stabilisation
 #define CALIB_SAMPLE_MS     200    // durée de mesure
 #define CALIB_N_POINTS      10     // nombre de paliers de courant
@@ -45,99 +67,121 @@ static const int calib_currents[CALIB_N_POINTS] = {
     150, 250, 350, 500, 700, 1000, 1400, 1800, 2500, 3500
 };
 
-void wheel_ff_calibrate(uint8_t wheel_id) {
-    if (wheel_id > 3) return;
-
-    printf("FF_CAL_START wheel=%d\n", wheel_id);
-    printf("FF_CAL # Format: FF_CAL wheel I_cmd v_ms\n");
-
-    for (int p = 0; p < CALIB_N_POINTS; p++) {
-
-        // --- Commande directe de courant (bypass PID complet) ---
-        ESC_Command forced = {0, 0, 0, 0};
-        switch (wheel_id) {
-            case 0: forced.command1 = calib_currents[p]; break;
-            case 1: forced.command2 = calib_currents[p]; break;
-            case 2: forced.command3 = calib_currents[p]; break;
-            case 3: forced.command4 = calib_currents[p]; break;
-        }
-        // On s'appuie sur le mécanisme existant de forced consigne
-        // (les autres roues à 0 = freinées par leur ESC → robot immobile sur stand)
-        extern ESC_Command Wanted_Forced_Consigne;
-        Wanted_Forced_Consigne = forced;
-
-        // --- Attente de stabilisation ---
-        int t_start = Timer_ms1;
-        while (Timer_ms1 - t_start < CALIB_SETTLE_MS);
-
-        // --- Mesure vitesse moyenne sur CALIB_SAMPLE_MS ---
-        float v_sum = 0.0f;
-        int   n_samples = 0;
-        t_start = Timer_ms1;
-
-        while (Timer_ms1 - t_start < CALIB_SAMPLE_MS) {
-            float v = 0.0f;
-            switch (wheel_id) {
-                case 0: v = Speed_1; break;
-                case 1: v = Speed_2; break;
-                case 2: v = Speed_3; break;
-                case 3: v = Speed_4; break;
-            }
-            v_sum += v;
-            n_samples++;
-            // Petite attente pour ne pas sur-échantillonner
-            int t_w = Timer_ms1;
-            while (Timer_ms1 - t_w < 5);
-        }
-
-        float v_mean = (n_samples > 0) ? v_sum / n_samples : 0.0f;
-
-        printf("FF_CAL %d %d %.5f\n", wheel_id, calib_currents[p], (double)v_mean);
-
-        // --- Test négatif (symétrie) ---
-        switch (wheel_id) {
-            case 0: forced.command1 = -calib_currents[p]; break;
-            case 1: forced.command2 = -calib_currents[p]; break;
-            case 2: forced.command3 = -calib_currents[p]; break;
-            case 3: forced.command4 = -calib_currents[p]; break;
-        }
-        Wanted_Forced_Consigne = forced;
-
-        t_start = Timer_ms1;
-        while (Timer_ms1 - t_start < CALIB_SETTLE_MS);
-
-        v_sum = 0.0f; n_samples = 0;
-        t_start = Timer_ms1;
-        while (Timer_ms1 - t_start < CALIB_SAMPLE_MS) {
-            float v = 0.0f;
-            switch (wheel_id) {
-                case 0: v = Speed_1; break;
-                case 1: v = Speed_2; break;
-                case 2: v = Speed_3; break;
-                case 3: v = Speed_4; break;
-            }
-            v_sum += v;
-            n_samples++;
-            int t_w = Timer_ms1;
-            while (Timer_ms1 - t_w < 5);
-        }
-        v_mean = (n_samples > 0) ? v_sum / n_samples : 0.0f;
-
-        printf("FF_CAL %d %d %.5f\n", wheel_id, -calib_currents[p], (double)v_mean);
+// Fonction à appeler pour lancer la procédure depuis le RPi
+void start_wheel_ff_calibration(void) {
+    if (calib_state == CALIB_IDLE) {
+        calib_state = CALIB_INIT;
+        motion_off(); // Désactive le PID pour ne pas interférer
     }
-
-    // Remise à zéro
-    ESC_Command zero = {0, 0, 0, 0};
-    Wanted_Forced_Consigne = zero;
-
-    printf("FF_CAL_END wheel=%d\n", wheel_id);
 }
 
-void wheel_ff_calibrate_all(void) {
-    for (int i = 0; i < 4; i++) {
-        wheel_ff_calibrate(i);
-        // Pause entre les roues
-        int t = Timer_ms1;
-        while (Timer_ms1 - t < 2000);
+// Machine à états à exécuter dans la Slow Loop
+void step_wheel_ff_calibration(void) {
+    if (calib_state == CALIB_IDLE) return;
+
+    switch (calib_state) {
+        case CALIB_INIT:
+            wheel_idx = 0;
+            current_idx = 0;
+            calib_sign = 1;
+            printf("FF_CAL_START_ALL\n");
+            printf("FF_CAL # Format: FF_CAL wheel I_cmd v_ms\n");
+            calib_state = CALIB_APPLY_CURRENT;
+            break;
+
+        case CALIB_APPLY_CURRENT:
+        {
+            ESC_Command forced = {0, 0, 0, 0};
+            int current_val = calib_sign * calib_currents[current_idx];
+            
+            // On applique le courant sur la roue ciblée
+            if (wheel_idx == 0) forced.command1 = current_val;
+            else if (wheel_idx == 1) forced.command2 = current_val;
+            else if (wheel_idx == 2) forced.command3 = current_val;
+            else if (wheel_idx == 3) forced.command4 = current_val;
+
+            Wanted_Forced_Consigne = forced;
+            t_start = Timer_ms1;
+            calib_state = CALIB_WAIT_SETTLE;
+            break;
+        }
+
+        case CALIB_WAIT_SETTLE:
+            if ((Timer_ms1 - t_start) >= CALIB_SETTLE_MS) {
+                v_sum = 0.0f;
+                n_samples = 0;
+                t_start = Timer_ms1; // Reset timer pour l'échantillonnage
+                calib_state = CALIB_SAMPLING;
+            }
+            break;
+
+        case CALIB_SAMPLING:
+        {
+            float v = 0.0f;
+            if (wheel_idx == 0) v = Speed_1;
+            else if (wheel_idx == 1) v = Speed_2;
+            else if (wheel_idx == 2) v = Speed_3;
+            else if (wheel_idx == 3) v = Speed_4;
+
+            v_sum += v;
+            n_samples++;
+
+            if ((Timer_ms1 - t_start) >= CALIB_SAMPLE_MS) {
+                calib_state = CALIB_DONE_SAMPLE;
+            }
+            break;
+        }
+
+        case CALIB_DONE_SAMPLE:
+        {
+            float v_mean = (n_samples > 0) ? (v_sum / n_samples) : 0.0f;
+            int current_val = calib_sign * calib_currents[current_idx];
+            printf("FF_CAL %d %d %.5f\n", wheel_idx, current_val, (double)v_mean);
+
+            // Logique de passage à l'étape suivante
+            if (calib_sign == 1) {
+                calib_sign = -1; // Test en négatif
+                calib_state = CALIB_APPLY_CURRENT;
+            } else {
+                calib_sign = 1;
+                current_idx++; // Palier de courant suivant
+                
+                if (current_idx >= CALIB_N_POINTS) {
+                    current_idx = 0;
+                    Wanted_Forced_Consigne.command1 = 0;
+                    Wanted_Forced_Consigne.command2 = 0;
+                    Wanted_Forced_Consigne.command3 = 0;
+                    Wanted_Forced_Consigne.command4 = 0;
+                    
+                    printf("FF_CAL_END wheel=%d\n", wheel_idx);
+                    wheel_idx++; // Roue suivante
+                    
+                    if (wheel_idx >= 4) {
+                        calib_state = CALIB_FINISH;
+                    } else {
+                        t_start = Timer_ms1;
+                        calib_state = CALIB_PAUSE;
+                    }
+                } else {
+                    calib_state = CALIB_APPLY_CURRENT;
+                }
+            }
+            break;
+        }
+
+        case CALIB_PAUSE:
+            if ((Timer_ms1 - t_start) >= 2000) { // 2s entre chaque roue
+                calib_state = CALIB_APPLY_CURRENT;
+            }
+            break;
+
+        case CALIB_FINISH:
+            Wanted_Forced_Consigne.command1 = 0;
+            Wanted_Forced_Consigne.command2 = 0;
+            Wanted_Forced_Consigne.command3 = 0;
+            Wanted_Forced_Consigne.command4 = 0;
+            printf("FF_CALIBRATION_ALL_END\n");
+            calib_state = CALIB_IDLE;
+            break;
     }
 }

@@ -175,6 +175,9 @@ void Asserv_Loop(void)
         // PID → commandes moteurs
         Asserv_PWM_calculator(&Consigne);
 
+        // Traitement de la calibration asynchrone
+        step_wheel_ff_calibration();
+
         // Forced command override
         if (Wanted_Forced_Consigne.command1 != 0 || Wanted_Forced_Consigne.command2 != 0 ||
             Wanted_Forced_Consigne.command3 != 0 || Wanted_Forced_Consigne.command4 != 0) {
@@ -250,6 +253,7 @@ void Process_Shared_Memory_Commands(void) {
     if (CHECK_FIELD(&local_data, asserv_mode)) {
         if (local_data.asserv_mode == 0) { motion_free(); } 
         else if (local_data.asserv_mode == 4) { motion_block(); }
+        else if (local_data.asserv_mode == 5) { start_wheel_ff_calibration(); }
     }
 
     if (CHECK_FIELD(&local_data, set_pos)) { set_position(local_data.set_pos); }
