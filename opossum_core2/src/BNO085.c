@@ -484,21 +484,32 @@ int BNO085_Init(BNO085_Dev *dev)
 
 int BNO085_EnableReport(BNO085_Dev *dev, u8 report_id, u32 interval_us)
 {
-    u8 cmd[17] = {0}; // Initialise bien tout le buffer à zéro
+    u8 cmd[17] = {0};
 
     cmd[0] = 0xFD;       // SH2_CMD_SET_FEATURE
-    cmd[1] = report_id;  // Ex: 0x08 pour Game RV
-    cmd[2] = 0;          // Feature flags
-    cmd[3] = 0;          // Change sensitivity LSB
-    cmd[4] = 0;          // Change sensitivity MSB
-
-    // L'intervalle de temps COMMENCE À L'OCTET 5 !
+    cmd[1] = report_id;  
+    cmd[2] = 0;          
+    cmd[3] = 0;          
+    cmd[4] = 0;          
     cmd[5] = (u8)( interval_us        & 0xFFU);
     cmd[6] = (u8)((interval_us >>  8) & 0xFFU);
     cmd[7] = (u8)((interval_us >> 16) & 0xFFU);
     cmd[8] = (u8)((interval_us >> 24) & 0xFFU);
 
-    // Envoi sur le canal 2 (Control Channel)
+    // --- LE CORRECTIF EST ICI ---
+    // On DOIT attendre que l'IMU abaisse INT pour pouvoir lui écrire
+    u32 timeout = 0;
+    while (INT_READ(dev) != 0) {
+        usleep(100); // Pause de 100 µs
+        timeout++;
+        if (timeout > 5000) { // Timeout sécurité après 500 ms
+            xil_printf("[BNO085] Timeout INT avant commande 0x%02X\r\n", report_id);
+            return BNO085_ERR_SPI;
+        }
+    }
+    // ----------------------------
+
+    // Maintenant que INT est bas, on peut envoyer la commande en toute sécurité
     int ret = shtp_send(dev, 2, cmd, sizeof(cmd));
     if (ret != BNO085_OK) {
         xil_printf("[BNO085] Erreur activation rapport 0x%02X\r\n", report_id);

@@ -37,11 +37,11 @@ void IMU_Init(void)
      * Pour le debug initial, 10 ms sur tout est suffisant.
      */
     xil_printf("[IMU] Activation des rapports...\r\n");
-    BNO085_EnableReport(&imu, SH2_GYROSCOPE_CALIBRATED,  10000U);  
-    BNO085_EnableReport(&imu, SH2_LINEAR_ACCELERATION,   10000U);   
-    BNO085_EnableReport(&imu, SH2_GAME_ROTATION_VECTOR,  10000U);  
+    BNO085_EnableReport(&imu, SH2_GYROSCOPE_CALIBRATED,  10000U);
+    BNO085_EnableReport(&imu, SH2_LINEAR_ACCELERATION,   10000U);  
+    BNO085_EnableReport(&imu, SH2_GAME_ROTATION_VECTOR,  10000U); 
     BNO085_EnableReport(&imu, SH2_ROTATION_VECTOR,       10000U);
- 
+
     imu_ok = 1;
     xil_printf("[IMU] Initialisation OK\r\n");
 }
