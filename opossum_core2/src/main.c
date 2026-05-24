@@ -57,7 +57,7 @@ void IMU_Loop(void)
     int poll_ret = BNO085_Poll(&imu);
  
     if (poll_ret == BNO085_OK) {
-        xil_printf("!"); // Décommente ça si ça reste à 0 pour voir si ça "flashe"
+        // xil_printf("!"); // Décommente ça si ça reste à 0 pour voir si ça "flashe"
     }
 
     /* --- Affichage debug toutes les 100 ms --- */
@@ -77,11 +77,11 @@ void IMU_Loop(void)
          *   qw/qi/qj/qk                  — quaternion AHRS
          *   calib                        — 0=non calibré, 3=pleinement calibré
          */
-        printf("IMU g=%d,%d,%d a=%d,%d,%d ypr=%d,%d,%d q=%d,%d,%d,%d cal=%d\r\n",
-        (int)imu.data.gyro.x, (int)imu.data.gyro.y, (int)imu.data.gyro.z,
-        (int)imu.data.linear_accel.x, (int)imu.data.linear_accel.y, (int)imu.data.linear_accel.z,
-        (int)imu.data.yaw, (int)imu.data.pitch, (int)imu.data.roll,
-        (int)(imu.data.rotation.real * 100), (int)(imu.data.rotation.i * 100), (int)(imu.data.rotation.j * 100), (int)(imu.data.rotation.k * 100),
+        printf("IMU g=%0.4f,%0.4f,%0.4f a=%0.4f,%0.4f,%0.4f ypr=%0.4f,%0.4f,%0.4f q=%0.4f,%0.4f,%0.4f,%0.4f cal=%d\r\n",
+        (float)imu.data.gyro.x, (float)imu.data.gyro.y, (float)imu.data.gyro.z,
+        (float)imu.data.linear_accel.x, (float)imu.data.linear_accel.y, (float)imu.data.linear_accel.z,
+        (float)imu.data.yaw, (float)imu.data.pitch, (float)imu.data.roll,
+        (float)(imu.data.rotation.real * 100), (float)(imu.data.rotation.i * 100), (float)(imu.data.rotation.j * 100), (float)(imu.data.rotation.k * 100),
         imu.data.calib_status);
     }
 }

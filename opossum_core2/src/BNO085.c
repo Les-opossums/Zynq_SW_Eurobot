@@ -261,6 +261,9 @@ static int shtp_receive(BNO085_Dev *dev, u8 *channel_out, u16 *length_out)
  * Convention : ZYX (yaw → pitch → roll).
  * Entrée : quaternion normalisé (|q| = 1).
  */
+
+#define M_PI 3.14159265358979323846f
+
 static void quat_to_euler(const BNO085_Quaternion *q,
                           float *yaw, float *pitch, float *roll)
 {
@@ -337,10 +340,7 @@ static void sh2_parse_report(BNO085_Dev *dev, const u8 *buf, u16 len)
             dev->data.game_rv.k    = q_to_float((s16)((buf[offset + 9]  << 8) | buf[offset + 8]),  14);
             dev->data.game_rv.real = q_to_float((s16)((buf[offset + 11] << 8) | buf[offset + 10]), 14);
             
-            // CORRECTION : Calcul des angles d'Euler (Yaw, Pitch, Roll)
             quat_to_euler(&dev->data.game_rv, &dev->data.yaw, &dev->data.pitch, &dev->data.roll);
-            
-            // CORRECTION : Copie dans la variable "rotation" pour alimenter le log "q=..."
             dev->data.rotation = dev->data.game_rv;
 
             dev->data.new_data = 1U;
