@@ -295,77 +295,96 @@ static void quat_to_euler(const BNO085_Quaternion *q,
  */
 static void sh2_parse_report(BNO085_Dev *dev, const u8 *buf, u16 len)
 {
-    if (len < 5U) return;
+    u16 offset = 0;
 
-    u8 report_id = buf[0];
-    u8 status    = buf[2] & 0x03U;
+    // Le BNO085 peut concaténer plusieurs rapports dans le même payload
+    while (offset < len) {
+        u8 report_id = buf[offset];
 
-    dev->data.calib_status = status;
+        // 1. L'intrus : le Base Timestamp (toujours 5 octets, ID = 0xFB)
+        if (report_id == 0xFB) {
+            offset += 5;
+            continue;
+        }
 
-    switch (report_id) {
+        // Sécurité anti-débordement
+        if (offset + 4 > len) break;
 
-    /* ── Rotation Vector AHRS — Q14 pour i,j,k,w ; Q12 pour accuracy */
-    case SH2_ROTATION_VECTOR:
-        if (len < 14U) break;
-        dev->data.rotation.i        = q_to_float((s16)((buf[5]  << 8) | buf[4]),  14);
-        dev->data.rotation.j        = q_to_float((s16)((buf[7]  << 8) | buf[6]),  14);
-        dev->data.rotation.k        = q_to_float((s16)((buf[9]  << 8) | buf[8]),  14);
-        dev->data.rotation.real     = q_to_float((s16)((buf[11] << 8) | buf[10]), 14);
-        dev->data.rotation.accuracy = q_to_float((s16)((buf[13] << 8) | buf[12]), 12);
-        quat_to_euler(&dev->data.rotation,
-                      &dev->data.yaw, &dev->data.pitch, &dev->data.roll);
-        dev->data.new_data = 1U;
-        break;
+        u8 status = buf[offset + 2] & 0x03U;
+        dev->data.calib_status = status;
 
-    /* ── Game Rotation Vector (sans magnéto) — Q14 */
-    case SH2_GAME_ROTATION_VECTOR:
-        if (len < 12U) break;
-        dev->data.game_rv.i    = q_to_float((s16)((buf[5]  << 8) | buf[4]),  14);
-        dev->data.game_rv.j    = q_to_float((s16)((buf[7]  << 8) | buf[6]),  14);
-        dev->data.game_rv.k    = q_to_float((s16)((buf[9]  << 8) | buf[8]),  14);
-        dev->data.game_rv.real = q_to_float((s16)((buf[11] << 8) | buf[10]), 14);
-        dev->data.new_data = 1U;
-        break;
+        switch (report_id) {
 
-    /* ── Accéléromètre brut — Q8 */
-    case SH2_ACCELEROMETER:
-        if (len < 10U) break;
-        dev->data.accel.x = q_to_float((s16)((buf[5] << 8) | buf[4]), 8);
-        dev->data.accel.y = q_to_float((s16)((buf[7] << 8) | buf[6]), 8);
-        dev->data.accel.z = q_to_float((s16)((buf[9] << 8) | buf[8]), 8);
-        dev->data.new_data = 1U;
-        break;
+        /* ── Rotation Vector AHRS (14 octets) */
+        case SH2_ROTATION_VECTOR:
+            if (offset + 14 > len) return;
+            dev->data.rotation.i        = q_to_float((s16)((buf[offset + 5]  << 8) | buf[offset + 4]),  14);
+            dev->data.rotation.j        = q_to_float((s16)((buf[offset + 7]  << 8) | buf[offset + 6]),  14);
+            dev->data.rotation.k        = q_to_float((s16)((buf[offset + 9]  << 8) | buf[offset + 8]),  14);
+            dev->data.rotation.real     = q_to_float((s16)((buf[offset + 11] << 8) | buf[offset + 10]), 14);
+            dev->data.rotation.accuracy = q_to_float((s16)((buf[offset + 13] << 8) | buf[offset + 12]), 12);
+            quat_to_euler(&dev->data.rotation,
+                          &dev->data.yaw, &dev->data.pitch, &dev->data.roll);
+            dev->data.new_data = 1U;
+            offset += 14;
+            break;
 
-    /* ── Accélération linéaire (gravité soustraite) — Q8 */
-    case SH2_LINEAR_ACCELERATION:
-        if (len < 10U) break;
-        dev->data.linear_accel.x = q_to_float((s16)((buf[5] << 8) | buf[4]), 8);
-        dev->data.linear_accel.y = q_to_float((s16)((buf[7] << 8) | buf[6]), 8);
-        dev->data.linear_accel.z = q_to_float((s16)((buf[9] << 8) | buf[8]), 8);
-        dev->data.new_data = 1U;
-        break;
+        /* ── Game Rotation Vector (12 octets) */
+        case SH2_GAME_ROTATION_VECTOR:
+            if (offset + 12 > len) return;
+            dev->data.game_rv.i    = q_to_float((s16)((buf[offset + 5]  << 8) | buf[offset + 4]),  14);
+            dev->data.game_rv.j    = q_to_float((s16)((buf[offset + 7]  << 8) | buf[offset + 6]),  14);
+            dev->data.game_rv.k    = q_to_float((s16)((buf[offset + 9]  << 8) | buf[offset + 8]),  14);
+            dev->data.game_rv.real = q_to_float((s16)((buf[offset + 11] << 8) | buf[offset + 10]), 14);
+            dev->data.new_data = 1U;
+            offset += 12;
+            break;
 
-    /* ── Gyroscope calibré — Q9 */
-    case SH2_GYROSCOPE_CALIBRATED:
-        if (len < 10U) break;
-        dev->data.gyro.x = q_to_float((s16)((buf[5] << 8) | buf[4]), 9);
-        dev->data.gyro.y = q_to_float((s16)((buf[7] << 8) | buf[6]), 9);
-        dev->data.gyro.z = q_to_float((s16)((buf[9] << 8) | buf[8]), 9);
-        dev->data.new_data = 1U;
-        break;
+        /* ── Accélération brute (10 octets) */
+        case SH2_ACCELEROMETER:
+            if (offset + 10 > len) return;
+            dev->data.accel.x = q_to_float((s16)((buf[offset + 5] << 8) | buf[offset + 4]), 8);
+            dev->data.accel.y = q_to_float((s16)((buf[offset + 7] << 8) | buf[offset + 6]), 8);
+            dev->data.accel.z = q_to_float((s16)((buf[offset + 9] << 8) | buf[offset + 8]), 8);
+            dev->data.new_data = 1U;
+            offset += 10;
+            break;
 
-    /* ── Champ magnétique — Q4 */
-    case SH2_MAGNETIC_FIELD:
-        if (len < 10U) break;
-        dev->data.mag.x = q_to_float((s16)((buf[5] << 8) | buf[4]), 4);
-        dev->data.mag.y = q_to_float((s16)((buf[7] << 8) | buf[6]), 4);
-        dev->data.mag.z = q_to_float((s16)((buf[9] << 8) | buf[8]), 4);
-        dev->data.new_data = 1U;
-        break;
+        /* ── Accélération linéaire (gravité soustraite) (10 octets) */
+        case SH2_LINEAR_ACCELERATION:
+            if (offset + 10 > len) return;
+            dev->data.linear_accel.x = q_to_float((s16)((buf[offset + 5] << 8) | buf[offset + 4]), 8);
+            dev->data.linear_accel.y = q_to_float((s16)((buf[offset + 7] << 8) | buf[offset + 6]), 8);
+            dev->data.linear_accel.z = q_to_float((s16)((buf[offset + 9] << 8) | buf[offset + 8]), 8);
+            dev->data.new_data = 1U;
+            offset += 10;
+            break;
 
-    default:
-        /* Rapport non géré : ignoré silencieusement */
-        break;
+        /* ── Gyroscope calibré (10 octets) */
+        case SH2_GYROSCOPE_CALIBRATED:
+            if (offset + 10 > len) return;
+            dev->data.gyro.x = q_to_float((s16)((buf[offset + 5] << 8) | buf[offset + 4]), 9);
+            dev->data.gyro.y = q_to_float((s16)((buf[offset + 7] << 8) | buf[offset + 6]), 9);
+            dev->data.gyro.z = q_to_float((s16)((buf[offset + 9] << 8) | buf[offset + 8]), 9);
+            dev->data.new_data = 1U;
+            offset += 10;
+            break;
+
+        /* ── Champ magnétique (10 octets) */
+        case SH2_MAGNETIC_FIELD:
+            if (offset + 10 > len) return;
+            dev->data.mag.x = q_to_float((s16)((buf[offset + 5] << 8) | buf[offset + 4]), 4);
+            dev->data.mag.y = q_to_float((s16)((buf[offset + 7] << 8) | buf[offset + 6]), 4);
+            dev->data.mag.z = q_to_float((s16)((buf[offset + 9] << 8) | buf[offset + 8]), 4);
+            dev->data.new_data = 1U;
+            offset += 10;
+            break;
+
+        default:
+            // Si l'ID est inconnu, on ne sait pas combien d'octets il pèse.
+            // On stoppe l'analyse de ce paquet pour ne pas désaligner le buffer.
+            return;
+        }
     }
 }
 

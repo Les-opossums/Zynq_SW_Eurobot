@@ -37,10 +37,10 @@ void IMU_Init(void)
      * Pour le debug initial, 10 ms sur tout est suffisant.
      */
     xil_printf("[IMU] Activation des rapports...\r\n");
-    BNO085_EnableReport(&imu, SH2_GYROSCOPE_CALIBRATED,  1000U);   /* 1 kHz  */
-    BNO085_EnableReport(&imu, SH2_LINEAR_ACCELERATION,   5000U);   /* 200 Hz */
-    BNO085_EnableReport(&imu, SH2_GAME_ROTATION_VECTOR, 10000U);   /* 100 Hz */
-    BNO085_EnableReport(&imu, SH2_ROTATION_VECTOR,      10000U);   /* 100 Hz */
+    BNO085_EnableReport(&imu, SH2_GYROSCOPE_CALIBRATED,  10000U);  
+    BNO085_EnableReport(&imu, SH2_LINEAR_ACCELERATION,   10000U);   
+    BNO085_EnableReport(&imu, SH2_GAME_ROTATION_VECTOR,  10000U);  
+    BNO085_EnableReport(&imu, SH2_ROTATION_VECTOR,       10000U);
  
     imu_ok = 1;
     xil_printf("[IMU] Initialisation OK\r\n");
@@ -54,14 +54,18 @@ void IMU_Loop(void)
     if (!imu_ok) return;
  
     /* --- Poll IMU --- */
-    BNO085_Poll(&imu);
+    int poll_ret = BNO085_Poll(&imu);
  
+    if (poll_ret == BNO085_OK) {
+        xil_printf("!"); // Décommente ça si ça reste à 0 pour voir si ça "flashe"
+    }
+
     /* --- Affichage debug toutes les 100 ms --- */
     if ((Timer_ms1 - imu_last_print_ms) >= 100) {
         imu_last_print_ms = Timer_ms1;
  
         BNO085_Data *d = BNO085_GetData(&imu);
- 
+        
         /*
          * Format CSV sur une ligne → facile à parser avec un script Python
          * ou à visualiser dans un terminal série.
@@ -88,7 +92,7 @@ void IMU_Loop(void)
         (int)(d->rotation.j * 1000.0f), 
         (int)(d->rotation.k * 1000.0f),
         (int)d->calib_status
-    );
+        );
     }
 }
 
