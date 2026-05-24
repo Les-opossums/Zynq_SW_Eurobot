@@ -10,6 +10,89 @@ int old_timer_ms1 = 0;
 
 int old_timer_AU = 0;
 
+/**
+ * @brief declaration pour l'imu
+ * 
+ */
+static BNO085_Dev imu;                /* Handle IMU — global ou static main */
+static int        imu_ok     = 0;     /* 1 si init réussie                  */
+static int        imu_last_print_ms = 0;
+
+void IMU_Init(void)
+{
+    int ret = BNO085_Init(&imu);
+    if (ret != BNO085_OK) {
+        xil_printf("[IMU] Echec initialisation (%d) — IMU desactive\r\n", ret);
+        return;
+    }
+ 
+    /*
+     * Activation des rapports souhaités.
+     * Intervalles recommandés pour la localisation robot :
+     *   Gyroscope           → 1 ms   (1000 Hz) — critique pour intégration
+     *   Accélération linéaire → 5 ms  (200 Hz)
+     *   Rotation Vector     → 10 ms  (100 Hz) — orientation absolue
+     *   Game Rotation Vector → 10 ms (100 Hz) — orientation sans magnéto
+     *
+     * Pour le debug initial, 10 ms sur tout est suffisant.
+     */
+    xil_printf("[IMU] Activation des rapports...\r\n");
+    BNO085_EnableReport(&imu, SH2_GYROSCOPE_CALIBRATED,  1000U);   /* 1 kHz  */
+    BNO085_EnableReport(&imu, SH2_LINEAR_ACCELERATION,   5000U);   /* 200 Hz */
+    BNO085_EnableReport(&imu, SH2_GAME_ROTATION_VECTOR, 10000U);   /* 100 Hz */
+    BNO085_EnableReport(&imu, SH2_ROTATION_VECTOR,      10000U);   /* 100 Hz */
+ 
+    imu_ok = 1;
+    xil_printf("[IMU] Initialisation OK\r\n");
+}
+ 
+/* ─── Boucle principale (à appeler dans while(1)) ───────────────────────── */
+ 
+void IMU_Loop(void)
+{
+    if (!imu_ok) return;
+ 
+    /* --- Poll IMU --- */
+    BNO085_Poll(&imu);
+ 
+    /* --- Affichage debug toutes les 100 ms --- */
+    if ((Timer_ms1 - imu_last_print_ms) >= 100) {
+        imu_last_print_ms = Timer_ms1;
+ 
+        BNO085_Data *d = BNO085_GetData(&imu);
+ 
+        /*
+         * Format CSV sur une ligne → facile à parser avec un script Python
+         * ou à visualiser dans un terminal série.
+         *
+         * Champs :
+         *   gyro_x/y/z          [rad/s]  — vt = gyro_z pour un robot plan
+         *   lin_ax/ay/az        [m/s²]   — accélération sans gravité
+         *   yaw / pitch / roll  [°]
+         *   qw/qi/qj/qk                  — quaternion AHRS
+         *   calib                        — 0=non calibré, 3=pleinement calibré
+         */
+        xil_printf(
+            "IMU "
+            "g=%.4f,%.4f,%.4f "
+            "a=%.4f,%.4f,%.4f "
+            "ypr=%.2f,%.2f,%.2f "
+            "q=%.4f,%.4f,%.4f,%.4f "
+            "cal=%d\r\n",
+            (double)d->gyro.x,         (double)d->gyro.y,         (double)d->gyro.z,
+            (double)d->linear_accel.x, (double)d->linear_accel.y, (double)d->linear_accel.z,
+            (double)d->yaw,            (double)d->pitch,           (double)d->roll,
+            (double)d->rotation.real,
+            (double)d->rotation.i,
+            (double)d->rotation.j,
+            (double)d->rotation.k,
+            (int)d->calib_status
+        );
+    }
+}
+
+
+
 int main()
 {
     Xil_SetTlbAttributes(0xFFFF0000,0x14de2); 
@@ -41,6 +124,7 @@ int main()
     Init_AU();
     Init_Asserv();
     
+    IMU_Init();
 
     while(1){
         if(Timer_ms1 - old_timer_ms1 >= 1000) {
@@ -60,6 +144,7 @@ int main()
         }else{
             Asserv_Loop();
         }
+        IMU_Loop();            // Poll IMU + print debug
     }
 
     cleanup_platform();

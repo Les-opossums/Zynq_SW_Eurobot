@@ -1,49 +1,59 @@
 /**
- * @file bno085.h
- * @brief Driver BNO085 via SPI pour Zynq7000 (PS SPI)
+ * @file BNO085.h
+ * @brief Driver BNO085 via SPI pour Zynq7000
  *
  * Protocole : SHTP (Sensor Hub Transport Protocol) sur SPI Mode 3
  * Compatible bare-metal Xilinx SDK / Vitis
  *
- * Branchements suggérés (MIO) :
- *   MOSI  -> MIO[xx]  (SPI0 MOSI)
- *   MISO  -> MIO[xx]  (SPI0 MISO)
- *   SCLK  -> MIO[xx]  (SPI0 CLK)
- *   CS    -> MIO[xx]  (GPIO, contrôle manuel)
- *   INT   -> MIO[xx]  (GPIO entrée, active low)
- *   RST   -> MIO[xx]  (GPIO sortie, active low)
- *   WAKE  -> MIO[xx]  (GPIO sortie, PS0 = 0 pour mode SPI)
+ * GPIO sur AXI GPIO (PL fabric) — pas sur PS MIO :
+ *   CS   → axi_gpio_27   (XPAR_AXI_GPIO_27_DEVICE_ID)
+ *   RST  → axi_gpio_29   (XPAR_AXI_GPIO_29_DEVICE_ID)
+ *   INT  → axi_gpio_30   (XPAR_AXI_GPIO_30_DEVICE_ID)
+ *
+ * SPI sur PS SPI0 (XSpiPs, mode 3, CS manuel)
  */
 
 #ifndef BNO085_H
 #define BNO085_H
 
 #include "xspips.h"
-#include "xgpiops.h"
+#include "xgpio.h"          /* AXI GPIO — PL fabric */
 #include "xparameters.h"
 #include "xil_types.h"
 #include "sleep.h"
 
-/* ─── Configuration matérielle ─────────────────────────────────────────── */
+/* ─── SPI ───────────────────────────────────────────────────────────────── */
 
 #define BNO085_SPI_DEVICE_ID     XPAR_XSPIPS_0_DEVICE_ID
-#define BNO085_SPI_CLK_HZ        1000000U   /* 1 MHz  (max 3 MHz) */
-
-#define BNO085_GPIO_DEVICE_ID    XPAR_XGPIOPS_0_DEVICE_ID
 
 /*
- * Adaptez ces numéros de pin MIO à votre schéma de câblage.
- * Repérez-les dans votre Vivado Block Design (Processing System).
+ * Prescaler SPI.
+ * À 100 MHz PS : PRESCALE_64 → ~1.56 MHz  (safe, BNO085 max = 3 MHz)
+ * À  50 MHz PS : PRESCALE_32 → ~1.56 MHz
+ * Ajustez selon votre configuration Vivado.
  */
-#define BNO085_PIN_CS            54U   /* MIO 54 – sortie, CS actif bas  */
-#define BNO085_PIN_INT           55U   /* MIO 55 – entrée, INT actif bas */
-#define BNO085_PIN_RST           56U   /* MIO 56 – sortie, RST actif bas */
-#define BNO085_PIN_WAKE          57U   /* MIO 57 – sortie, PS0/WAKE      */
+#define BNO085_SPI_PRESCALER     XSPIPS_CLK_PRESCALE_256 
+
+/* ─── AXI GPIO — Device IDs ─────────────────────────────────────────────── */
+/*
+ * Ces macros correspondent aux entrées générées dans xparameters.h
+ * par Vivado/Vitis. Vérifiez les noms exacts dans votre xparameters.h
+ * si votre design nomme les IPs différemment.
+ */
+#define BNO085_GPIO_CS_ID        XPAR_AXI_GPIO_27_DEVICE_ID
+#define BNO085_GPIO_RST_ID       XPAR_AXI_GPIO_29_DEVICE_ID
+#define BNO085_GPIO_INT_ID       XPAR_AXI_GPIO_30_DEVICE_ID
+
+/*
+ * Canal AXI GPIO utilisé (1 ou 2).
+ * Si l'IP est configurée avec un seul canal 1-bit, c'est toujours le canal 1.
+ */
+#define BNO085_GPIO_CHANNEL      1U
 
 /* ─── Constantes SHTP ───────────────────────────────────────────────────── */
 
 #define SHTP_HEADER_SIZE         4U
-#define SHTP_MAX_CARGO_SIZE      128U
+#define SHTP_MAX_CARGO_SIZE      256U
 #define SHTP_MAX_PACKET_SIZE     (SHTP_HEADER_SIZE + SHTP_MAX_CARGO_SIZE)
 
 /** Identifiants de canaux SHTP */
@@ -76,17 +86,16 @@
 
 /* ─── Codes de retour ───────────────────────────────────────────────────── */
 
-#define BNO085_OK                0
-#define BNO085_ERR_SPI          -1
-#define BNO085_ERR_GPIO         -2
-#define BNO085_ERR_TIMEOUT      -3
-#define BNO085_ERR_CHECKSUM     -4
-#define BNO085_ERR_NO_DATA      -5
+#define BNO085_OK                 0
+#define BNO085_ERR_SPI           -1
+#define BNO085_ERR_GPIO          -2
+#define BNO085_ERR_TIMEOUT       -3
+#define BNO085_ERR_NO_DATA       -5
 
-/* ─── Timeout ───────────────────────────────────────────────────────────── */
+/* ─── Timing ────────────────────────────────────────────────────────────── */
 
-#define BNO085_INT_TIMEOUT_US    5000U  /* 5 ms pour attendre INT */
-#define BNO085_RESET_DELAY_MS    50U    /* Délai après reset */
+#define BNO085_INT_TIMEOUT_US    10000U   /* 10 ms pour attendre INT        */
+#define BNO085_RESET_DELAY_MS    100U     /* Délai après reset (datasheet ≥ 50 ms) */
 
 /* ─── Structures de données ─────────────────────────────────────────────── */
 
@@ -108,40 +117,50 @@ typedef struct {
 
 /** Données fusionnées du capteur */
 typedef struct {
-    BNO085_Vec3      accel;         /**< Accélération brute [m/s²]           */
-    BNO085_Vec3      linear_accel;  /**< Accélération sans gravité [m/s²]    */
-    BNO085_Vec3      gyro;          /**< Vitesse angulaire calibrée [rad/s]  */
-    BNO085_Vec3      mag;           /**< Champ magnétique [µT]               */
-    BNO085_Quaternion rotation;     /**< Quaternion AHRS (référence Nord)    */
-    BNO085_Quaternion game_rv;      /**< Quaternion jeu (pas de magnéto)     */
-    float            yaw;           /**< Cap [°] 0-360                       */
-    float            pitch;         /**< Tangage [°]                         */
-    float            roll;          /**< Roulis [°]                          */
-    u8               status;        /**< Statut de calibration (0-3)         */
-    u8               new_data;      /**< Flag : nouvelles données disponibles */
+    BNO085_Vec3       accel;         /**< Accélération brute         [m/s²]  */
+    BNO085_Vec3       linear_accel;  /**< Accélération sans gravité  [m/s²]  */
+    BNO085_Vec3       gyro;          /**< Vitesse angulaire calibrée [rad/s] */
+    BNO085_Vec3       mag;           /**< Champ magnétique           [µT]    */
+    BNO085_Quaternion rotation;      /**< Quaternion AHRS (réf. Nord)        */
+    BNO085_Quaternion game_rv;       /**< Quaternion jeu (sans magnéto)      */
+    float             yaw;           /**< Cap     [°] 0–360                  */
+    float             pitch;         /**< Tangage [°]                        */
+    float             roll;          /**< Roulis  [°]                        */
+    u8                calib_status;  /**< Statut de calibration (0–3)        */
+    u8                new_data;      /**< Flag : nouvelles données dispo      */
 } BNO085_Data;
 
-/** Handle principal du driver */
+/**
+ * @brief Handle principal du driver.
+ *
+ * Chaque pin GPIO AXI utilise sa propre instance XGpio car les IPs
+ * sont distinctes dans le design Vivado.
+ */
 typedef struct {
-    XSpiPs      spi;
-    XGpioPs     gpio;
-    u8          tx_buf[SHTP_MAX_PACKET_SIZE];
-    u8          rx_buf[SHTP_MAX_PACKET_SIZE];
-    u8          seq[8];         /**< Numéro de séquence par canal */
+    XSpiPs  spi;
+
+    XGpio   gpio_cs;    /**< axi_gpio_27 — sortie, CS actif bas   */
+    XGpio   gpio_rst;   /**< axi_gpio_29 — sortie, RST actif bas  */
+    XGpio   gpio_int;   /**< axi_gpio_30 — entrée, INT actif bas  */
+
+    u8      tx_buf[SHTP_MAX_PACKET_SIZE];
+    u8      rx_buf[SHTP_MAX_PACKET_SIZE];
+    u8      seq[8];     /**< Numéro de séquence par canal SHTP    */
+
     BNO085_Data data;
 } BNO085_Dev;
 
 /* ─── API publique ──────────────────────────────────────────────────────── */
 
 /**
- * @brief Initialise le SPI, les GPIO et remet le BNO085 en état de marche.
- * @param dev  Pointeur vers le handle alloué par l'appelant.
- * @return BNO085_OK ou code d'erreur.
+ * @brief Initialise SPI + GPIO AXI et remet le BNO085 en état de marche.
+ * @param dev  Handle alloué par l'appelant (statique ou global recommandé).
+ * @return BNO085_OK ou code d'erreur négatif.
  */
 int BNO085_Init(BNO085_Dev *dev);
 
 /**
- * @brief Effectue un reset matériel du BNO085 et attend qu'il soit prêt.
+ * @brief Reset matériel du BNO085 (RST bas puis haut) et attente démarrage.
  */
 int BNO085_Reset(BNO085_Dev *dev);
 
@@ -154,13 +173,13 @@ int BNO085_EnableReport(BNO085_Dev *dev, u8 report_id, u32 interval_us);
 
 /**
  * @brief Lit et traite tous les paquets SHTP disponibles.
- *        À appeler régulièrement dans votre boucle principale ou ISR.
+ *        À appeler régulièrement dans la boucle principale.
  * @return BNO085_OK si au moins un paquet traité, BNO085_ERR_NO_DATA sinon.
  */
 int BNO085_Poll(BNO085_Dev *dev);
 
 /**
- * @brief Retourne un pointeur vers les dernières données lues.
+ * @brief Retourne un pointeur vers les dernières données.
  */
 static inline BNO085_Data *BNO085_GetData(BNO085_Dev *dev) {
     return &dev->data;
@@ -171,8 +190,8 @@ static inline BNO085_Data *BNO085_GetData(BNO085_Dev *dev) {
  *        Remet le flag à 0 après lecture.
  */
 static inline int BNO085_DataReady(BNO085_Dev *dev) {
-    int ready = dev->data.new_data;
-    dev->data.new_data = 0;
+    int ready = (int)dev->data.new_data;
+    dev->data.new_data = 0U;
     return ready;
 }
 
