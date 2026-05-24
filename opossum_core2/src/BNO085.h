@@ -54,7 +54,7 @@
 
 #define SHTP_HEADER_SIZE         4U
 #define SHTP_MAX_CARGO_SIZE      256U
-#define SHTP_MAX_PACKET_SIZE     (SHTP_HEADER_SIZE + SHTP_MAX_CARGO_SIZE)
+#define SHTP_MAX_PACKET_SIZE     512 //(SHTP_HEADER_SIZE + SHTP_MAX_CARGO_SIZE)
 
 /** Identifiants de canaux SHTP */
 #define SHTP_CHAN_COMMAND         0U

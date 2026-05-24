@@ -2,10 +2,6 @@
  * @file BNO085.c
  * @brief Driver BNO085 (SHTP/SH-2 sur SPI) pour Zynq7000 — GPIO sur AXI
  *
- * Différence clé par rapport à la version PS GPIO :
- *   - XGpioPs  → contrôle des broches MIO (Processing System)
- *   - XGpio    → contrôle des IPs AXI GPIO instanciées dans le fabric PL
- *
  * Flux SPI (lecture d'un paquet SHTP) :
  *   1. INT passe bas   → BNO085 a des données prêtes
  *   2. CS = 0          → début de transaction
@@ -224,8 +220,7 @@ static int shtp_receive(BNO085_Dev *dev, u8 *channel_out, u16 *length_out)
 
     int ret = spi_transfer(dev, hdr_tx, hdr_rx, SHTP_HEADER_SIZE);
     if (ret != BNO085_OK) { CS_HIGH(dev); return ret; }
-    xil_printf("[BNO085] Header brut lu : %02X %02X %02X %02X\r\n", 
-               dev->rx_buf[0], dev->rx_buf[1], dev->rx_buf[2], dev->rx_buf[3]);
+
     /*
      * Longueur totale du paquet (header inclus).
      * Bit 15 de len_H = flag continuation → masqué par 0x7F.

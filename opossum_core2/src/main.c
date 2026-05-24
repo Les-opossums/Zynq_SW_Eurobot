@@ -47,7 +47,8 @@ void IMU_Init(void)
 }
  
 /* ─── Boucle principale (à appeler dans while(1)) ───────────────────────── */
- 
+#define RAD_TO_DEG 57.29578f
+
 void IMU_Loop(void)
 {
     if (!imu_ok) return;
@@ -72,22 +73,22 @@ void IMU_Loop(void)
          *   qw/qi/qj/qk                  — quaternion AHRS
          *   calib                        — 0=non calibré, 3=pleinement calibré
          */
-        xil_printf(
-            "IMU "
-            "g=%.4f,%.4f,%.4f "
-            "a=%.4f,%.4f,%.4f "
-            "ypr=%.2f,%.2f,%.2f "
-            "q=%.4f,%.4f,%.4f,%.4f "
-            "cal=%d\r\n",
-            (double)d->gyro.x,         (double)d->gyro.y,         (double)d->gyro.z,
-            (double)d->linear_accel.x, (double)d->linear_accel.y, (double)d->linear_accel.z,
-            (double)d->yaw,            (double)d->pitch,           (double)d->roll,
-            (double)d->rotation.real,
-            (double)d->rotation.i,
-            (double)d->rotation.j,
-            (double)d->rotation.k,
-            (int)d->calib_status
-        );
+        printf("IMU g=%d,%d,%d a=%d,%d,%d ypr=%d,%d,%d q=%d,%d,%d,%d cal=%d\r\n",
+        (int)(d->gyro.x * 100.0f), 
+        (int)(d->gyro.y * 100.0f), 
+        (int)(d->gyro.z * 100.0f),
+        (int)(d->accel.x * 100.0f), 
+        (int)(d->accel.y * 100.0f), 
+        (int)(d->accel.z * 100.0f),
+        (int)(d->yaw * RAD_TO_DEG),      // Angle en degrés !
+        (int)(d->pitch * RAD_TO_DEG),    // Angle en degrés !
+        (int)(d->roll * RAD_TO_DEG),     // Angle en degrés !
+        (int)(d->rotation.real * 1000.0f), 
+        (int)(d->rotation.i * 1000.0f), 
+        (int)(d->rotation.j * 1000.0f), 
+        (int)(d->rotation.k * 1000.0f),
+        (int)d->calib_status
+    );
     }
 }
 
