@@ -78,21 +78,11 @@ void IMU_Loop(void)
          *   calib                        — 0=non calibré, 3=pleinement calibré
          */
         printf("IMU g=%d,%d,%d a=%d,%d,%d ypr=%d,%d,%d q=%d,%d,%d,%d cal=%d\r\n",
-        (int)(d->gyro.x * 100.0f), 
-        (int)(d->gyro.y * 100.0f), 
-        (int)(d->gyro.z * 100.0f),
-        (int)(d->accel.x * 100.0f), 
-        (int)(d->accel.y * 100.0f), 
-        (int)(d->accel.z * 100.0f),
-        (int)(d->yaw * RAD_TO_DEG),      // Angle en degrés !
-        (int)(d->pitch * RAD_TO_DEG),    // Angle en degrés !
-        (int)(d->roll * RAD_TO_DEG),     // Angle en degrés !
-        (int)(d->rotation.real * 1000.0f), 
-        (int)(d->rotation.i * 1000.0f), 
-        (int)(d->rotation.j * 1000.0f), 
-        (int)(d->rotation.k * 1000.0f),
-        (int)d->calib_status
-        );
+        (int)imu.data.gyro.x, (int)imu.data.gyro.y, (int)imu.data.gyro.z,
+        (int)imu.data.linear_accel.x, (int)imu.data.linear_accel.y, (int)imu.data.linear_accel.z,
+        (int)imu.data.yaw, (int)imu.data.pitch, (int)imu.data.roll,
+        (int)(imu.data.rotation.real * 100), (int)(imu.data.rotation.i * 100), (int)(imu.data.rotation.j * 100), (int)(imu.data.rotation.k * 100),
+        imu.data.calib_status);
     }
 }
 

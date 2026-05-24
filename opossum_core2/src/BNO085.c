@@ -336,6 +336,13 @@ static void sh2_parse_report(BNO085_Dev *dev, const u8 *buf, u16 len)
             dev->data.game_rv.j    = q_to_float((s16)((buf[offset + 7]  << 8) | buf[offset + 6]),  14);
             dev->data.game_rv.k    = q_to_float((s16)((buf[offset + 9]  << 8) | buf[offset + 8]),  14);
             dev->data.game_rv.real = q_to_float((s16)((buf[offset + 11] << 8) | buf[offset + 10]), 14);
+            
+            // CORRECTION : Calcul des angles d'Euler (Yaw, Pitch, Roll)
+            quat_to_euler(&dev->data.game_rv, &dev->data.yaw, &dev->data.pitch, &dev->data.roll);
+            
+            // CORRECTION : Copie dans la variable "rotation" pour alimenter le log "q=..."
+            dev->data.rotation = dev->data.game_rv;
+
             dev->data.new_data = 1U;
             offset += 12;
             break;
@@ -477,35 +484,28 @@ int BNO085_Init(BNO085_Dev *dev)
 
 int BNO085_EnableReport(BNO085_Dev *dev, u8 report_id, u32 interval_us)
 {
-    /*
-     * Commande Set Feature Request (SH-2 §6.5.4) — 17 octets cargo :
-     *
-     *  [0]    0xFD  (SH2_CMD_SET_FEATURE)
-     *  [1]    Report ID
-     *  [2]    Feature flags   (0)
-     *  [3]    Change sens. rel LSB (0)
-     *  [4-7]  Report interval [µs] little-endian
-     *  [8-11] Batch interval (0)
-     *  [12-15] Sensor-specific config (0)
-     *  [16]   Réservé (0)
-     */
-    u8 cmd[17] = {0U};
-    cmd[0] = SH2_CMD_SET_FEATURE;
-    cmd[1] = report_id;
-    cmd[4] = (u8)( interval_us        & 0xFFU);
-    cmd[5] = (u8)((interval_us >>  8) & 0xFFU);
-    cmd[6] = (u8)((interval_us >> 16) & 0xFFU);
-    cmd[7] = (u8)((interval_us >> 24) & 0xFFU);
+    u8 cmd[17] = {0}; // Initialise bien tout le buffer à zéro
 
-    int ret = shtp_send(dev, SHTP_CHAN_CONTROL, cmd, (u16)sizeof(cmd));
+    cmd[0] = 0xFD;       // SH2_CMD_SET_FEATURE
+    cmd[1] = report_id;  // Ex: 0x08 pour Game RV
+    cmd[2] = 0;          // Feature flags
+    cmd[3] = 0;          // Change sensitivity LSB
+    cmd[4] = 0;          // Change sensitivity MSB
+
+    // L'intervalle de temps COMMENCE À L'OCTET 5 !
+    cmd[5] = (u8)( interval_us        & 0xFFU);
+    cmd[6] = (u8)((interval_us >>  8) & 0xFFU);
+    cmd[7] = (u8)((interval_us >> 16) & 0xFFU);
+    cmd[8] = (u8)((interval_us >> 24) & 0xFFU);
+
+    // Envoi sur le canal 2 (Control Channel)
+    int ret = shtp_send(dev, 2, cmd, sizeof(cmd));
     if (ret != BNO085_OK) {
-        xil_printf("[BNO085] Erreur activation rapport 0x%02X\r\n",
-                   (unsigned)report_id);
+        xil_printf("[BNO085] Erreur activation rapport 0x%02X\r\n", report_id);
         return ret;
     }
 
-    xil_printf("[BNO085] Rapport 0x%02X active @ %lu us\r\n",
-               (unsigned)report_id, (unsigned long)interval_us);
+    xil_printf("[BNO085] Rapport 0x%02X active @ %lu us\r\n", report_id, interval_us);
     return BNO085_OK;
 }
 
