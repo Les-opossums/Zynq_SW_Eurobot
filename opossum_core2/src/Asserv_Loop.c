@@ -3,6 +3,8 @@
 
 #define CTRL_POS_ALPHA 0.5f // coefficient du filtre passe-bas pour la position de contrôle (entre 0 et 1, plus c'est petit plus le filtrage est fort)
 
+float imu_yaw_offset = 0.0f;
+
 extern BNO085_Dev imu;
 
 uint16_t auto_printpos_delay = 100;
@@ -99,6 +101,17 @@ void Init_Asserv(void) {
 static int  last_odo_ms   = 0;
 static int  odo_count     = 0;
 static uint8_t slow_loop_due = 0;
+
+/**
+ * @brief Aligne le repère de l'IMU sur le repère de la table.
+ * @param table_theta L'angle absolu du robot sur la table (en radians)
+ */
+void align_imu_with_table(float table_theta) {
+    // Offset = Angle de la table - Angle brut de l'IMU
+    imu_yaw_offset = table_theta - imu.data.yaw;
+    xil_printf("[IMU] Recalage sur la table ! Offset = %d/100 rad\r\n", (int)(imu_yaw_offset * 100));
+}
+
 
 void Asserv_Loop(void)
 {
@@ -217,6 +230,7 @@ void Asserv_Loop(void)
         // Arrêt d'urgence
         if (AU_state) {
             asserv_off_step();
+            align_imu_with_table(kalman_current_state.x[2]); // Recalage de l'IMU sur la table à chaque AU pour éviter les dérives
         } else {
             motor1_current_order = Consigne.command1;
             motor2_current_order = Consigne.command2;
