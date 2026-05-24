@@ -413,9 +413,9 @@ uint8_t kalman_update_odo(KalmanState* state, Speed* measured_speed) {
 
 
 float R_imu[2] = {
-    OBS_NOISE_IMU_THETA * OBS_NOISE_IMU_THETA, 
-    OBS_NOISE_IMU_VTHETA * OBS_NOISE_IMU_VTHETA
-};
+        OBS_NOISE_IMU_THETA * OBS_NOISE_IMU_THETA, 
+        OBS_NOISE_IMU_VTHETA * OBS_NOISE_IMU_VTHETA
+    };
 
 uint8_t kalman_update_imu(KalmanState* state, float measured_theta, float measured_vtheta) {
     // 1. --- Calcul de l'innovation (y = z - Hx) ---

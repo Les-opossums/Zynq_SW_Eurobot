@@ -14,9 +14,9 @@ int old_timer_AU = 0;
  * @brief declaration pour l'imu
  * 
  */
-static BNO085_Dev imu;                /* Handle IMU — global ou static main */
-static int        imu_ok     = 0;     /* 1 si init réussie                  */
-static int        imu_last_print_ms = 0;
+BNO085_Dev imu;                /* Handle IMU — global ou static main */
+int        imu_ok     = 0;     /* 1 si init réussie                  */
+int        imu_last_print_ms = 0;
 
 void IMU_Init(void)
 {
@@ -46,48 +46,6 @@ void IMU_Init(void)
     xil_printf("[IMU] Initialisation OK\r\n");
 }
  
-/* ─── Boucle principale (à appeler dans while(1)) ───────────────────────── */
-#define RAD_TO_DEG 57.29578f
-
-void IMU_Loop(void)
-{
-    if (!imu_ok) return;
- 
-    /* --- Poll IMU --- */
-    int poll_ret = BNO085_Poll(&imu);
- 
-    if (poll_ret == BNO085_OK) {
-        // xil_printf("!"); // Décommente ça si ça reste à 0 pour voir si ça "flashe"
-    }
-
-    /* --- Affichage debug toutes les 100 ms --- */
-    if ((Timer_ms1 - imu_last_print_ms) >= 100) {
-        imu_last_print_ms = Timer_ms1;
- 
-        BNO085_Data *d = BNO085_GetData(&imu);
-        
-        /*
-         * Format CSV sur une ligne → facile à parser avec un script Python
-         * ou à visualiser dans un terminal série.
-         *
-         * Champs :
-         *   gyro_x/y/z          [rad/s]  — vt = gyro_z pour un robot plan
-         *   lin_ax/ay/az        [m/s²]   — accélération sans gravité
-         *   yaw / pitch / roll  [°]
-         *   qw/qi/qj/qk                  — quaternion AHRS
-         *   calib                        — 0=non calibré, 3=pleinement calibré
-         */
-        printf("IMU g=%0.4f,%0.4f,%0.4f a=%0.4f,%0.4f,%0.4f ypr=%0.4f,%0.4f,%0.4f q=%0.4f,%0.4f,%0.4f,%0.4f cal=%d\r\n",
-        (float)imu.data.gyro.x, (float)imu.data.gyro.y, (float)imu.data.gyro.z,
-        (float)imu.data.linear_accel.x, (float)imu.data.linear_accel.y, (float)imu.data.linear_accel.z,
-        (float)imu.data.yaw, (float)imu.data.pitch, (float)imu.data.roll,
-        (float)(imu.data.rotation.real * 100), (float)(imu.data.rotation.i * 100), (float)(imu.data.rotation.j * 100), (float)(imu.data.rotation.k * 100),
-        imu.data.calib_status);
-    }
-}
-
-
-
 int main()
 {
     Xil_SetTlbAttributes(0xFFFF0000,0x14de2); 
@@ -139,7 +97,6 @@ int main()
         }else{
             Asserv_Loop();
         }
-        IMU_Loop();            // Poll IMU + print debug
     }
 
     cleanup_platform();

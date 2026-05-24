@@ -53,8 +53,8 @@
 
 // 4. IMU (Inertial Measurement Unit)
 // Le capteur IMU fournit des mesures d'angle et de vitesse angulaire.
-#define OBS_NOISE_IMU_THETA       0.02f   // 2 deg d'écart-type
-#define OBS_NOISE_IMU_VTHETA      0.05f   // 5 deg/s d'écart-type
+#define OBS_NOISE_IMU_THETA       0.001f   // 0.5 deg d'écart-type
+#define OBS_NOISE_IMU_VTHETA      0.01f    // 0.1 deg/s d'écart-type
 
 #define S_INV_EPS 1e-6f
 
@@ -107,8 +107,8 @@ uint8_t kalman_update(KalmanState* state, float z[STATE_SIZE], float R_diag[3], 
 /**
  * @brief Update spécifique pour l'odométrie interne (encodeurs des M2006), qui observe les vitesses (vx, vy, vtheta).
  * 
- * @param state 
- * @param measured_speed 
+ * @param state État courant du Kalman
+ * @param measured_speed Vitesses mesurées par les encodeurs (en m/s et rad/s)
  * @return uint8_t 
  */
 uint8_t kalman_update_odo(KalmanState* state, Speed* measured_speed);
@@ -117,9 +117,9 @@ uint8_t kalman_update_odo(KalmanState* state, Speed* measured_speed);
 /**
  * @brief Update spécifique pour l'IMU, qui observe l'angle (theta) et la vitesse angulaire (vtheta).
  * 
- * @param state 
- * @param measured_theta 
- * @param measured_vtheta 
+ * @param state État courant du Kalman
+ * @param measured_theta Angle Yaw mesuré par l'IMU (en radians)
+ * @param measured_vtheta Vitesse angulaire Z mesurée par l'IMU (en rad/s)
  * @return uint8_t 
  */
 uint8_t kalman_update_imu(KalmanState* state, float measured_theta, float measured_vtheta);

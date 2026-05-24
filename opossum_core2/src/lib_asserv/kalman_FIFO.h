@@ -43,9 +43,11 @@ void kalman_fifo_init(KalmanFIFO* fifo);
  * @param fifo La structure FIFO.
  * @param state L'état à ajouter.
  * @param speed_robot La vitesse du robot à ajouter (pour la prédiction).
+ * @param has_imu Flag indiquant si une mesure IMU est disponible.
+ * @param imu_theta Angle Yaw mesuré par l'IMU (en radians).
+ * @param imu_vtheta Vitesse angulaire Z mesurée par l'IMU (en rad/s).
  */
-void kalman_fifo_push(KalmanFIFO* fifo, KalmanState* state, Speed* speed_robot);
-
+void kalman_fifo_push(KalmanFIFO* fifo, KalmanState* state, Speed* speed_robot, uint8_t has_imu, float imu_theta, float imu_vtheta);
 /**
  * Récupère un état dans le passé à un délai donné (en ms).
  * 

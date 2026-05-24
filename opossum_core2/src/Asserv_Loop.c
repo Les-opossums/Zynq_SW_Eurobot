@@ -3,6 +3,8 @@
 
 #define CTRL_POS_ALPHA 0.5f // coefficient du filtre passe-bas pour la position de contrôle (entre 0 et 1, plus c'est petit plus le filtrage est fort)
 
+extern BNO085_Dev imu;
+
 uint16_t auto_printpos_delay = 100;
 
 uint8_t Debug_Timing = 0;
@@ -63,7 +65,6 @@ float R_camera[3] = {OBS_NOISE_CAMERA_XY * OBS_NOISE_CAMERA_XY,
                      OBS_NOISE_CAMERA_XY * OBS_NOISE_CAMERA_XY, 
                      OBS_NOISE_CAMERA_THETA * OBS_NOISE_CAMERA_THETA};
 
-
 extern volatile uint32_t new_cmd_from_core0;
 
 void Init_Asserv(void) {
@@ -119,11 +120,31 @@ void Asserv_Loop(void)
         mtcpsr(cpsr);                 // __enable_irq()
 
         odo_speed_step(s1, s2, s3, s4);
-        odo_position_step(ODO_EVERY_MS * 0.001f);   // BUG CORRIGÉ
+        odo_position_step(ODO_EVERY_MS * 0.001f);
+
+        // lecture imu
+        BNO085_Poll(&imu);
+    
+        uint8_t imu_available = 0;
+        float bno_theta = 0.0f;
+        float bno_vtheta = 0.0f;
+
+        if (imu.data.new_data) {
+            // Le BNO085 donne le Yaw en radians via quat_to_euler, on le récupère
+            bno_theta  = imu.data.yaw; 
+            bno_vtheta = imu.data.gyro.z;
+            imu_available = 1;
+            
+            // On remet le flag à 0 pour attendre le prochain paquet
+            imu.data.new_data = 0; 
+        }
 
         kalman_predict(&kalman_current_state, ODO_EVERY_MS * 0.001f);
         kalman_update_odo(&kalman_current_state, &speed_robot_odom);
-        kalman_fifo_push(&kalman_fifo, &kalman_current_state, &speed_robot_odom);
+        if (imu_available) {
+            kalman_update_imu(&kalman_current_state, bno_theta, bno_vtheta);
+        }
+        kalman_fifo_push(&kalman_fifo, &kalman_current_state, &speed_robot_odom, imu_available, bno_theta, bno_vtheta);
 
         odo_count++;
         if (odo_count >= ASSERV_EVERY) {

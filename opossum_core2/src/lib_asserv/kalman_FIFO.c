@@ -37,12 +37,17 @@ void kalman_fifo_init(KalmanFIFO* fifo) {
     }
 }
 
-void kalman_fifo_push(KalmanFIFO* fifo, KalmanState* state, Speed* speed_robot) {
+void kalman_fifo_push(KalmanFIFO* fifo, KalmanState* state, Speed* speed_robot, uint8_t has_imu, float imu_theta, float imu_vtheta) {
     // Stocke l'état à l'emplacement courant
     memcpy(&fifo->buffer[fifo->head], state, sizeof(KalmanState));
 
     // Stocke la vitesse du robot à l'emplacement courant
     memcpy(&fifo->speed_robot[fifo->head], speed_robot, sizeof(Speed));
+
+    // Stocke les données IMU à l'emplacement courant
+    fifo->has_imu[fifo->head] = has_imu;
+    fifo->z_imu_theta[fifo->head] = imu_theta;
+    fifo->z_imu_vtheta[fifo->head] = imu_vtheta;
 
     fifo->observations[fifo->head].has_lidar = 0; // Par défaut, pas d'observation associée à ce nouvel état
     fifo->observations[fifo->head].bypass_lidar_rejection = 0; // Par défaut, pas de bypass
@@ -93,15 +98,20 @@ void kalman_fifo_repropagate(KalmanFIFO* fifo, int delay_index, float dt_s, floa
         // 1. Prédiction odométrique classique
         kalman_predict(next, dt_s);
 
-        // 2. Correction EKF avec la mesure d'odométrie 
+        // 2. Si on avait lu l'IMU à ce moment-là dans le passé, on réapplique la mesure !
+        if (fifo->has_imu[next_i]) {
+            kalman_update_imu(next, fifo->z_imu_theta[next_i], fifo->z_imu_vtheta[next_i]);
+        }
+
+        // 3. Correction EKF avec la mesure d'odométrie 
         kalman_update_odo(next, speed);
 
-        // 3. Si une mesure Lidar avait eu lieu à 'next_i', on la réapplique !
+        // 4. Si une mesure Lidar avait eu lieu à 'next_i', on la réapplique !
         if (fifo->observations[next_i].has_lidar) {
             kalman_update(next, fifo->observations[next_i].z_lidar, R_lidar, fifo->observations[next_i].bypass_lidar_rejection);
         }
 
-        // 4. Si une mesure Caméra avait eu lieu à 'next_i', on la réapplique ! 
+        // 5. Si une mesure Caméra avait eu lieu à 'next_i', on la réapplique ! 
         for(int cam_id = 0; cam_id < 3; cam_id++) {
             if (fifo->observations[next_i].has_camera[cam_id]) {
                 kalman_update(next, 
