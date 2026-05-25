@@ -77,13 +77,19 @@ int main()
     Init_AU();
     Init_Asserv();
     
-    IMU_Init();
+    // IMU_Init();
 
     while(1){
         if(Timer_ms1 - old_timer_ms1 >= 1000) {
             old_timer_ms1 = Timer_ms1;
             // printf("SGI recues : %lu\r\n", sgi_debug_count);
         }
+
+        if ((Timer_ms1 - imu_last_print_ms) >= 100) {
+            imu_last_print_ms = Timer_ms1;
+            // printf("IMU yaw=%.2f deg gyro_z=%.4f rad/s cal=%d\r\n",imu.data.yaw, imu.data.gyro.z, imu.data.calib_status);
+        }
+        
         AU_Loop();
         if(AU_state == 1){
             if(Timer_ms1 - old_timer_AU >= 100) {

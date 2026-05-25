@@ -138,22 +138,22 @@ void Asserv_Loop(void)
         odo_position_step(ODO_EVERY_MS * 0.001f);
 
         // lecture imu
-        BNO085_Poll(&imu);
+        // BNO085_Poll(&imu);
     
         uint8_t imu_available = 0;
         float bno_theta = 0.0f;
         float bno_vtheta = 0.0f;
 
-        if (imu.data.new_data) {
-            // Le BNO085 donne le Yaw en radians via quat_to_euler, on le récupère
-            bno_theta  = imu.data.yaw; 
-            bno_vtheta = imu.data.gyro.z;
-            printf("[IMU] Yaw raw = %0.2f rad, vtheta raw = %0.2f rad/s\r\n", bno_theta, bno_vtheta);
-            imu_available = 1;
+        // if (imu.data.new_data) {
+        //     // Le BNO085 donne le Yaw en radians via quat_to_euler, on le récupère
+        //     bno_theta  = imu.data.yaw * (3.14159 / 180.0); // conversion en radians
+        //     bno_vtheta = imu.data.gyro.z * (3.14159 / 180.0); // conversion en rad/s
+
+        //     imu_available = 1;
             
-            // On remet le flag à 0 pour attendre le prochain paquet
-            imu.data.new_data = 0; 
-        }
+        //     // On remet le flag à 0 pour attendre le prochain paquet
+        //     imu.data.new_data = 0; 
+        // }
 
         kalman_predict(&kalman_current_state, ODO_EVERY_MS * 0.001f);
         kalman_update_odo(&kalman_current_state, &speed_robot_odom);
