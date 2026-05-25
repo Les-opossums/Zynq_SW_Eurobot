@@ -35,10 +35,10 @@ void IMU_Init(void)
      *   Game Rotation Vector → 10 ms (100 Hz) — orientation sans magnéto
      */
     xil_printf("[IMU] Activation des rapports...\r\n");
-    BNO085_EnableReport(&imu, SH2_GYROSCOPE_CALIBRATED,  10000U);
-    BNO085_EnableReport(&imu, SH2_LINEAR_ACCELERATION,   10000U);  
-    BNO085_EnableReport(&imu, SH2_GAME_ROTATION_VECTOR,  10000U); 
-    BNO085_EnableReport(&imu, SH2_ROTATION_VECTOR,       10000U);
+    BNO085_EnableReport(&imu, SH2_GYROSCOPE_CALIBRATED,  1000U);
+    // BNO085_EnableReport(&imu, SH2_LINEAR_ACCELERATION,   10000U);  
+    // BNO085_EnableReport(&imu, SH2_GAME_ROTATION_VECTOR,  10000U); 
+    // BNO085_EnableReport(&imu, SH2_ROTATION_VECTOR,       10000U);
 
     imu_ok = 1;
     xil_printf("[IMU] Initialisation OK\r\n");

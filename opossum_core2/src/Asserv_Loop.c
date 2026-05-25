@@ -445,8 +445,6 @@ void Process_Shared_Memory_Commands(void) {
     int earliest_delay = -1; // le plus grand delay = le plus loin dans le passé
 
     if (CHECK_FIELD(&local_data, set_lidar)&& en_kalman.enable_lidar_kalman) {
-        
-        // --- NOUVEAU : EXÉCUTION DU HARD RESET ---
         if (need_kalman_hard_reset) {
             // 1. Reset total de la matrice de covariance P
             kalman_init(&kalman_current_state); 
@@ -461,9 +459,8 @@ void Process_Shared_Memory_Commands(void) {
             // 3. On écrase le passé (On vide la FIFO et on la remplit avec cette position)
             kalman_init_with_lidar(&kalman_fifo, &local_data.set_lidar);
 
-            need_kalman_hard_reset = 0; // Mission accomplie !
+            need_kalman_hard_reset = 0;
         }
-        // -----------------------------------------
         int idx = kalman_fifo_insert_lidar(&kalman_fifo, &local_data.set_lidar, R_lidar);
         if (idx >= 0 && local_data.set_lidar.delay > earliest_delay) {
             earliest_delay = local_data.set_lidar.delay;
