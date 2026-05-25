@@ -140,6 +140,14 @@ extern float imu_yaw_offset;
 
 static uint8_t need_kalman_hard_reset = 0; // 1 = On force le Kalman à se téléporter
 
+// Variables de synchronisation
+static int  last_odo_ms   = 0;
+static int  odo_count     = 0;
+static uint8_t slow_loop_due = 0;
+uint8_t imu_offset_valid = 0;   // 0 = offset pas encore calculé
+
+
+
 void Init_Asserv(void) {
     Consigne.command1 = 0;
     Consigne.command2 = 0;
@@ -166,23 +174,36 @@ void Init_Asserv(void) {
     asserv_init();
 
     Last_Timer_Asserv = Timer_ms1;
+
+    imu_offset_valid = 0; // L'offset de l'IMU n'est pas encore calculé, on ne peut pas faire confiance à ses données pour le Kalman
 }
 
-// Variables de synchronisation
-static int  last_odo_ms   = 0;
-static int  odo_count     = 0;
-static uint8_t slow_loop_due = 0;
+
+// Extraire le yaw depuis GAME_ROTATION_VECTOR — résultat en radians
+static float imu_get_yaw_rad(void) {
+    float qw = imu.data.game_rv.real;
+    float qi = imu.data.game_rv.i;
+    float qj = imu.data.game_rv.j;
+    float qk = imu.data.game_rv.k;
+    // Rotation autour de Z, convention standard
+    return atan2f(2.0f*(qw*qk + qi*qj), 1.0f - 2.0f*(qj*qj + qk*qk));
+}
+
 
 /**
  * @brief Aligne le repère de l'IMU sur le repère de la table.
  * @param table_theta L'angle absolu du robot sur la table (en radians)
  */
-void align_imu_with_table(float table_theta) {
-    // Offset = Angle de la table - Angle brut de l'IMU
-    imu_yaw_offset = table_theta - imu.data.yaw;
-    xil_printf("[IMU] Recalage sur la table ! Offset = %d/100 rad\r\n", (int)(imu_yaw_offset * 100));
+void align_imu_with_table(float table_theta_rad) {
+    float imu_raw = imu_get_yaw_rad();
+    imu_yaw_offset = principal_angle(table_theta_rad - imu_raw);
+    imu_offset_valid = 1;
+    // xil_printf("[IMU] Offset = %.4f rad (%.1f deg) | imu_raw=%.4f table=%.4f\r\n",
+    //            (double)imu_yaw_offset,
+    //            (double)(imu_yaw_offset * 180.0f / 3.14159f),
+    //            (double)imu_raw,
+    //            (double)table_theta_rad);
 }
-
 
 void Asserv_Loop(void)
 {
@@ -255,27 +276,11 @@ void Asserv_Loop(void)
         float bno_vtheta = 0.0f;
 
         if (imu.data.new_data) {
-            float qw = imu.data.rotation.real;
-            float qi = imu.data.rotation.i;
-            float qj = imu.data.rotation.j;
-            float qk = imu.data.rotation.k;
-            float raw_yaw = atan2f(2.0f*(qw*qk + qi*qj), 1.0f - 2.0f*(qj*qj + qk*qk));
-
-            if (pending_imu_realign) {
-                // L'offset devient la différence entre le Kalman PARFAIT et l'IMU brute !
-                imu_yaw_offset = principal_angle(kalman_current_state.x[2] - raw_yaw);
-                pending_imu_realign = 0;
-                imu_fusion_enabled = 1; // ON REBRANCHE L'IMU SUR LE KALMAN !
-            }
-
-            bno_theta  = principal_angle(raw_yaw + imu_yaw_offset); 
-            bno_vtheta = imu.data.gyro.z;
-
-            if (imu_fusion_enabled) {
-                imu_available_for_kalman = 1;
-            }
-
-            imu.data.new_data = 0;
+            float imu_raw             = imu_get_yaw_rad();
+            bno_theta                 = principal_angle(imu_raw + imu_yaw_offset);
+            bno_vtheta                = imu.data.gyro.z;
+            imu_available_for_kalman  = imu_offset_valid;  // n'utiliser qu'après calibration
+            imu.data.new_data         = 0;
         }
 
         T_START(ts_fast_kalman);
@@ -428,6 +433,8 @@ void Process_Shared_Memory_Commands(void) {
                 };
                 kalman_init_with_lidar(&kalman_fifo, &init_pos);
                 kalman_initialized = 1;
+
+                align_imu_with_table(init_pos.t);
             }
         }
         return;
