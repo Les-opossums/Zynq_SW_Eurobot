@@ -84,7 +84,6 @@ int main()
             old_timer_ms1 = Timer_ms1;
             // printf("SGI recues : %lu\r\n", sgi_debug_count);
         }
-
         AU_Loop();
         if(AU_state == 1){
             if(Timer_ms1 - old_timer_AU >= 100) {

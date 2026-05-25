@@ -3,6 +3,8 @@
 
 #define CTRL_POS_ALPHA 0.5f // coefficient du filtre passe-bas pour la position de contrôle (entre 0 et 1, plus c'est petit plus le filtrage est fort)
 
+volatile int imu_needs_reinit = 0;
+
 float imu_yaw_offset = 0.0f;
 
 extern BNO085_Dev imu;
@@ -146,6 +148,7 @@ void Asserv_Loop(void)
             // Le BNO085 donne le Yaw en radians via quat_to_euler, on le récupère
             bno_theta  = imu.data.yaw; 
             bno_vtheta = imu.data.gyro.z;
+            printf("[IMU] Yaw raw = %0.2f rad, vtheta raw = %0.2f rad/s\r\n", bno_theta, bno_vtheta);
             imu_available = 1;
             
             // On remet le flag à 0 pour attendre le prochain paquet
@@ -155,7 +158,7 @@ void Asserv_Loop(void)
         kalman_predict(&kalman_current_state, ODO_EVERY_MS * 0.001f);
         kalman_update_odo(&kalman_current_state, &speed_robot_odom);
         if (imu_available) {
-            kalman_update_imu(&kalman_current_state, bno_theta, bno_vtheta);
+            // kalman_update_imu(&kalman_current_state, bno_theta, bno_vtheta);
         }
         kalman_fifo_push(&kalman_fifo, &kalman_current_state, &speed_robot_odom, imu_available, bno_theta, bno_vtheta);
 
@@ -230,7 +233,7 @@ void Asserv_Loop(void)
         // Arrêt d'urgence
         if (AU_state) {
             asserv_off_step();
-            align_imu_with_table(kalman_current_state.x[2]); // Recalage de l'IMU sur la table à chaque AU pour éviter les dérives
+            // align_imu_with_table(kalman_current_state.x[2]); // Recalage de l'IMU sur la table à chaque AU pour éviter les dérives
         } else {
             motor1_current_order = Consigne.command1;
             motor2_current_order = Consigne.command2;
