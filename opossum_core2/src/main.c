@@ -31,10 +31,8 @@ void IMU_Init(void)
      * Intervalles recommandés pour la localisation robot :
      *   Gyroscope           → 1 ms   (1000 Hz) — critique pour intégration
      *   Accélération linéaire → 5 ms  (200 Hz)
-     *   Rotation Vector     → 10 ms  (100 Hz) — orientation absolue
+     *   Rotation Vector     → 10 ms  (200 Hz) — orientation absolue
      *   Game Rotation Vector → 10 ms (100 Hz) — orientation sans magnéto
-     *
-     * Pour le debug initial, 10 ms sur tout est suffisant.
      */
     xil_printf("[IMU] Activation des rapports...\r\n");
     BNO085_EnableReport(&imu, SH2_GYROSCOPE_CALIBRATED,  10000U);

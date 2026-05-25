@@ -263,7 +263,7 @@ void Asserv_Loop(void)
 
             if (pending_imu_realign) {
                 // L'offset devient la différence entre le Kalman PARFAIT et l'IMU brute !
-                imu_yaw_offset = kalman_current_state.x[2] - raw_yaw;
+                imu_yaw_offset = principal_angle(kalman_current_state.x[2] - raw_yaw);
                 pending_imu_realign = 0;
                 imu_fusion_enabled = 1; // ON REBRANCHE L'IMU SUR LE KALMAN !
             }
