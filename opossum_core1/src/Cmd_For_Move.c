@@ -296,7 +296,7 @@ uint8_t Set_Odo_Spacing_Cmd(void) {
 }
 
 
-int auto_printpos_en = 0; // si on active l'envoi de la position
+int auto_printpos_en = 1; // si on active l'envoi de la position
 uint32_t auto_printpos_delay = 100; // en ms
 uint32_t Last_Timer_print_pos = 0; // dernier envoi de la position
 

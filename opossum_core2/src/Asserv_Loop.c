@@ -96,8 +96,6 @@ float wheel_speed2 = 0;
 float wheel_speed3 = 0;
 float wheel_speed4 = 0;
 
-uint8_t stop = 0;
-
 Position position_lidar;
 Position control_pos;
 
@@ -131,6 +129,11 @@ float R_camera[3] = {OBS_NOISE_CAMERA_XY * OBS_NOISE_CAMERA_XY,
                      OBS_NOISE_CAMERA_THETA * OBS_NOISE_CAMERA_THETA};
 
 extern volatile uint32_t new_cmd_from_core0;
+
+// --- Variables pour la gestion de l'AU et du recalage ---
+static uint8_t last_stop_state = 1;     // On suppose qu'on démarre en AU (1)
+static uint8_t pending_imu_realign = 0; // Drapeau d'attente du LiDAR
+extern float imu_yaw_offset;            // Ton offset IMU créé précédemment
 
 void Init_Asserv(void) {
     Consigne.command1 = 0;
@@ -183,6 +186,14 @@ void Asserv_Loop(void)
         last_timing_print_ms = Timer_ms1;
         ts_print_all();
     }
+
+    if (last_stop_state == 1 && AU_state == 0) {
+        // L'AU vient d'être relâché !
+        pending_imu_realign = 1; // On lève le drapeau
+        xil_printf("\r\n[STRAT] AU relache -> Attente du Lidar pour recalage absolu...\r\n");
+    }
+    last_stop_state = AU_state; // On sauvegarde l'état pour le prochain tour
+
 	// =================================================================
     // SECTION 1 — FAST LOOP : ODO + Kalman predict — cadencé à 1ms
     // =================================================================
@@ -218,9 +229,11 @@ void Asserv_Loop(void)
             float qi = imu.data.rotation.i;
             float qj = imu.data.rotation.j;
             float qk = imu.data.rotation.k;
-            bno_theta  = atan2f(2.0f*(qw*qk + qi*qj),
-                                1.0f - 2.0f*(qj*qj + qk*qk)); // radians
+            float raw_yaw = atan2f(2.0f*(qw*qk + qi*qj), 1.0f - 2.0f*(qj*qj + qk*qk));
+
+            bno_theta  = principal_angle(raw_yaw + imu_yaw_offset); 
             bno_vtheta = imu.data.gyro.z;
+            
             imu_available = 1;
             imu.data.new_data = 0;
         }
@@ -384,11 +397,30 @@ void Process_Shared_Memory_Commands(void) {
     int earliest_index = -1;
     int earliest_delay = -1; // le plus grand delay = le plus loin dans le passé
 
-    if (CHECK_FIELD(&local_data, set_lidar) && en_kalman.enable_lidar_kalman) {
-        int idx = kalman_fifo_insert_lidar(&kalman_fifo, &local_data.set_lidar, R_lidar);
-        if (idx >= 0 && local_data.set_lidar.delay > earliest_delay) {
-            earliest_delay = local_data.set_lidar.delay;
-            earliest_index = idx;
+    if (CHECK_FIELD(&local_data, set_lidar)) {
+        
+        // NOUVEAU : Recalage au vol après un AU
+        if (pending_imu_realign) {
+            // 1. On aligne l'IMU sur l'angle de la table donné par le LiDAR
+            // (Vérifie si ton champ s'appelle .t ou .theta dans set_lidar)
+            align_imu_with_table(local_data.set_lidar.lidar_position_t); 
+            
+            // 2. TRES CONSEILLÉ : On force aussi le Kalman à se téléporter 
+            // à ces nouvelles coordonnées (x, y, theta) pour effacer les dérives de l'AU.
+            // Vu tes headers, tu as cette fonction :
+            // kalman_init_with_lidar(&kalman_fifo, &local_data.set_lidar);
+            
+            pending_imu_realign = 0; // Mission accomplie, on baisse le drapeau
+            // xil_printf("[STRAT] Recalage reussi ! Cap Lidar = %d/100 rad\r\n", (int)(local_data.set_lidar.lidar_position_t * 100));
+        }
+
+        // --- Ton code d'insertion normal dans le Kalman ---
+        if (en_kalman.enable_lidar_kalman) {
+            int idx = kalman_fifo_insert_lidar(&kalman_fifo, &local_data.set_lidar, R_lidar);
+            if (idx >= 0 && local_data.set_lidar.delay > earliest_delay) {
+                earliest_delay = local_data.set_lidar.delay;
+                earliest_index = idx;
+            }
         }
     }
 

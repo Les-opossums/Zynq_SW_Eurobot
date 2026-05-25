@@ -528,9 +528,9 @@ int BNO085_Poll(BNO085_Dev *dev)
 
     /*
      * Lecture en boucle tant que INT est bas.
-     * Limite à 10 paquets par appel pour ne pas monopoliser le CPU.
+     * Limite à 2 paquets par appel pour ne pas monopoliser le CPU.
      */
-    for (int i = 0; i < 10; i++) {
+    for (int i = 0; i < 2; i++) {
         int ret = shtp_receive(dev, &channel, &len);
 
         if (ret == BNO085_ERR_NO_DATA) break;

@@ -32,7 +32,7 @@
  * À  50 MHz PS : PRESCALE_32 → ~1.56 MHz
  * Ajustez selon votre configuration Vivado.
  */
-#define BNO085_SPI_PRESCALER     XSPIPS_CLK_PRESCALE_64 
+#define BNO085_SPI_PRESCALER     XSPIPS_CLK_PRESCALE_32 
 
 /* ─── AXI GPIO — Device IDs ─────────────────────────────────────────────── */
 /*
