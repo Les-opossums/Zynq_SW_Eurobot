@@ -37,7 +37,7 @@ void kalman_fifo_init(KalmanFIFO* fifo) {
     }
 }
 
-void kalman_fifo_push(KalmanFIFO* fifo, KalmanState* state, Speed* speed_robot, uint8_t has_imu, float imu_theta, float imu_vtheta) {
+void kalman_fifo_push(KalmanFIFO* fifo, KalmanState* state, Speed* speed_robot, uint8_t has_imu, float imu_vtheta) {
     // Stocke l'état à l'emplacement courant
     memcpy(&fifo->buffer[fifo->head], state, sizeof(KalmanState));
 
@@ -46,7 +46,6 @@ void kalman_fifo_push(KalmanFIFO* fifo, KalmanState* state, Speed* speed_robot, 
 
     // Stocke les données IMU à l'emplacement courant
     fifo->has_imu[fifo->head] = has_imu;
-    fifo->z_imu_theta[fifo->head] = imu_theta;
     fifo->z_imu_vtheta[fifo->head] = imu_vtheta;
 
     fifo->observations[fifo->head].has_lidar = 0; // Par défaut, pas d'observation associée à ce nouvel état
@@ -100,7 +99,7 @@ void kalman_fifo_repropagate(KalmanFIFO* fifo, int delay_index, float dt_s, floa
 
         // 2. Si on avait lu l'IMU à ce moment-là dans le passé, on réapplique la mesure !
         if (fifo->has_imu[next_i]) {
-            kalman_update_imu(next, fifo->z_imu_theta[next_i], fifo->z_imu_vtheta[next_i]);
+            kalman_update_imu(next, fifo->z_imu_vtheta[next_i]);
         }
 
         // 3. Correction EKF avec la mesure d'odométrie 

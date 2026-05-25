@@ -53,8 +53,7 @@
 
 // 4. IMU (Inertial Measurement Unit)
 // Le capteur IMU fournit des mesures d'angle et de vitesse angulaire.
-#define OBS_NOISE_IMU_THETA       0.001f   // 0.5 deg d'écart-type
-#define OBS_NOISE_IMU_VTHETA      0.01f    // 0.1 deg/s d'écart-type
+#define OBS_NOISE_IMU_VTHETA      0.0001f    // 0.1 deg/s d'écart-type
 
 #define S_INV_EPS 1e-6f
 
@@ -115,13 +114,12 @@ uint8_t kalman_update_odo(KalmanState* state, Speed* measured_speed);
 
 
 /**
- * @brief Update spécifique pour l'IMU, qui observe l'angle (theta) et la vitesse angulaire (vtheta).
+ * @brief Update spécifique pour l'IMU, qui observe la vitesse angulaire (vtheta).
  * 
  * @param state État courant du Kalman
- * @param measured_theta Angle Yaw mesuré par l'IMU (en radians)
  * @param measured_vtheta Vitesse angulaire Z mesurée par l'IMU (en rad/s)
  * @return uint8_t 
  */
-uint8_t kalman_update_imu(KalmanState* state, float measured_theta, float measured_vtheta);
+uint8_t kalman_update_imu(KalmanState* state, float measured_vtheta);
 
 #endif // __KALMAN_H_

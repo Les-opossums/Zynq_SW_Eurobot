@@ -130,22 +130,12 @@ float R_camera[3] = {OBS_NOISE_CAMERA_XY * OBS_NOISE_CAMERA_XY,
 
 extern volatile uint32_t new_cmd_from_core0;
 
-// --- Variables pour la convergence Kalman & Recalage IMU ---
-static uint8_t last_stop_state = 1;      // État de l'AU au tour précédent
-static uint8_t imu_fusion_enabled = 0;   // 1 = L'IMU va dans le Kalman, 0 = L'IMU tourne à vide
-static uint8_t is_converging = 0;        // 1 = Phase d'attente de convergence (Odo+Lidar seuls)
-static int convergence_start_time = 0;   // Chrono de convergence
-static uint8_t pending_imu_realign = 0;  // Drapeau pour appliquer l'offset
-extern float imu_yaw_offset;
-
 static uint8_t need_kalman_hard_reset = 0; // 1 = On force le Kalman à se téléporter
 
 // Variables de synchronisation
 static int  last_odo_ms   = 0;
 static int  odo_count     = 0;
 static uint8_t slow_loop_due = 0;
-uint8_t imu_offset_valid = 0;   // 0 = offset pas encore calculé
-
 
 
 void Init_Asserv(void) {
@@ -174,36 +164,8 @@ void Init_Asserv(void) {
     asserv_init();
 
     Last_Timer_Asserv = Timer_ms1;
-
-    imu_offset_valid = 0; // L'offset de l'IMU n'est pas encore calculé, on ne peut pas faire confiance à ses données pour le Kalman
 }
 
-
-// Extraire le yaw depuis GAME_ROTATION_VECTOR — résultat en radians
-static float imu_get_yaw_rad(void) {
-    float qw = imu.data.game_rv.real;
-    float qi = imu.data.game_rv.i;
-    float qj = imu.data.game_rv.j;
-    float qk = imu.data.game_rv.k;
-    // Rotation autour de Z, convention standard
-    return atan2f(2.0f*(qw*qk + qi*qj), 1.0f - 2.0f*(qj*qj + qk*qk));
-}
-
-
-/**
- * @brief Aligne le repère de l'IMU sur le repère de la table.
- * @param table_theta L'angle absolu du robot sur la table (en radians)
- */
-void align_imu_with_table(float table_theta_rad) {
-    float imu_raw = imu_get_yaw_rad();
-    imu_yaw_offset = principal_angle(table_theta_rad - imu_raw);
-    imu_offset_valid = 1;
-    // xil_printf("[IMU] Offset = %.4f rad (%.1f deg) | imu_raw=%.4f table=%.4f\r\n",
-    //            (double)imu_yaw_offset,
-    //            (double)(imu_yaw_offset * 180.0f / 3.14159f),
-    //            (double)imu_raw,
-    //            (double)table_theta_rad);
-}
 
 void Asserv_Loop(void)
 {
@@ -235,61 +197,25 @@ void Asserv_Loop(void)
         odo_speed_step(s1, s2, s3, s4);
         odo_position_step(ODO_EVERY_MS * 0.001f);
 
-        // ========================================================================
-        // 1. GESTION DE LA REPRISE APRÈS ARRÊT D'URGENCE (AU)
-        // ========================================================================
-        if (last_stop_state == 1 && AU_state == 0) {
-            // L'AU vient d'être relâché ! On lance la phase de convergence Kalman
-            is_converging = 1;
-            convergence_start_time = Timer_ms1;
-            imu_fusion_enabled = 0; // On isole l'IMU du Kalman
-            need_kalman_hard_reset = 1;
-        } else if (last_stop_state == 0 && AU_state == 1) {
-            // L'AU vient d'être enclenché !
-            imu_fusion_enabled = 0; 
-            is_converging = 0;
-            need_kalman_hard_reset = 0; 
-            pending_imu_realign = 0;
-        }
-        last_stop_state = AU_state;
-
-        // --- Vérification du chrono de convergence ---
-        if (is_converging) {
-            // On attend 5000 millisecondes (5 secondes) pour laisser le LiDAR et l'Odo fusionner
-            if ((Timer_ms1 - convergence_start_time) > 5000) { 
-                is_converging = 0;
-                pending_imu_realign = 1; // Demande de recalage au prochain paquet IMU
-            }
-        }
-
-        // ========================================================================
-        // 2. LECTURE DE L'IMU ET APPLICATION DE L'OFFSET
-        // ========================================================================
-
         // lecture imu
         T_START(ts_fast_imu);
         BNO085_Poll(&imu);
         T_STOP(ts_fast_imu);
     
         uint8_t imu_available_for_kalman = 0;
-        float bno_theta = 0.0f;
         float bno_vtheta = 0.0f;
-
-        if (imu.data.new_data) {
-            float imu_raw             = imu_get_yaw_rad();
-            bno_theta                 = principal_angle(imu_raw + imu_yaw_offset);
-            bno_vtheta                = imu.data.gyro.z;
-            imu_available_for_kalman  = imu_offset_valid;  // n'utiliser qu'après calibration
-            imu.data.new_data         = 0;
-        }
 
         T_START(ts_fast_kalman);
         kalman_predict(&kalman_current_state, ODO_EVERY_MS * 0.001f);
         kalman_update_odo(&kalman_current_state, &speed_robot_odom);
-        if (imu_available_for_kalman) {
-            kalman_update_imu(&kalman_current_state, bno_theta, bno_vtheta);
+
+        if (imu.data.new_data) {
+            bno_vtheta                = imu.data.gyro.z;
+            imu.data.new_data         = 0;
+            kalman_update_imu(&kalman_current_state, bno_vtheta);
         }
-        kalman_fifo_push(&kalman_fifo, &kalman_current_state, &speed_robot_odom, imu_available_for_kalman, bno_theta, bno_vtheta);
+
+        kalman_fifo_push(&kalman_fifo, &kalman_current_state, &speed_robot_odom, imu_available_for_kalman, bno_vtheta);
         T_STOP(ts_fast_kalman);
 
 
@@ -433,8 +359,6 @@ void Process_Shared_Memory_Commands(void) {
                 };
                 kalman_init_with_lidar(&kalman_fifo, &init_pos);
                 kalman_initialized = 1;
-
-                align_imu_with_table(init_pos.t);
             }
         }
         return;
@@ -444,23 +368,7 @@ void Process_Shared_Memory_Commands(void) {
     int earliest_index = -1;
     int earliest_delay = -1; // le plus grand delay = le plus loin dans le passé
 
-    if (CHECK_FIELD(&local_data, set_lidar)&& en_kalman.enable_lidar_kalman) {
-        if (need_kalman_hard_reset) {
-            // 1. Reset total de la matrice de covariance P
-            kalman_init(&kalman_current_state); 
-            // 2. On écrase l'état présent (pour la boucle rapide)
-            kalman_current_state.x[0] = local_data.set_lidar.lidar_position_x; // Position X du Lidar
-            kalman_current_state.x[1] = local_data.set_lidar.lidar_position_y; // Position Y du Lidar
-            kalman_current_state.x[2] = local_data.set_lidar.lidar_position_t; // L'angle du Lidar !
-            kalman_current_state.x[3] = 0.0f; // Vitesse X nulle
-            kalman_current_state.x[4] = 0.0f; // Vitesse Y nulle
-            kalman_current_state.x[5] = 0.0f; // Vitesse angulaire nulle
-
-            // 3. On écrase le passé (On vide la FIFO et on la remplit avec cette position)
-            kalman_init_with_lidar(&kalman_fifo, &local_data.set_lidar);
-
-            need_kalman_hard_reset = 0;
-        }
+    if (CHECK_FIELD(&local_data, set_lidar) && en_kalman.enable_lidar_kalman) {
         int idx = kalman_fifo_insert_lidar(&kalman_fifo, &local_data.set_lidar, R_lidar);
         if (idx >= 0 && local_data.set_lidar.delay > earliest_delay) {
             earliest_delay = local_data.set_lidar.delay;
