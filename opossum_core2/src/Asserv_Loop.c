@@ -1,6 +1,67 @@
 #include "main.h"
 #include "lib_asserv/Lib_Asserv.h"
 
+#define TIMING_MEASURE          // Commenter pour désactiver
+
+#ifdef TIMING_MEASURE
+
+typedef struct {
+    int32_t  min_us;
+    int32_t  max_us;
+    int64_t  sum_us;
+    uint32_t count;
+    const char* name;
+} TimingStats;
+
+#define TIMING_STATS_INIT(label) { .min_us = INT32_MAX, .max_us = 0, \
+                                   .sum_us = 0, .count = 0, .name = label }
+
+static TimingStats ts_fast_total      = TIMING_STATS_INIT("Fast loop total ");
+static TimingStats ts_fast_imu        = TIMING_STATS_INIT("  BNO085_Poll   ");
+static TimingStats ts_fast_kalman     = TIMING_STATS_INIT("  Kalman predict");
+static TimingStats ts_slow_total      = TIMING_STATS_INIT("Slow loop total ");
+static TimingStats ts_slow_motion     = TIMING_STATS_INIT("  motion_step   ");
+static TimingStats ts_slow_pid_can    = TIMING_STATS_INIT("  PID+CAN       ");
+static TimingStats ts_cmd_repropagate = TIMING_STATS_INIT("  Repropagate   ");
+
+static void ts_update(TimingStats* s, int32_t elapsed_us) {
+    if (elapsed_us < s->min_us) s->min_us = elapsed_us;
+    if (elapsed_us > s->max_us) s->max_us = elapsed_us;
+    s->sum_us += elapsed_us;
+    s->count++;
+}
+
+static void ts_print_all(void) {
+    xil_printf("\r\n=== TIMING (us) === min / avg / max / count ===\r\n");
+    TimingStats* all[] = {
+        &ts_fast_total, &ts_fast_imu, &ts_fast_kalman,
+        &ts_slow_total, &ts_slow_motion, &ts_slow_pid_can,
+        &ts_cmd_repropagate
+    };
+    for (int i = 0; i < 7; i++) {
+        TimingStats* s = all[i];
+        int32_t avg = (s->count > 0) ? (int32_t)(s->sum_us / s->count) : 0;
+        xil_printf("%s : %4ld / %4ld / %4ld  [n=%lu]\r\n",
+                   s->name, (long)s->min_us, (long)avg,
+                   (long)s->max_us, (unsigned long)s->count);
+        // Reset pour la prochaine fenêtre
+        s->min_us = INT32_MAX; s->max_us = 0;
+        s->sum_us = 0; s->count = 0;
+    }
+    xil_printf("  Budget fast : 1000 us  |  Budget slow : %d us\r\n\r\n",
+               ASSERV_EVERY * ODO_EVERY_MS * 1000);
+}
+
+#define T_START(var)   int32_t _t_##var = Timer_us1
+#define T_STOP(stats)  ts_update(&(stats), Timer_us1 - _t_##stats)
+
+#else  // TIMING_MEASURE désactivé — macros vides
+#define T_START(var)
+#define T_STOP(stats)
+static void ts_print_all(void) {}
+#endif
+
+
 #define CTRL_POS_ALPHA 0.5f // coefficient du filtre passe-bas pour la position de contrôle (entre 0 et 1, plus c'est petit plus le filtrage est fort)
 
 volatile int imu_needs_reinit = 0;
@@ -117,11 +178,18 @@ void align_imu_with_table(float table_theta) {
 
 void Asserv_Loop(void)
 {
+    static int last_timing_print_ms = 0;
+    if ((Timer_ms1 - last_timing_print_ms) >= 5000) {
+        last_timing_print_ms = Timer_ms1;
+        ts_print_all();
+    }
 	// =================================================================
     // SECTION 1 — FAST LOOP : ODO + Kalman predict — cadencé à 1ms
     // =================================================================
     if ((Timer_ms1 - last_odo_ms) >= ODO_EVERY_MS) {
         last_odo_ms += ODO_EVERY_MS;
+
+        T_START(ts_fast_total);
 
         // Capture atomique des vitesses moteurs
         // (protection contre écriture concurrente du CAN ISR)
@@ -138,35 +206,41 @@ void Asserv_Loop(void)
         odo_position_step(ODO_EVERY_MS * 0.001f);
 
         // lecture imu
-        // BNO085_Poll(&imu);
+        T_START(ts_fast_imu);
+        BNO085_Poll(&imu);
+        T_STOP(ts_fast_imu);
     
         uint8_t imu_available = 0;
         float bno_theta = 0.0f;
         float bno_vtheta = 0.0f;
+        if (imu.data.new_data) {
+            float qw = imu.data.rotation.real;
+            float qi = imu.data.rotation.i;
+            float qj = imu.data.rotation.j;
+            float qk = imu.data.rotation.k;
+            bno_theta  = atan2f(2.0f*(qw*qk + qi*qj),
+                                1.0f - 2.0f*(qj*qj + qk*qk)); // radians
+            bno_vtheta = imu.data.gyro.z;
+            imu_available = 1;
+            imu.data.new_data = 0;
+        }
 
-        // if (imu.data.new_data) {
-        //     // Le BNO085 donne le Yaw en radians via quat_to_euler, on le récupère
-        //     bno_theta  = imu.data.yaw * (3.14159 / 180.0); // conversion en radians
-        //     bno_vtheta = imu.data.gyro.z * (3.14159 / 180.0); // conversion en rad/s
-
-        //     imu_available = 1;
-            
-        //     // On remet le flag à 0 pour attendre le prochain paquet
-        //     imu.data.new_data = 0; 
-        // }
-
+        T_START(ts_fast_kalman);
         kalman_predict(&kalman_current_state, ODO_EVERY_MS * 0.001f);
         kalman_update_odo(&kalman_current_state, &speed_robot_odom);
         if (imu_available) {
-            // kalman_update_imu(&kalman_current_state, bno_theta, bno_vtheta);
+            kalman_update_imu(&kalman_current_state, bno_theta, bno_vtheta);
         }
         kalman_fifo_push(&kalman_fifo, &kalman_current_state, &speed_robot_odom, imu_available, bno_theta, bno_vtheta);
+        T_STOP(ts_fast_kalman);
+
 
         odo_count++;
         if (odo_count >= ASSERV_EVERY) {
             odo_count    = 0;
             slow_loop_due = 1;
         }
+        T_STOP(ts_fast_total);
     }
 
     // =================================================================
@@ -187,6 +261,8 @@ void Asserv_Loop(void)
     if (slow_loop_due) {
         slow_loop_due = 0;
 
+        T_START(ts_slow_total);
+
         odo_speed_cumulate_step(ASSERV_EVERY);
 
         // Filtre passe-bas position de contrôle
@@ -205,11 +281,14 @@ void Asserv_Loop(void)
         SEND_FIELD(&local_data, cmd_speed_constrained);
 
         // Contrôle mouvement
+        T_START(ts_slow_motion);
         motion_step();
         constrain_speed_order();
         constrain_acceleration_order(ASSERV_EVERY * ODO_EVERY_MS * 0.001f);
+        T_STOP(ts_slow_motion);
 
         // PID → commandes moteurs
+        T_START(ts_slow_pid_can);
         Asserv_PWM_calculator(&Consigne);
 
         // Traitement de la calibration asynchrone
@@ -242,6 +321,10 @@ void Asserv_Loop(void)
         }
         CAN_transmit_motor(motor1_current_order, motor2_current_order,
                            motor3_current_order, motor4_current_order);
+
+        T_STOP(ts_slow_pid_can);
+
+        T_STOP(ts_slow_total);
     }
 }
 

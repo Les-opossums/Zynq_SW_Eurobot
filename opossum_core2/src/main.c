@@ -77,7 +77,7 @@ int main()
     Init_AU();
     Init_Asserv();
     
-    // IMU_Init();
+    IMU_Init();
 
     while(1){
         if(Timer_ms1 - old_timer_ms1 >= 1000) {
