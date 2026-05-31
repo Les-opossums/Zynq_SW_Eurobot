@@ -201,7 +201,6 @@ void Asserv_Loop(void)
         T_START(ts_fast_imu);
         BNO085_Poll(&imu);
         T_STOP(ts_fast_imu);
-    
         uint8_t imu_available_for_kalman = 0;
         float bno_vtheta = 0.0f;
 
@@ -210,7 +209,7 @@ void Asserv_Loop(void)
         kalman_update_odo(&kalman_current_state, &speed_robot_odom);
 
         if (imu.data.new_data) {
-            bno_vtheta                = imu.data.gyro.z;
+            bno_vtheta                = imu.data.gyro.z * (3.14159265f / 180.0f); // conversion en rad/s
             imu.data.new_data         = 0;
             kalman_update_imu(&kalman_current_state, bno_vtheta);
         }

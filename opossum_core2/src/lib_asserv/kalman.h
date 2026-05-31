@@ -21,14 +21,14 @@
 // 0.02f = 2% de l'odométrie est considérée comme de l'incertitude pure.
 #define PROCESS_NOISE_VEL_X       0.02f   
 #define PROCESS_NOISE_VEL_Y       0.02f   
-#define PROCESS_NOISE_VEL_THETA   0.05f   // La rotation glisse souvent plus que la translation
+#define PROCESS_NOISE_VEL_THETA   0.01f   // La rotation glisse souvent plus que la translation
 
 // 3. Incertitude sur le modèle de vitesse (Modèle à vitesse constante)
 // Les M2006 peuvent changer de vitesse brutalement. Il faut un Q_vitesse assez 
 // élevé pour autoriser le filtre à suivre ces fortes accélérations sans trop de retard.
-#define PROCESS_NOISE_VX          0.10f   // m/s
-#define PROCESS_NOISE_VY          0.10f   // m/s
-#define PROCESS_NOISE_VTHETA      0.20f   // rad/s
+#define PROCESS_NOISE_VX          0.20f   // m/s
+#define PROCESS_NOISE_VY          0.20f   // m/s
+#define PROCESS_NOISE_VTHETA      0.50f   // rad/s
 
 // ============================================================================
 // MATRICE R : BRUIT DE MESURE (CONFIANCE EN LES CAPTEURS)
@@ -38,7 +38,7 @@
 // Utilisé dans kalman_update_odo. Écart-type en m/s.
 #define OBS_NOISE_ODO_VX          0.05f   
 #define OBS_NOISE_ODO_VY          0.05f   
-#define OBS_NOISE_ODO_VTHETA      0.10f   
+#define OBS_NOISE_ODO_VTHETA      1.0f   
 
 // 2. Lidar (Triangulation via Raspberry Pi)
 // Le Lidar est très précis, mais la triangulation peut osciller de quelques cm.

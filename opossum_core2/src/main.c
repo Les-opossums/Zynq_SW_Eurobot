@@ -77,12 +77,11 @@ int main()
     
     IMU_Init();
 
-    while(1){
-        if(Timer_ms1 - old_timer_ms1 >= 1000) {
+    while(1){ 
+        if(Timer_ms1 - old_timer_ms1 > 100) {
+            printf("X: %.4f | Y: %.4f | Z: %.4f\n", imu.data.gyro.x, imu.data.gyro.y, imu.data.gyro.z);
             old_timer_ms1 = Timer_ms1;
-            // printf("SGI recues : %lu\r\n", sgi_debug_count);
         }
-        
         AU_Loop();
         if(AU_state == 1){
             if(Timer_ms1 - old_timer_AU >= 100) {
