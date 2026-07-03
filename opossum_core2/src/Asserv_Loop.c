@@ -70,10 +70,6 @@ float imu_yaw_offset = 0.0f;
 
 extern BNO085_Dev imu;
 
-uint16_t auto_printpos_delay = 100;
-
-uint8_t Debug_Timing = 0;
-
 uint16_t Asserv_Full_Count = 0;
 
 CAN_Message CAN_Motor1;

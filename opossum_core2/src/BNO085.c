@@ -496,7 +496,11 @@ int BNO085_EnableReport(BNO085_Dev *dev, u8 report_id, u32 interval_us)
     cmd[7] = (u8)((interval_us >> 16) & 0xFFU);
     cmd[8] = (u8)((interval_us >> 24) & 0xFFU);
 
-    // --- LE CORRECTIF EST ICI ---
+    // Vider les paquets en attente avant d'envoyer une commande
+    u8 ch_dummy; u16 len_dummy;
+    for (int tries = 0; tries < 5; tries++) {
+        if (shtp_receive(dev, &ch_dummy, &len_dummy) != BNO085_OK) break;
+    }
     // On DOIT attendre que l'IMU abaisse INT pour pouvoir lui écrire
     u32 timeout = 0;
     while (INT_READ(dev) != 0) {
@@ -507,7 +511,6 @@ int BNO085_EnableReport(BNO085_Dev *dev, u8 report_id, u32 interval_us)
             return BNO085_ERR_SPI;
         }
     }
-    // ----------------------------
 
     // Maintenant que INT est bas, on peut envoyer la commande en toute sécurité
     int ret = shtp_send(dev, 2, cmd, sizeof(cmd));
