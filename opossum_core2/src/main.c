@@ -79,7 +79,7 @@ int main()
 
     while(1){ 
         if(Timer_ms1 - old_timer_ms1 > 100) {
-            printf("X: %.4f | Y: %.4f | Z: %.4f\n", imu.data.gyro.x, imu.data.gyro.y, imu.data.gyro.z);
+            // printf("X: %.4f | Y: %.4f | Z: %.4f\n", imu.data.gyro.x, imu.data.gyro.y, imu.data.gyro.z);
             old_timer_ms1 = Timer_ms1;
         }
         AU_Loop();
