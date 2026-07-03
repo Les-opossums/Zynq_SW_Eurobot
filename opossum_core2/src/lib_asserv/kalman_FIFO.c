@@ -182,11 +182,11 @@ int kalman_fifo_insert_lidar(KalmanFIFO* fifo, Set_lidar* data, float R_lidar[3]
 
     // Update initial sur le slot historique (point de départ de la repropagate)
     float z[3] = {data->lidar_position_x, data->lidar_position_y, data->lidar_position_t};
-    uint8_t accepted = kalman_update(&fifo->buffer[idx], z, R_lidar,
+    uint8_t result = kalman_update(&fifo->buffer[idx], z, R_lidar,
                                      fifo->observations[idx].bypass_lidar_rejection);
-    if (accepted == 1) {
+    if (result == 1) {          // rejeté outlier
         lidar_consecutive_rejections++;
-    } else {
+    } else if (result == 0) {   // accepté
         lidar_consecutive_rejections = 0;
     }
 
