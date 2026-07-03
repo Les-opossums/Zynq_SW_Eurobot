@@ -228,13 +228,13 @@ int kalman_fifo_insert_camera(KalmanFIFO* fifo, Set_camera* data, uint8_t cam_id
     float z_test[3] = {data->camera_position_x, data->camera_position_y, data->camera_position_t};
     
     // Test de l'update pour évaluer l'écart (l'état modifié ici sera écrasé lors de la vraie repropagation)
-    uint8_t accepted = kalman_update(&fifo->buffer[idx], z_test, R,
+    uint8_t result = kalman_update(&fifo->buffer[idx], z_test, R,
                                      fifo->observations[idx].bypass_camera_rejection[cam_id]);
 
     // On suit la même logique que ton lidar : accepted == 1 signifie que la mesure a été rejetée par le filtre
-    if (accepted == 1) {
+    if (result == 1) {
         camera_consecutive_rejections[cam_id]++;
-    } else {
+    } else if (result == 0) {
         camera_consecutive_rejections[cam_id] = 0;
     }
     return idx;
