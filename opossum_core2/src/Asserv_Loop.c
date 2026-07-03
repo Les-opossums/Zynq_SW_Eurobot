@@ -207,8 +207,10 @@ void Asserv_Loop(void)
         if (imu.data.new_data) {
             bno_vtheta                = imu.data.gyro.z;
             imu.data.new_data         = 0;
-            imu_available_for_kalman  = 1;
-            kalman_update_imu(&kalman_current_state, bno_vtheta);
+            if(imu.data.calib_status >= 1) {
+                imu_available_for_kalman  = 1;
+                kalman_update_imu(&kalman_current_state, bno_vtheta);
+            }
         }
 
         kalman_fifo_push(&kalman_fifo, &kalman_current_state, &speed_robot_odom, imu_available_for_kalman, bno_vtheta);

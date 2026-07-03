@@ -38,7 +38,7 @@
 // Utilisé dans kalman_update_odo. Écart-type en m/s.
 #define OBS_NOISE_ODO_VX          0.05f   
 #define OBS_NOISE_ODO_VY          0.05f   
-#define OBS_NOISE_ODO_VTHETA      1.0f   
+#define OBS_NOISE_ODO_VTHETA      0.05f   
 
 // 2. Lidar (Triangulation via Raspberry Pi)
 // Le Lidar est très précis, mais la triangulation peut osciller de quelques cm.
@@ -53,7 +53,7 @@
 
 // 4. IMU (Inertial Measurement Unit)
 // Le capteur IMU fournit des mesures d'angle et de vitesse angulaire.
-#define OBS_NOISE_IMU_VTHETA      0.0001f    // 0.1 deg/s d'écart-type
+#define OBS_NOISE_IMU_VTHETA      0.02f    // 0.1 deg/s d'écart-type
 
 #define S_INV_EPS 1e-6f
 
