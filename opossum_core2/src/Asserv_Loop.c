@@ -195,7 +195,9 @@ void Asserv_Loop(void)
 
         // lecture imu
         T_START(ts_fast_imu);
-        BNO085_Poll(&imu);
+        if(imu_ok) {
+            BNO085_Poll(&imu);
+        }
         T_STOP(ts_fast_imu);
         uint8_t imu_available_for_kalman = 0;
         float bno_vtheta = 0.0f;

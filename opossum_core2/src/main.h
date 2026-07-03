@@ -29,3 +29,5 @@
 #include "User.h"
 
 #include "BNO085.h"
+
+extern int imu_ok;
