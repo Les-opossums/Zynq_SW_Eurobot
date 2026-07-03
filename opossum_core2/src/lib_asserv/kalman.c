@@ -54,6 +54,10 @@ void kalman_predict(KalmanState* state, float dt) {
     float F13 = sin_t * dt;
     float F14 = cos_t * dt;
 
+    // Dérivées partielles de l'angle par rapport à la vitesse angulaire (vtheta)
+    float F05 = F02 * (dt * 0.5f);   // ∂x/∂vθ  (terme RK2)
+    float F15 = F12 * (dt * 0.5f);   // ∂y/∂vθ  (terme RK2)
+
     // 3. --- Propagation de la covariance : P_new = F * P * F^T ---
     // Optimisation extrême pour architecture ARM : on calcule F*P et F*P*F^T de manière explicite
     // en ignorant toutes les multiplications par 0 ou 1 de la matrice F.
@@ -64,8 +68,8 @@ void kalman_predict(KalmanState* state, float dt) {
     float FP[6][6];
     // Étape A : FP = F * P
     for (int j = 0; j < 6; j++) {
-        FP[0][j] = P[0][j] + F02 * P[2][j] + F03 * P[3][j] + F04 * P[4][j];
-        FP[1][j] = P[1][j] + F12 * P[2][j] + F13 * P[3][j] + F14 * P[4][j];
+        FP[0][j] = P[0][j] + F02 * P[2][j] + F03 * P[3][j] + F04 * P[4][j] + F05 * P[5][j];
+        FP[1][j] = P[1][j] + F12 * P[2][j] + F13 * P[3][j] + F14 * P[4][j] + F15 * P[5][j];
         FP[2][j] = P[2][j] + dt * P[5][j];
         FP[3][j] = P[3][j];
         FP[4][j] = P[4][j];
@@ -75,8 +79,8 @@ void kalman_predict(KalmanState* state, float dt) {
     float P_new[6][6];
     // Étape B : P_new = FP * F^T
     for (int i = 0; i < 6; i++) {
-        P_new[i][0] = FP[i][0] + FP[i][2] * F02 + FP[i][3] * F03 + FP[i][4] * F04;
-        P_new[i][1] = FP[i][1] + FP[i][2] * F12 + FP[i][3] * F13 + FP[i][4] * F14;
+        P_new[i][0] = FP[i][0] + FP[i][2] * F02 + FP[i][3] * F03 + FP[i][4] * F04 + FP[i][5]*F05;
+        P_new[i][1] = FP[i][1] + FP[i][2] * F12 + FP[i][3] * F13 + FP[i][4] * F14 + FP[i][5]*F15;
         P_new[i][2] = FP[i][2] + FP[i][5] * dt;
         P_new[i][3] = FP[i][3];
         P_new[i][4] = FP[i][4];
