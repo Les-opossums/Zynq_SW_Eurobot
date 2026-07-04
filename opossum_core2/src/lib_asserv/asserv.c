@@ -269,17 +269,33 @@ void pos_asserv_step(void) {
     // --- Activation PID vitesse
     Pid_Speed_En = 1;
 
-    // -----------------------------------------------------------------------
-    // --- Condition d'arrêt : position + angle + vitesse physique faible
-    // -----------------------------------------------------------------------
-    float v_now = sqrtf(speed_robot_asserv.vx * speed_robot_asserv.vx +
-                        speed_robot_asserv.vy * speed_robot_asserv.vy);
 
-    if ((d         < current_stop_distance)       &&
-        (fabsf(dt) < DEFAULT_STOP_ANGLE)          &&
-        (v_now     < DEFAULT_SPEED_LIN_STOP * 0.5f)) {
-        motion_free();
-        printf("Pos,done\n");
+    // Variable statique pour mémoriser qu'on est entré en zone d'arrêt
+    static uint8_t in_stop_zone = 0;
+    static int     stop_zone_timer_ms = 0;
+
+    // Entrée en zone
+    if (d < current_stop_distance && fabsf(dt) < DEFAULT_STOP_ANGLE) {
+        if (!in_stop_zone) {
+            in_stop_zone = 1;
+            stop_zone_timer_ms = 0;
+        }
+        stop_zone_timer_ms++;   // incrémenté à chaque slow loop (ex: toutes les 10ms)
+    }  else {
+        in_stop_zone = 0;       // on est sorti de la zone, on repart
+        stop_zone_timer_ms = 0;
+    }
+
+    // Déclenchement arrêt : être dans la zone ET vitesse retombée OU timeout
+    if (in_stop_zone) {
+        float v_now = sqrtf(speed_robot_asserv.vx * speed_robot_asserv.vx +
+                            speed_robot_asserv.vy * speed_robot_asserv.vy);
+        if (v_now < DEFAULT_SPEED_LIN_STOP || stop_zone_timer_ms > 20) {
+            // 20 pas de slow loop = 200ms de timeout de sécurité
+            in_stop_zone = 0;
+            motion_free();
+            printf("Pos,done\n");
+        }
     }
 }
 
@@ -295,7 +311,7 @@ float radial_speed_calculation(float distance) {
 float angular_speed_calculation(float angle) {
     float fabs_angle = fabsf(angle);
     int sign = (angle < 0) ? -1 : 1;
-    float v = sqrtf(2.0f * robot_at_max * fabs_angle * 0.95f);
+    float v = sqrtf(2.0f * robot_at_max * fabs_angle * 0.85f);
     return sign * fminf(v, robot_vt_max);
 }
 
