@@ -16,17 +16,18 @@ typedef struct {
 #define TIMING_STATS_INIT(label) { .min_us = INT32_MAX, .max_us = INT32_MIN, \
                                    .sum_us = 0, .count = 0, .name = label }
 
-static TimingStats ts_fast_total      = TIMING_STATS_INIT("Fast loop total ");
-static TimingStats ts_fast_imu        = TIMING_STATS_INIT("  BNO085_Poll   ");
-static TimingStats ts_fast_kalman     = TIMING_STATS_INIT("  Kalman predict");
-static TimingStats ts_slow_total      = TIMING_STATS_INIT("Slow loop total ");
-static TimingStats ts_slow_motion     = TIMING_STATS_INIT("  motion_step   ");
-static TimingStats ts_slow_pid_can    = TIMING_STATS_INIT("  PID+CAN       ");
-static TimingStats ts_cmd_repropagate = TIMING_STATS_INIT("  Repropagate   ");
+static TimingStats ts_fast_total       = TIMING_STATS_INIT("Fast loop total ");
+static TimingStats ts_fast_imu         = TIMING_STATS_INIT("  BNO085_Poll   ");
+static TimingStats ts_fast_kalman      = TIMING_STATS_INIT("  Kalman predict");
+// Repropagate : deux stats distinctes
+//   ts_reprop_tick  = durée d'UN tick (10-20 slots) — mesurée à chaque fast loop active
+//   ts_reprop_total = durée totale d'UN job complet (du start au dernier tick)
+static TimingStats ts_reprop_tick      = TIMING_STATS_INIT("  Reprop tick   ");
+static TimingStats ts_reprop_total     = TIMING_STATS_INIT("  Reprop job    ");
+static TimingStats ts_slow_total       = TIMING_STATS_INIT("Slow loop total ");
+static TimingStats ts_slow_motion      = TIMING_STATS_INIT("  motion_step   ");
+static TimingStats ts_slow_pid_can     = TIMING_STATS_INIT("  PID+CAN       ");
 
-// FIX 1 — Protection contre les valeurs négatives (débordement Timer_us1)
-// FIX 2 — max_us initialisé à INT32_MIN au lieu de 0,
-//          pour ne pas fausser le max quand toutes les durées sont > 0
 static void ts_update(TimingStats* s, int32_t elapsed_us) {
     if (elapsed_us < 0) return;   // débordement du timer 32 bits → ignorer
     if (elapsed_us < s->min_us) s->min_us = elapsed_us;
@@ -35,42 +36,49 @@ static void ts_update(TimingStats* s, int32_t elapsed_us) {
     s->count++;
 }
 
+static void ts_print_one(TimingStats* s) {
+    if (s->count == 0) {
+        xil_printf("%s : (no data)\r\n", s->name);
+    } else {
+        int32_t avg = (int32_t)(s->sum_us / s->count);
+        xil_printf("%s : %4ld / %4ld / %4ld  [n=%lu]\r\n",
+                   s->name, (long)s->min_us, (long)avg,
+                   (long)s->max_us, (unsigned long)s->count);
+    }
+    s->min_us = INT32_MAX; s->max_us = INT32_MIN;
+    s->sum_us = 0; s->count = 0;
+}
+
 static void ts_print_all(void) {
     xil_printf("\r\n=== TIMING (us) === min / avg / max / count ===\r\n");
-    TimingStats* all[] = {
-        &ts_fast_total, &ts_fast_imu, &ts_fast_kalman,
-        &ts_slow_total, &ts_slow_motion, &ts_slow_pid_can,
-        &ts_cmd_repropagate
-    };
-    for (int i = 0; i < 7; i++) {
-        TimingStats* s = all[i];
-        if (s->count == 0) {
-            // FIX 3 — Affichage explicite si jamais instrumenté (évite d'afficher INT32_MAX)
-            xil_printf("%s : (no data)\r\n", s->name);
-        } else {
-            int32_t avg = (int32_t)(s->sum_us / s->count);
-            xil_printf("%s : %4ld / %4ld / %4ld  [n=%lu]\r\n",
-                       s->name, (long)s->min_us, (long)avg,
-                       (long)s->max_us, (unsigned long)s->count);
-        }
-        // Reset pour la prochaine fenêtre
-        s->min_us = INT32_MAX; s->max_us = INT32_MIN;
-        s->sum_us = 0; s->count = 0;
-    }
+    ts_print_one(&ts_fast_total);
+    ts_print_one(&ts_fast_imu);
+    ts_print_one(&ts_fast_kalman);
+    ts_print_one(&ts_reprop_tick);   // coût d'un tick dans la fast loop
+    ts_print_one(&ts_reprop_total);  // durée totale d'un job (wall clock)
+    ts_print_one(&ts_slow_total);
+    ts_print_one(&ts_slow_motion);
+    ts_print_one(&ts_slow_pid_can);
     xil_printf("  Budget fast : 1000 us  |  Budget slow : %d us\r\n\r\n",
                ASSERV_EVERY * ODO_EVERY_MS * 1000);
 }
 
-// FIX 4 — T_START et T_STOP prennent chacun leur propre identifiant de variable.
-//          Avant : T_STOP(stats) lisait _t_##stats, ce qui fonctionnait seulement
-//          parce que var == stats à chaque appel — fragile et trompeur.
-//          Maintenant : T_START(id) crée _t_##id, T_STOP(id, stats) lit _t_##id.
-#define T_START(id)          int32_t _t_##id = Timer_us1
-#define T_STOP(id, stats)    ts_update(&(stats), Timer_us1 - _t_##id)
+#define T_START(id)        int32_t _t_##id = Timer_us1
+#define T_STOP(id, stats)  ts_update(&(stats), Timer_us1 - _t_##id)
 
-#else  // TIMING_MEASURE désactivé — macros vides
+// Macro spéciale pour le job de repropagate :
+// stocke le timestamp de début du job dans une variable statique,
+// puis mesure la durée totale quand le job se termine.
+// Usage : REPROP_JOB_START() au lancement, REPROP_JOB_END() à la fin.
+static int32_t _t_reprop_job_start = 0;
+#define REPROP_JOB_START()   (_t_reprop_job_start = Timer_us1)
+#define REPROP_JOB_END()     ts_update(&ts_reprop_total, Timer_us1 - _t_reprop_job_start)
+
+#else
 #define T_START(id)
 #define T_STOP(id, stats)
+#define REPROP_JOB_START()
+#define REPROP_JOB_END()
 static void ts_print_all(void) {}
 #endif
 
@@ -78,7 +86,6 @@ static void ts_print_all(void) {}
 #define CTRL_POS_ALPHA 0.5f
 
 volatile int imu_needs_reinit = 0;
-
 float imu_yaw_offset = 0.0f;
 
 extern BNO085_Dev imu;
@@ -118,11 +125,9 @@ ESC_Command old_Consigne;
 Enable_Kalman en_kalman;
 
 int Lidar_inconsistency_count = 0;
-
 int kalman_initialized = 0;
 
 float dx, dy, dt = 0;
-
 int lidar_delay = 0;
 
 int tampon;
@@ -131,52 +136,42 @@ int tampon4 = 0;
 
 float R_lidar[3];
 
-float R_camera[3] = {OBS_NOISE_CAMERA_XY * OBS_NOISE_CAMERA_XY,
-                     OBS_NOISE_CAMERA_XY * OBS_NOISE_CAMERA_XY,
+float R_camera[3] = {OBS_NOISE_CAMERA_XY    * OBS_NOISE_CAMERA_XY,
+                     OBS_NOISE_CAMERA_XY    * OBS_NOISE_CAMERA_XY,
                      OBS_NOISE_CAMERA_THETA * OBS_NOISE_CAMERA_THETA};
 
 extern volatile uint32_t new_cmd_from_core0;
 
 static uint8_t need_kalman_hard_reset = 0;
-
-static int  last_odo_ms   = 0;
-static int  odo_count     = 0;
+static int     last_odo_ms   = 0;
+static int     odo_count     = 0;
 static uint8_t slow_loop_due = 0;
 
 
 void Init_Asserv(void) {
-    Consigne.command1 = 0;
-    Consigne.command2 = 0;
-    Consigne.command3 = 0;
-    Consigne.command4 = 0;
+    Consigne.command1 = 0; Consigne.command2 = 0;
+    Consigne.command3 = 0; Consigne.command4 = 0;
 
-    Wanted_Forced_Consigne.command1 = 0;
-    Wanted_Forced_Consigne.command2 = 0;
-    Wanted_Forced_Consigne.command3 = 0;
-    Wanted_Forced_Consigne.command4 = 0;
+    Wanted_Forced_Consigne.command1 = 0; Wanted_Forced_Consigne.command2 = 0;
+    Wanted_Forced_Consigne.command3 = 0; Wanted_Forced_Consigne.command4 = 0;
 
-    old_Consigne.command1 = 0;
-    old_Consigne.command2 = 0;
-    old_Consigne.command3 = 0;
-    old_Consigne.command4 = 0;
+    old_Consigne.command1 = 0; old_Consigne.command2 = 0;
+    old_Consigne.command3 = 0; old_Consigne.command4 = 0;
 
-    R_lidar[0]  = OBS_NOISE_LIDAR_X * OBS_NOISE_LIDAR_X;
-    R_lidar[1]  = OBS_NOISE_LIDAR_Y * OBS_NOISE_LIDAR_Y;
-    R_lidar[2]  = OBS_NOISE_LIDAR_THETA * OBS_NOISE_LIDAR_THETA;
+    R_lidar[0] = OBS_NOISE_LIDAR_X     * OBS_NOISE_LIDAR_X;
+    R_lidar[1] = OBS_NOISE_LIDAR_Y     * OBS_NOISE_LIDAR_Y;
+    R_lidar[2] = OBS_NOISE_LIDAR_THETA * OBS_NOISE_LIDAR_THETA;
 
-    en_kalman.enable_lidar_kalman = 1;
+    en_kalman.enable_lidar_kalman  = 1;
     en_kalman.enable_camera_kalman = 0;
 
     asserv_init();
-
     Last_Timer_Asserv = Timer_ms1;
 }
 
 
 void Asserv_Loop(void)
 {
-    // FIX 5 — Fenêtre réduite à 1000 ms pour capturer les pics au démarrage.
-    //          Remettre à 5000 une fois le démarrage validé.
     static int last_timing_print_ms = 0;
     if ((Timer_ms1 - last_timing_print_ms) >= 1000) {
         last_timing_print_ms = Timer_ms1;
@@ -189,24 +184,20 @@ void Asserv_Loop(void)
     if ((Timer_ms1 - last_odo_ms) >= ODO_EVERY_MS) {
         last_odo_ms += ODO_EVERY_MS;
 
-        T_START(fast_total);  // FIX 4 : identifiant court, distinct du nom de la stat
+        T_START(fast_total);
 
         int s1, s2, s3, s4;
         uint32_t cpsr = mfcpsr();
         mtcpsr(cpsr | 0x80);
-        s1 = speed_motor_1;
-        s2 = speed_motor_2;
-        s3 = speed_motor_3;
-        s4 = speed_motor_4;
+        s1 = speed_motor_1; s2 = speed_motor_2;
+        s3 = speed_motor_3; s4 = speed_motor_4;
         mtcpsr(cpsr);
 
         odo_speed_step(s1, s2, s3, s4);
         odo_position_step(ODO_EVERY_MS * 0.001f);
 
         T_START(fast_imu);
-        if (imu_ok) {
-            BNO085_Poll(&imu);
-        }
+        if (imu_ok) { BNO085_Poll(&imu); }
         T_STOP(fast_imu, ts_fast_imu);
 
         uint8_t imu_available_for_kalman = 0;
@@ -227,20 +218,23 @@ void Asserv_Loop(void)
 
         kalman_fifo_push(&kalman_fifo, &kalman_current_state, &speed_robot_odom,
                          imu_available_for_kalman, bno_vtheta);
-
-        if (repropagate_job.active) {
-            kalman_fifo_repropagate_tick(&kalman_fifo);
-            // kalman_current_state est mis à jour automatiquement quand le job termine
-        }
-
         T_STOP(fast_kalman, ts_fast_kalman);
 
+        // --- Tick de repropagate asynchrone ---
+        // On ne mesure le tick QUE si le job est actif (évite de polluer
+        // ts_reprop_tick avec des mesures à 0µs sur les 990ms où rien ne tourne).
+        if (repropagate_job.active) {
+            T_START(reprop_tick);
+            int done = kalman_fifo_repropagate_tick(&kalman_fifo);
+            T_STOP(reprop_tick, ts_reprop_tick);
+
+            // Quand le job se termine, on enregistre la durée totale (wall clock).
+            // kalman_current_state a déjà été mis à jour dans repropagate_tick.
+            if (done) { REPROP_JOB_END(); }
+        }
 
         odo_count++;
-        if (odo_count >= ASSERV_EVERY) {
-            odo_count     = 0;
-            slow_loop_due = 1;
-        }
+        if (odo_count >= ASSERV_EVERY) { odo_count = 0; slow_loop_due = 1; }
         T_STOP(fast_total, ts_fast_total);
     }
 
@@ -309,6 +303,7 @@ void Asserv_Loop(void)
     }
 }
 
+
 void Set_Lidar_Noise_Cmd(Set_lidar_noise kalman_noise_lidar) {
     R_lidar[0] = kalman_noise_lidar.process_noise_lidar_x * kalman_noise_lidar.process_noise_lidar_x;
     R_lidar[1] = kalman_noise_lidar.process_noise_lidar_y * kalman_noise_lidar.process_noise_lidar_y;
@@ -334,14 +329,14 @@ void Process_Shared_Memory_Commands(void) {
         else if (local_data.asserv_mode == 5) { start_wheel_ff_calibration(); }
     }
 
-    if (CHECK_FIELD(&local_data, set_pos))           { set_position(local_data.set_pos); }
-    if (CHECK_FIELD(&local_data, vmax))              { set_Constraint_vitesse_xy_max(local_data.vmax); }
-    if (CHECK_FIELD(&local_data, vtmax))             { set_Constraint_vt_max(local_data.vtmax); }
-    if (CHECK_FIELD(&local_data, amax))              { set_Constraint_a_xy_max(local_data.amax); }
-    if (CHECK_FIELD(&local_data, cmd_esc))           { Wanted_Forced_Consigne = local_data.cmd_esc; }
-    if (CHECK_FIELD(&local_data, enable_kalman))     { Set_Kalman_Enable_Cmd(local_data.enable_kalman); }
-    if (CHECK_FIELD(&local_data, odo_spacing))       { odo_set_spacing(local_data.odo_spacing); }
-    if (CHECK_FIELD(&local_data, kalman_noise_lidar)){ Set_Lidar_Noise_Cmd(local_data.kalman_noise_lidar); }
+    if (CHECK_FIELD(&local_data, set_pos))            { set_position(local_data.set_pos); }
+    if (CHECK_FIELD(&local_data, vmax))               { set_Constraint_vitesse_xy_max(local_data.vmax); }
+    if (CHECK_FIELD(&local_data, vtmax))              { set_Constraint_vt_max(local_data.vtmax); }
+    if (CHECK_FIELD(&local_data, amax))               { set_Constraint_a_xy_max(local_data.amax); }
+    if (CHECK_FIELD(&local_data, cmd_esc))            { Wanted_Forced_Consigne = local_data.cmd_esc; }
+    if (CHECK_FIELD(&local_data, enable_kalman))      { Set_Kalman_Enable_Cmd(local_data.enable_kalman); }
+    if (CHECK_FIELD(&local_data, odo_spacing))        { odo_set_spacing(local_data.odo_spacing); }
+    if (CHECK_FIELD(&local_data, kalman_noise_lidar)) { Set_Lidar_Noise_Cmd(local_data.kalman_noise_lidar); }
 
     if (!kalman_initialized) {
         if (CHECK_FIELD(&local_data, set_lidar)) {
@@ -371,9 +366,9 @@ void Process_Shared_Memory_Commands(void) {
         }
     }
 
-    Set_camera* cameras[3] = {&local_data.set_camera_1,
-                               &local_data.set_camera_2,
-                               &local_data.set_camera_3};
+    Set_camera* cameras[3] = { &local_data.set_camera_1,
+                                &local_data.set_camera_2,
+                                &local_data.set_camera_3 };
     uint8_t cam_fields[3] = {
         CHECK_FIELD(&local_data, set_camera_1),
         CHECK_FIELD(&local_data, set_camera_2),
@@ -390,9 +385,12 @@ void Process_Shared_Memory_Commands(void) {
         }
     }
 
-    // FIX 6 — Repropagate enfin instrumentée (était déclarée dans ts_cmd_repropagate
-    //          mais jamais mesurée → affichait INT32_MAX / 0 / 0 [n=0])
     if (earliest_index >= 0) {
-        kalman_fifo_repropagate_start(&kalman_fifo, earliest_index, ODO_EVERY_MS * 0.001f, R_lidar);
+        // Lance le job asynchrone. REPROP_JOB_START() note le timestamp de départ
+        // pour que REPROP_JOB_END() (appelé dans la fast loop au dernier tick)
+        // puisse calculer la durée totale wall-clock du job.
+        kalman_fifo_repropagate_start(&kalman_fifo, earliest_index,
+                                       ODO_EVERY_MS * 0.001f, R_lidar);
+        REPROP_JOB_START();
     }
 }
