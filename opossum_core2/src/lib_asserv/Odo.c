@@ -108,6 +108,23 @@ void set_position(Position pos) {
     kalman_current_state.x[1] = pos.y;
     kalman_current_state.x[2] = pos.t;
     position_robot = pos;
+
+    // Propager dans toute la FIFO pour éviter le rebond à la prochaine repropagate
+    for (int i = 0; i < KALMAN_FIFO_LEN; i++) {
+        kalman_fifo.buffer[i].x[0] = pos.x;
+        kalman_fifo.buffer[i].x[1] = pos.y;
+        kalman_fifo.buffer[i].x[2] = principal_angle(pos.t);
+        // Remettre les vitesses à 0 et réinitialiser les observations
+        kalman_fifo.buffer[i].x[3] = 0.0f;
+        kalman_fifo.buffer[i].x[4] = 0.0f;
+        kalman_fifo.buffer[i].x[5] = 0.0f;
+        kalman_fifo.observations[i].has_lidar = 0;
+        for (int c = 0; c < 3; c++)
+            kalman_fifo.observations[i].has_camera[c] = 0;
+        kalman_fifo.has_imu[i] = 0;
+    }
+    kalman_fifo.head  = 0;
+    kalman_fifo.count = 0;
 }
 
 void set_position_x(float x) {
