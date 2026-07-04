@@ -42,13 +42,6 @@ typedef struct {
 extern KalmanFIFO kalman_fifo;
 extern KalmanRepropagateJob repropagate_job;
 
-// Lance un job sans l'exécuter (remplace kalman_fifo_repropagate)
-void kalman_fifo_repropagate_start(KalmanFIFO* fifo, int delay_index,
-                                    float dt_s, float R_lidar[3]);
-
-// Avance le job de REPROPAGATE_STEPS_PER_TICK slots.
-// Retourne 1 si terminé, 0 si encore en cours.
-int kalman_fifo_repropagate_tick(KalmanFIFO* fifo);
 
 /**
  * Initialise la FIFO (position tête à 0, mémoire à zéro).
@@ -114,5 +107,25 @@ int kalman_fifo_insert_lidar(KalmanFIFO* fifo, Set_lidar* set_lidar, float R_lid
  * @return int 
  */
 int kalman_fifo_insert_camera(KalmanFIFO* fifo, Set_camera* set_camera, uint8_t cam_id);
+
+
+/**
+ * @brief Démarre un job de repropagation à partir d'un index donné.
+ * 
+ * @param fifo La structure FIFO.
+ * @param delay_index L'index de l'état corrigé dans la FIFO.
+ * @param dt_s Le pas de temps (s).
+ * @param R_lidar Les profils de bruit lidar.
+ */
+void kalman_fifo_repropagate_start(KalmanFIFO* fifo, int delay_index,
+                                    float dt_s, float R_lidar[3]);
+
+/**
+ * @brief Avance le job de repropagation.
+ * 
+ * @param fifo La structure FIFO.
+ * @return int Retourne 1 si terminé, 0 si encore en cours.
+ */
+int kalman_fifo_repropagate_tick(KalmanFIFO* fifo);
 
 #endif // __KALMAN_FIFO_H_
