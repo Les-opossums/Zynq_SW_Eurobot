@@ -4,6 +4,16 @@
 #include "kalman.h"
 #include "Asserv_type.h"
 
+#define REPROPAGATE_STEPS_PER_TICK 20  // slots traités par cycle de fast loop (10 × ~23µs = ~230µs max par tick)
+
+typedef struct {
+    uint8_t active;        // 1 = une repropagate est en cours
+    int     current_idx;   // prochain slot à traiter
+    int     last_idx;      // slot final (head-1 au moment du déclenchement)
+    float   dt_s;
+    float   R_lidar[3];
+} KalmanRepropagateJob;
+
 #define KALMAN_FIFO_LEN 200
 typedef struct {
     uint8_t has_lidar;        // Flag : y a-t-il eu un lidar à cet instant ?
@@ -30,6 +40,15 @@ typedef struct {
 } KalmanFIFO;
 
 extern KalmanFIFO kalman_fifo;
+extern KalmanRepropagateJob repropagate_job;
+
+// Lance un job sans l'exécuter (remplace kalman_fifo_repropagate)
+void kalman_fifo_repropagate_start(KalmanFIFO* fifo, int delay_index,
+                                    float dt_s, float R_lidar[3]);
+
+// Avance le job de REPROPAGATE_STEPS_PER_TICK slots.
+// Retourne 1 si terminé, 0 si encore en cours.
+int kalman_fifo_repropagate_tick(KalmanFIFO* fifo);
 
 /**
  * Initialise la FIFO (position tête à 0, mémoire à zéro).

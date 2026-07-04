@@ -227,7 +227,14 @@ void Asserv_Loop(void)
 
         kalman_fifo_push(&kalman_fifo, &kalman_current_state, &speed_robot_odom,
                          imu_available_for_kalman, bno_vtheta);
+
+        if (repropagate_job.active) {
+            kalman_fifo_repropagate_tick(&kalman_fifo);
+            // kalman_current_state est mis à jour automatiquement quand le job termine
+        }
+
         T_STOP(fast_kalman, ts_fast_kalman);
+
 
         odo_count++;
         if (odo_count >= ASSERV_EVERY) {
@@ -386,11 +393,6 @@ void Process_Shared_Memory_Commands(void) {
     // FIX 6 — Repropagate enfin instrumentée (était déclarée dans ts_cmd_repropagate
     //          mais jamais mesurée → affichait INT32_MAX / 0 / 0 [n=0])
     if (earliest_index >= 0) {
-        T_START(repropagate);
-        kalman_fifo_repropagate(&kalman_fifo, earliest_index,
-                                ODO_EVERY_MS * 0.001f, R_lidar);
-        kalman_current_state = kalman_fifo.buffer[
-            (kalman_fifo.head - 1 + KALMAN_FIFO_LEN) % KALMAN_FIFO_LEN];
-        T_STOP(repropagate, ts_cmd_repropagate);
+        kalman_fifo_repropagate_start(&kalman_fifo, earliest_index, ODO_EVERY_MS * 0.001f, R_lidar);
     }
 }

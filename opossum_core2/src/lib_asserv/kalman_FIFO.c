@@ -239,3 +239,69 @@ int kalman_fifo_insert_camera(KalmanFIFO* fifo, Set_camera* data, uint8_t cam_id
     }
     return idx;
 }
+
+KalmanRepropagateJob repropagate_job = {0};
+
+void kalman_fifo_repropagate_start(KalmanFIFO* fifo, int delay_index,
+                                    float dt_s, float R_lidar[3]) {
+    // Si un job est déjà actif, on ne le remplace que si le nouveau
+    // point de départ est plus ancien (index plus loin dans le passé).
+    // Pour la coupe, la règle simple : on laisse le job actuel finir.
+    // Un lidar à 10Hz → nouveau job toutes les 100ms,
+    // job terminé en ~10ms → pas de collision en pratique.
+    if (repropagate_job.active) return;
+
+    repropagate_job.active      = 1;
+    repropagate_job.current_idx = delay_index;
+    repropagate_job.last_idx    = (fifo->head - 1 + KALMAN_FIFO_LEN) % KALMAN_FIFO_LEN;
+    repropagate_job.dt_s        = dt_s;
+    memcpy(repropagate_job.R_lidar, R_lidar, sizeof(repropagate_job.R_lidar));
+}
+
+int kalman_fifo_repropagate_tick(KalmanFIFO* fifo) {
+    if (!repropagate_job.active) return 1;
+
+    int steps = 0;
+    while (repropagate_job.current_idx != repropagate_job.last_idx
+           && steps < REPROPAGATE_STEPS_PER_TICK) {
+
+        int i      = repropagate_job.current_idx;
+        int next_i = (i + 1) % KALMAN_FIFO_LEN;
+
+        // Même logique que kalman_fifo_repropagate original
+        memcpy(&fifo->buffer[next_i], &fifo->buffer[i], sizeof(KalmanState));
+
+        kalman_predict(&fifo->buffer[next_i], repropagate_job.dt_s);
+
+        if (fifo->has_imu[next_i])
+            kalman_update_imu(&fifo->buffer[next_i], fifo->z_imu_vtheta[next_i]);
+
+        kalman_update_odo(&fifo->buffer[next_i], &fifo->speed_robot[next_i]);
+
+        if (fifo->observations[next_i].has_lidar)
+            kalman_update(&fifo->buffer[next_i],
+                          fifo->observations[next_i].z_lidar,
+                          repropagate_job.R_lidar,
+                          fifo->observations[next_i].bypass_lidar_rejection);
+
+        for (int cam = 0; cam < 3; cam++) {
+            if (fifo->observations[next_i].has_camera[cam])
+                kalman_update(&fifo->buffer[next_i],
+                              fifo->observations[next_i].z_camera[cam],
+                              fifo->observations[next_i].r_camera[cam],
+                              fifo->observations[next_i].bypass_camera_rejection[cam]);
+        }
+
+        repropagate_job.current_idx = next_i;
+        steps++;
+    }
+
+    // Terminé ?
+    if (repropagate_job.current_idx == repropagate_job.last_idx) {
+        repropagate_job.active = 0;
+        // Mise à jour de l'état courant avec le dernier slot calculé
+        kalman_current_state = fifo->buffer[repropagate_job.last_idx];
+        return 1;
+    }
+    return 0;
+}
