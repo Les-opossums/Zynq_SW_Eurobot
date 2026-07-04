@@ -217,8 +217,6 @@ void speed_asserv_break_step(void) {
     }
 }
 
-float old_angle = 0;
-
 void pos_asserv_step(void) {
     // --- Consignes
     float x_o = Wanted_Pos.x;
@@ -296,11 +294,9 @@ float radial_speed_calculation(float distance) {
 
 float angular_speed_calculation(float angle) {
     float fabs_angle = fabsf(angle);
-    int sign = 1;
-    if (angle < 0) {
-        sign = -1;
-    }
-    return sign * sqrtf(2.0f * robot_at_max * fabs_angle * 0.95f);
+    int sign = (angle < 0) ? -1 : 1;
+    float v = sqrtf(2.0f * robot_at_max * fabs_angle * 0.95f);
+    return sign * fminf(v, robot_vt_max);
 }
 
 void speed_asserv_step(void) {
@@ -312,8 +308,8 @@ void speed_asserv_step(void) {
 }
 
 void absolute_speed_asserv_step(void) {
-    float cos_t = cos(position_robot_odom.t);
-    float sin_t = sin(position_robot_odom.t);
+    float cos_t = cosf(kalman_current_state.x[2]);
+    float sin_t = sinf(kalman_current_state.x[2]);
 	speed_order.vx =  Wanted_Speed.vx*cos_t + Wanted_Speed.vy*sin_t;
 	speed_order.vy = -Wanted_Speed.vx*sin_t + Wanted_Speed.vy*cos_t;
 	speed_order.vt = Wanted_Speed.vt;
