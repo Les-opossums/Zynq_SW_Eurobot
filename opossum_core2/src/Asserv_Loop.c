@@ -93,7 +93,6 @@ float wheel_speed3 = 0;
 float wheel_speed4 = 0;
 
 Position position_lidar;
-Position control_pos;
 
 int Last_Timer_Asserv = 0;
 int Asserv_State = 0;
@@ -248,11 +247,6 @@ void Asserv_Loop(void)
         T_START(ts_slow_total);
 
         odo_speed_cumulate_step(ASSERV_EVERY);
-
-        // Filtre passe-bas position de contrôle
-        control_pos.x += CTRL_POS_ALPHA * (kalman_current_state.x[0] - control_pos.x);
-        control_pos.y += CTRL_POS_ALPHA * (kalman_current_state.x[1] - control_pos.y);
-        control_pos.t  = principal_angle(control_pos.t + CTRL_POS_ALPHA * principal_angle(kalman_current_state.x[2] - control_pos.t));
 
         // Mise à jour mémoire partagée
         local_data.kalman_out.x             = kalman_current_state.x[0];
