@@ -16,8 +16,6 @@
 #define ETH_DEBUG_MAX_LEN 200
 #endif
 
-#define ETH_RAW_CMD_PORT 5001
-
 static struct netif    g_netif;
 static struct udp_pcb *g_dbg_pcb; // debug texte libre (port ETH_DEBUG_PORT)
 static struct udp_pcb *g_tlm_pcb;
@@ -315,6 +313,11 @@ int eth_send_heartbeat(uint32_t uptime_ms, uint8_t state, uint8_t flags)
 {
     eth_payload_heartbeat_t hb = { uptime_ms, state, flags };
     return eth_send_frame(ETH_MSG_HEARTBEAT, &hb, sizeof(hb));
+}
+
+int eth_send_robot_state(const eth_payload_robot_state_t *state)
+{
+    return eth_send_frame(ETH_MSG_ROBOT_STATE, state, sizeof(*state));
 }
 
 const eth_driver_stats_t *eth_driver_get_stats(void)

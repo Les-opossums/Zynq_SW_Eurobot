@@ -54,6 +54,7 @@ int eth_send_frame(eth_msg_type_t type, const void *payload, uint16_t payload_le
 int eth_send_odom(const eth_payload_odom_t *odom);
 int eth_send_imu(const eth_payload_imu_t *imu);
 int eth_send_heartbeat(uint32_t uptime_ms, uint8_t state, uint8_t flags);
+int eth_send_robot_state(const eth_payload_robot_state_t *state);
 
 /* Statistiques (pbuf exhaustion, erreurs CRC, etc. -- utile en debug terrain) */
 const eth_driver_stats_t *eth_driver_get_stats(void);

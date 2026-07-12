@@ -297,34 +297,63 @@ uint8_t Set_Odo_Spacing_Cmd(void) {
 
 
 int auto_printpos_en = 1; // si on active l'envoi de la position
-uint32_t auto_printpos_delay = 10; // en ms
-uint32_t Last_Timer_print_pos = 0; // dernier envoi de la position
+uint32_t auto_printpos_delay_uart = 10; // en ms
+uint32_t Last_Timer_print_pos_uart = 0; // dernier envoi de la position
+uint32_t auto_printpos_delay_eth = 1; // en ms
+uint32_t Last_Timer_print_pos_eth = 0; // dernier envoi de la position
 
 uint8_t Activate_Position_Sending_Func (void) {
     uint32_t state;
     if (Get_Param_u32(&state)) return PARAM_ERROR_CODE;
     auto_printpos_en = (state != 0);
-    Last_Timer_print_pos = Timer_ms1;
-    
+    Last_Timer_print_pos_uart = Timer_ms1;
+    Last_Timer_print_pos_eth  = Timer_ms1;
+
     uint32_t Delay;
-    if (!Get_Param_u32(&Delay)) {   // s'il y a un 2eme param, on s'en sert comme delai entre les prints (en ms, of course)
-        auto_printpos_delay = Delay;
+    if (!Get_Param_u32(&Delay)) {   // s'il y a un 2eme param, on s'en sert comme delai entre les prints UART (en ms, of course)
+        auto_printpos_delay_uart = Delay;
     }
     return 0;
 }
 
+static void compute_robot_state(eth_payload_robot_state_t *rs, float *speed_linear, float *speed_direction) {
+    *speed_linear    = sqrtf(local_data.speed_robot.vx * local_data.speed_robot.vx + local_data.speed_robot.vy * local_data.speed_robot.vy);
+    *speed_direction = atan2f(local_data.speed_robot.vy, local_data.speed_robot.vx);
+
+    rs->timestamp_ms    = (uint32_t)Timer_ms1;
+    rs->x                = local_data.kalman_out.x;
+    rs->y                = local_data.kalman_out.y;
+    rs->theta            = local_data.kalman_out.t;
+    rs->speed_linear     = *speed_linear;
+    rs->speed_direction  = *speed_direction;
+    rs->speed_angular    = local_data.speed_robot.vt;
+    rs->motion_done      = (uint8_t)local_data.asserv_done; // <-- a adapter au vrai nom/type du champ chez toi
+}
+
 void Print_Position_loop(void) {
-    if (auto_printpos_en) {
-        if ((Timer_ms1 - Last_Timer_print_pos) >= auto_printpos_delay) {
-            Last_Timer_print_pos = Timer_ms1;
-            if (CHECK_FIELD(&local_data, kalman_out) && CHECK_FIELD(&local_data, speed_robot)) {
-                float speed_linear = sqrtf(local_data.speed_robot.vx * local_data.speed_robot.vx + local_data.speed_robot.vy * local_data.speed_robot.vy);
-                float speed_direction = atan2f(local_data.speed_robot.vy, local_data.speed_robot.vx);
-                printf("ROBOTDATA %0.2f %0.2f %0.2f %0.2f %0.2f %0.2f\n", local_data.kalman_out.x, local_data.kalman_out.y, local_data.kalman_out.t, speed_linear, speed_direction, local_data.speed_robot.vt);          
-            } else {
-                // printf("POS ERROR: Position or speed not valid\n");
-            }
-        }
+    if (!auto_printpos_en) {
+        return;
+    }
+    if (!CHECK_FIELD(&local_data, kalman_out) || !CHECK_FIELD(&local_data, speed_robot)) {
+        // printf("POS ERROR: Position or speed not valid\n");
+        return;
+    }
+
+    if ((Timer_ms1 - Last_Timer_print_pos_uart) >= auto_printpos_delay_uart) {
+        Last_Timer_print_pos_uart = Timer_ms1;
+
+        float speed_linear    = sqrtf(local_data.speed_robot.vx * local_data.speed_robot.vx + local_data.speed_robot.vy * local_data.speed_robot.vy);
+        float speed_direction = atan2f(local_data.speed_robot.vy, local_data.speed_robot.vx);
+        printf("ROBOTDATA %0.2f %0.2f %0.2f %0.2f %0.2f %0.2f\n", local_data.kalman_out.x, local_data.kalman_out.y, local_data.kalman_out.t, speed_linear, speed_direction, local_data.speed_robot.vt);
+    }
+
+    if ((Timer_ms1 - Last_Timer_print_pos_eth) >= auto_printpos_delay_eth) {
+        Last_Timer_print_pos_eth = Timer_ms1;
+
+        eth_payload_robot_state_t rs;
+        float speed_linear, speed_direction;
+        compute_robot_state(&rs, &speed_linear, &speed_direction);
+        eth_send_robot_state(&rs);
     }
 }
 

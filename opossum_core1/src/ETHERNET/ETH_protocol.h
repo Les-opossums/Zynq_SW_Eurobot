@@ -64,4 +64,11 @@ typedef struct __attribute__((packed)) {
     uint8_t  flags;   /* bitfield libre: match_started, emergency_stop, etc. */
 } eth_payload_heartbeat_t;
 
+typedef struct __attribute__((packed)) {
+    uint32_t timestamp_ms;
+    float x, y, theta;
+    float speed_linear, speed_direction, speed_angular;
+    uint8_t  motion_done;
+} eth_payload_robot_state_t;
+
 #endif /* ETH_PROTOCOL_H */
