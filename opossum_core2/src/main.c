@@ -71,29 +71,29 @@ int main()
     init_shared_memory();
 
 
-    // Init_CAN();
-    // Init_AU();
-    // Init_Asserv();
+    Init_CAN();
+    Init_AU();
+    Init_Asserv();
     
-    // IMU_Init();
+    IMU_Init();
 
     while(1){ 
-        // if(Timer_ms1 - old_timer_ms1 > 100) {
-        //     // printf("X: %.4f | Y: %.4f | Z: %.4f\n", imu.data.gyro.x, imu.data.gyro.y, imu.data.gyro.z);
-        //     old_timer_ms1 = Timer_ms1;
-        // }
-        // AU_Loop();
-        // if(AU_state == 1){
-        //     if(Timer_ms1 - old_timer_AU >= 100) {
-        //         // xil_printf("AU activated, stopping asserv\n\r");
-        //         old_timer_AU = Timer_ms1;
-        //     }
-        //     motion_free();
-        //     Init_CAN_MOTOR_variables();
-        //     Init_Asserv();
-        // }else{
-        //     Asserv_Loop();
-        // }
+        if(Timer_ms1 - old_timer_ms1 > 100) {
+            // printf("X: %.4f | Y: %.4f | Z: %.4f\n", imu.data.gyro.x, imu.data.gyro.y, imu.data.gyro.z);
+            old_timer_ms1 = Timer_ms1;
+        }
+        AU_Loop();
+        if(AU_state == 1){
+            if(Timer_ms1 - old_timer_AU >= 100) {
+                // xil_printf("AU activated, stopping asserv\n\r");
+                old_timer_AU = Timer_ms1;
+            }
+            motion_free();
+            Init_CAN_MOTOR_variables();
+            Init_Asserv();
+        }else{
+            Asserv_Loop();
+        }
     }
 
     cleanup_platform();
