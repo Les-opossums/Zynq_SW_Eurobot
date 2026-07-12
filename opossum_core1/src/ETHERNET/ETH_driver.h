@@ -4,10 +4,6 @@
 #include <stdint.h>
 #include "eth_protocol.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 typedef struct {
     uint32_t tx_ok;
     uint32_t tx_dropped_no_pbuf;
@@ -61,9 +57,5 @@ int eth_send_heartbeat(uint32_t uptime_ms, uint8_t state, uint8_t flags);
 
 /* Statistiques (pbuf exhaustion, erreurs CRC, etc. -- utile en debug terrain) */
 const eth_driver_stats_t *eth_driver_get_stats(void);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif /* ETH_DRIVER_H */

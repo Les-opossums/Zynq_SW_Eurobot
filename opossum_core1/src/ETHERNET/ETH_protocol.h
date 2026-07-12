@@ -19,6 +19,7 @@
 #define ETH_DEBUG_PORT       5000   /* Zynq -> Pi, texte libre (printf-like)      */
 #define ETH_TELEMETRY_PORT   5001   /* Zynq -> Pi, trames structurees periodiques */
 #define ETH_CMD_PORT         5002   /* Pi -> Zynq, commandes                      */
+#define ETH_RAW_CMD_PORT     5003   /* Pi -> Zynq, commandes brutes (debug)       */
 
 #define ETH_MAX_PAYLOAD      512    /* marge large vs MTU 1500, a ajuster si besoin */
 
