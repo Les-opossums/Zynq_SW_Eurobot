@@ -1,7 +1,7 @@
 #include "main.h"
 #include "lib_asserv/Lib_Asserv.h"
 
-#define TIMING_MEASURE          // Commenter pour désactiver
+// #define TIMING_MEASURE          // Commenter pour désactiver
 
 #ifdef TIMING_MEASURE
 
