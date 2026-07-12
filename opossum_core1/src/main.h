@@ -4,9 +4,6 @@
 // #define PWM
 #define FEETECH
 
-
-
-
 #include <stdio.h>
 #include <sleep.h>
 #include <xil_io.h>
@@ -68,4 +65,9 @@
 #include "UART_PL.h"
 
 #include "ld19.h"
+
+
+// ethernet part
+#include "ETHERNET/ETH_driver.h"
+
 #endif // MAIN_H

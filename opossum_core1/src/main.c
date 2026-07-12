@@ -12,6 +12,16 @@ int timer_lidar = 0;
 
 LD19Instance LD19;
 
+static eth_driver_config_t eth_cfg = {
+    .mac_addr   = {0x00, 0x0a, 0x35, 0x00, 0x01, 0x02},
+    .local_ip   = (192u << 24) | (168u << 16) | (1u << 8) | 10u,  // 192.168.1.10
+    .netmask    = (255u << 24) | (255u << 16) | (255u << 8) | 0u, // 255.255.255.0
+    .gateway_ip = (192u << 24) | (168u << 16) | (1u << 8) | 10u,  // pas de routeur, on met la sienne
+    .peer_ip    = (192u << 24) | (168u << 16) | (1u << 8) | 20u,  // IP de ton PC
+};
+
+int old_timer_debug_eth = 0;
+
 int main()
 {
     init_shared_memory();
@@ -76,6 +86,15 @@ int main()
 
     Std_Com_Init();
 
+    Status = eth_driver_init(&eth_cfg);
+    if (Status != XST_SUCCESS) {
+        xil_printf("Ethernet driver init failed\n\r");
+        Status = 0;
+    } else {
+        xil_printf("Ethernet driver init done\n\r");
+        Status = 0;
+    }
+
 
     init_AU();
     uint8_t previous_AU_state = AU_state; // Pour détecter le changement d'état
@@ -105,6 +124,12 @@ int main()
         Print_Position_loop();
 
         Speed_Timed_Loop();
+
+        eth_driver_poll();
+        if (Timer_ms1 - old_timer_debug_eth >= 500) {
+            old_timer_debug_eth = Timer_ms1;
+            eth_printf("uptime=%dms AU_state=%d timer_lidar=%d", Timer_ms1, AU_state, timer_lidar);
+        }
 
         if(AU_state == 1){
             LED_AU();
