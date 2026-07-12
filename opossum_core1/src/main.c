@@ -22,6 +22,24 @@ static eth_driver_config_t eth_cfg = {
 
 int old_timer_debug_eth = 0;
 
+// Fonction appelée par le driver Ethernet quand une commande valide est reçue
+void on_eth_command_received(eth_msg_type_t type, const uint8_t *payload, uint16_t len) {
+    
+    // Optionnel : tu peux filtrer ici selon le "type" si le PC envoie plusieurs types de messages.
+    // Ex: if (type != ETH_MSG_STRING_CMD) return;
+
+    // On injecte chaque octet du payload dans ton interpréteur
+    for (uint16_t i = 0; i < len; i++) {
+        Interp((char)payload[i]);
+    }
+    
+    // Sécurité : l'interpréteur a besoin d'un '\n' ou '\r' pour valider et exécuter la commande.
+    // Si le script sur le PC a oublié de l'ajouter à la fin du texte, on force l'exécution :
+    if (len > 0 && payload[len-1] != '\n' && payload[len-1] != '\r') {
+        Interp('\n');
+    }
+}
+
 int main()
 {
     init_shared_memory();
@@ -94,7 +112,7 @@ int main()
         xil_printf("Ethernet driver init done\n\r");
         Status = 0;
     }
-
+    eth_driver_set_cmd_handler(on_eth_command_received);
 
     init_AU();
     uint8_t previous_AU_state = AU_state; // Pour détecter le changement d'état
