@@ -88,7 +88,7 @@ int main()
 
     Status = eth_driver_init(&eth_cfg);
     if (Status != XST_SUCCESS) {
-        xil_printf("Ethernet driver init failed\n\r");
+        xil_printf("Ethernet driver init failed, code=%d\n\r", Status);
         Status = 0;
     } else {
         xil_printf("Ethernet driver init done\n\r");
@@ -128,7 +128,7 @@ int main()
         eth_driver_poll();
         if (Timer_ms1 - old_timer_debug_eth >= 500) {
             old_timer_debug_eth = Timer_ms1;
-            eth_printf("uptime=%dms AU_state=%d timer_lidar=%d", Timer_ms1, AU_state, timer_lidar);
+            eth_printf("uptime=%dms AU_state=%d timer_lidar=%d\n", Timer_ms1, AU_state, timer_lidar);
         }
 
         if(AU_state == 1){

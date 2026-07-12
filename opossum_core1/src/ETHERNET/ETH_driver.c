@@ -144,9 +144,11 @@ int eth_driver_init(const eth_driver_config_t *cfg)
     /* XPAR_XEMACPS_0_BASEADDR : adapte si tu es sur GEM1 ou un nom different
      * selon ton design Vivado -- verifie dans xparameters.h genere par ton
      * projet. */
+    /* xemac_add() retourne un struct netif* (NULL = echec), pas un code
+     * d'erreur entier -- attention a ne pas comparer a != 0. */
     if (xemac_add(&g_netif, &ipaddr, &netmask, &gw,
                   (unsigned char *)cfg->mac_addr,
-                  XPAR_XEMACPS_0_BASEADDR) != 0) {
+                  XPAR_XEMACPS_0_BASEADDR) == NULL) {
         return -1;
     }
 
