@@ -13,7 +13,7 @@ int timer_lidar = 0;
 LD19Instance LD19;
 
 static eth_driver_config_t eth_cfg = {
-    .mac_addr   = {0x00, 0x0a, 0x35, 0x00, 0x01, 0x02},
+    .mac_addr   = {0x00, 0x0a, 0x35, 0x00, 0x01, 0x12},
     .local_ip   = (192u << 24) | (168u << 16) | (1u << 8) | 10u,  // 192.168.1.10
     .netmask    = (255u << 24) | (255u << 16) | (255u << 8) | 0u, // 255.255.255.0
     .gateway_ip = (192u << 24) | (168u << 16) | (1u << 8) | 10u,  // pas de routeur, on met la sienne
