@@ -84,13 +84,13 @@ void FEETECH_Uart_EventHandler(unsigned int Event, unsigned int EventData)
     }
 }
 
-void usleep(uint32_t usec) {
-    volatile uint32_t wait;
-    uint32_t iterations = (usec * 667) / 10; // assuming 667 MHz clock, adjust as needed
-    for (wait = 0; wait < iterations; wait++){
-        __asm__ __volatile__ ("");
-    }
-}
+// void usleep(uint32_t usec) {
+//     volatile uint32_t wait;
+//     uint32_t iterations = (usec * 667) / 10; // assuming 667 MHz clock, adjust as needed
+//     for (wait = 0; wait < iterations; wait++){
+//         __asm__ __volatile__ ("");
+//     }
+// }
 
 /* Send a prepared command buffer using your XUartPs wrapper */
 void FEETECH_Cmd_Send(FEETECH_Command *Cmd) {

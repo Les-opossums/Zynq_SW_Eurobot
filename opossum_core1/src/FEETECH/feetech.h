@@ -141,7 +141,7 @@ void FEETECH_Uart_EventHandler(unsigned int Event, unsigned int EventData);
 
 void GetFEETECH_Ext_Done_With_Status(uint8_t id, uint8_t Reg, void *Data_Answer, void *Done, uint8_t *Status);
 
-void usleep(uint32_t usec);
+// void usleep(uint32_t usec);
 
 void PutFEETECH_SCS(uint8_t id, uint8_t Reg, uint32_t Data);
 void PutFEETECH_Wait_SCS(uint8_t id, uint8_t Reg, uint32_t Data);
