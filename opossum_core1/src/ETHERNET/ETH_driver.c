@@ -16,10 +16,14 @@
 #define ETH_DEBUG_MAX_LEN 200
 #endif
 
+#define ETH_RAW_CMD_PORT 5001
+
 static struct netif    g_netif;
-static struct udp_pcb *g_dbg_pcb;
+static struct udp_pcb *g_dbg_pcb; // debug texte libre (port ETH_DEBUG_PORT)
 static struct udp_pcb *g_tlm_pcb;
 static struct udp_pcb *g_cmd_pcb;
+static struct udp_pcb *g_raw_cmd_pcb; // cmd pour le debug direct (ex: "raw" sur le port 5001, pour tester sans passer par l'interpréteur)
+
 
 static ip_addr_t g_peer_ip;
 
@@ -115,6 +119,22 @@ static void eth_cmd_rx_cb(void *arg, struct udp_pcb *pcb, struct pbuf *p,
     }
 }
 
+// Callback de réception pour le port de Debug Humain (RAW TEXT)
+static void eth_raw_cmd_rx_cb(void *arg, struct udp_pcb *pcb, struct pbuf *p, const ip_addr_t *addr, u16_t port)
+{
+    if (p != NULL) {
+        // Si on a bien enregistré la fonction de liaison dans le main.c
+        if (g_cmd_handler != NULL) {
+            // On injecte le payload brut directement. 
+            // On utilise '0xFF' comme type factice pour indiquer que c'est du debug brut.
+            g_cmd_handler(0xFF, (const uint8_t *)p->payload, p->tot_len);
+        }
+        
+        // TRES IMPORTANT : Libérer la mémoire du paquet, sinon la carte va planter !
+        pbuf_free(p);
+    }
+}
+
 /* ------------------------------------------------------------------------
  * Init / poll
  * ------------------------------------------------------------------------ */
@@ -165,6 +185,14 @@ int eth_driver_init(const eth_driver_config_t *cfg)
     g_dbg_pcb = udp_new();
     g_tlm_pcb = udp_new();
     g_cmd_pcb = udp_new();
+    g_raw_cmd_pcb = udp_new();
+    if (g_raw_cmd_pcb != NULL) {
+        // On écoute sur le port 5001, depuis n'importe quelle adresse IP
+        udp_bind(g_raw_cmd_pcb, IP_ADDR_ANY, ETH_RAW_CMD_PORT);
+        
+        // On branche notre fonction qui ne vérifie pas le CRC
+        udp_recv(g_raw_cmd_pcb, eth_raw_cmd_rx_cb, NULL);
+    }
     if (!g_dbg_pcb || !g_tlm_pcb || !g_cmd_pcb) {
         return -2;
     }
