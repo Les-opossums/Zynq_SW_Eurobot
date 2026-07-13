@@ -4,7 +4,7 @@
 /*****************************    Odometrie    *******************************/
 
 // Position absolue du robot (x, y, et theta)
-typedef struct {
+typedef struct __attribute__((packed)) {
     float x; // en metre
     float y; // en metre
     float t; // en radian
@@ -15,7 +15,7 @@ extern Position position_robot;
 
 
 // Vitesse et vitesse angulaire du robot
-typedef struct {
+typedef struct __attribute__((packed)) {
     float vx; // en m/s
     float vy; // en m/s
     float vt; // en rad/s
@@ -29,7 +29,7 @@ extern Speed speed_robot_odom;
 
 
 // acceleration du robot (dv/dt,  d2theta/dt2   et   v*(dtheta/dt))
-typedef struct {
+typedef struct __attribute__((packed)) {
     float ax; // en m/s2
     float ay; // en m/s2
     float at; // en rad/s2
@@ -39,19 +39,19 @@ extern Acceleration acceleration_robot;
 
 
 /**************************** PID  *****************************/
-typedef struct {
+typedef struct __attribute__((packed)) {
     float kp;
     float ki;
     float kd;
 } PID_coef;
 
-typedef struct {
+typedef struct __attribute__((packed)) {
     float err;
     float err_int;
     float err_der;
 } PID_err;
 
-typedef struct {
+typedef struct __attribute__((packed)) {
     PID_coef coef;
     PID_err err1;
     PID_err err2;
@@ -60,7 +60,7 @@ typedef struct {
 } PID_speed;
 
 
-typedef struct{
+typedef struct __attribute__((packed)) {
     float command1;
     float command2;
     float command3;
@@ -72,7 +72,7 @@ extern ESC_Command Wanted_Forced_Consigne;
 extern ESC_Command old_Consigne;
 
 
-typedef struct {
+typedef struct __attribute__((packed)) {
     int odo_step_1; // step 1: calcul de la vitesse du robot
     int odo_step_2; // step 2: calcul du kalman + history
     int odo_step_3; // step 3: calcul de la vitesse du robot
@@ -84,14 +84,14 @@ typedef struct {
     int transmit_step; // step 9: transmission des ordres aux moteurs
 } Asserv_Step_Timing;
 
-typedef struct {
+typedef struct __attribute__((packed)) {
     float lidar_position_x; // position of the robot according to the lidar
     float lidar_position_y; // position of the robot according to the lidar
     float lidar_position_t; // position of the robot according to the lidar
     int delay; // calculation delay in ms 
 } Set_lidar;
 
-typedef struct {
+typedef struct __attribute__((packed)) {
     float camera_position_x; // position of the robot according to the camera
     float camera_position_y; // position of the robot according to the camera
     float camera_position_t; // position of the robot according to the camera
@@ -101,14 +101,14 @@ typedef struct {
     float noise_t; // estimation of the noise on the theta measurement (standard deviation in rad)
 } Set_camera;
 
-typedef struct {
+typedef struct __attribute__((packed)) {
     float process_noise_lidar_x; // estimation of the process noise on the x measurement from the lidar (standard deviation in m)
     float process_noise_lidar_y; // estimation of the process noise on the y measurement from the lidar (standard deviation in m)
     float process_noise_lidar_t; // estimation of the process noise on the theta measurement from
 } Set_lidar_noise;
 
 
-typedef struct {
+typedef struct __attribute__((packed)) {
     int enable_lidar_kalman; // 1 to take into account the lidar measurements in the kalman, 0 to ignore them
     int enable_camera_kalman; // 1 to take into account the camera measurements in the kalman, 0 to ignore them
 } Enable_Kalman;

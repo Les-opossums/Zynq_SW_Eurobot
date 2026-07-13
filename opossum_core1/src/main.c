@@ -25,18 +25,27 @@ int old_timer_debug_eth = 0;
 // Fonction appelée par le driver Ethernet quand une commande valide est reçue
 void on_eth_command_received(eth_msg_type_t type, const uint8_t *payload, uint16_t len) {
     
-    // si c'est une commande texte formattée par ROS ou du texte tapé à la main via netcat, on l'envoie à l'interpréteur de commandes
-    if (type == ETH_MSG_CMD_GENERIC || type == ETH_MSG_RAW_TEXT) {
-        for(uint16_t i=0; i < len; i++) {
-            Interp((char)payload[i]);
-        }
-        //  sécurité en cas d'oublie de retour chariot à la fin du message
-        if(len > 0 && payload[len-1] != '\n' && payload[len-1] != '\r') {
-            Interp('\n');
-        }
-    } 
+    switch (type) {
+        // 1. LES COMMANDES TEXTES (Debug humain ou vieux scripts)
+        case ETH_MSG_CMD_GENERIC:
+        case ETH_MSG_RAW_TEXT:
+            for(uint16_t i=0; i < len; i++) {
+                Interp((char)payload[i]);
+            }
+            if (len > 0 && payload[len-1] != '\n' && payload[len-1] != '\r') {
+                Interp('\n');
+            }
+            break;
 
-    
+        // 2. LES COMMANDES STRUCTUREES
+        case ETH_MSG_CMD_GOAL_POSITION:
+            if (len == sizeof(Position)) {
+                Position *pos = (Position *)payload;
+                local_data.cmd_position = *pos;
+                SEND_FIELD(&local_data, cmd_position);
+            }
+            break;
+    }
 }
 
 int main()
