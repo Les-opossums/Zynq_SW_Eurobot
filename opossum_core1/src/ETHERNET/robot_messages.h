@@ -35,6 +35,5 @@ typedef struct __attribute__((packed)) {
     uint8_t motion_done;
 } eth_payload_robot_state_t;
 
-// Ajoute ici tes futures structures (Lidar, Capteurs, Pinces...)
 
 #endif /* ROBOT_MESSAGES_H */

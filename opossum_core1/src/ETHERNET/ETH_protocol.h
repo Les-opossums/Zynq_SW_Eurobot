@@ -55,15 +55,25 @@ typedef enum {
  * Liste des Messages UDP
  * Colonnes : NOM, ID_HEXA, CANAL_DE_SORTIE
  * ------------------------------------------------------------------------ */
-#define ETH_MESSAGE_LIST(X) \
-    X(HEARTBEAT,   0x01, ETH_CHANNEL_TELEMETRY) \
-    X(DEBUG_TEXT,  0x02, ETH_CHANNEL_DEBUG)     \
-    X(ODOM,        0x10, ETH_CHANNEL_TELEMETRY) \
-    X(IMU,         0x11, ETH_CHANNEL_TELEMETRY) \
-    X(MOTOR_STATE, 0x12, ETH_CHANNEL_TELEMETRY) \
-    X(ROBOT_STATE, 0x13, ETH_CHANNEL_TELEMETRY) \
-    X(CMD_GENERIC, 0x20, ETH_CHANNEL_TELEMETRY)
+#define ETH_MSG_RAW_TEXT 0xFF // type factice pour le canal RAW_CMD, qui n'a pas de framing
 
+#define ETH_MESSAGE_LIST(X) \
+    /* --- MESSAGES TX --- */ \
+    X(HEARTBEAT,            0x01, ETH_CHANNEL_TELEMETRY) \
+    X(DEBUG_TEXT,           0x02, ETH_CHANNEL_DEBUG)     \
+    X(ODOM,                 0x10, ETH_CHANNEL_TELEMETRY) \
+    X(IMU,                  0x11, ETH_CHANNEL_TELEMETRY) \
+    X(MOTOR_STATE,          0x12, ETH_CHANNEL_TELEMETRY) \
+    X(ROBOT_STATE,          0x13, ETH_CHANNEL_TELEMETRY) \
+    \
+    /* --- MESSAGES RX --- */ \
+    X(CMD_GENERIC,          0x20, ETH_CHANNEL_CMD) \
+    X(CMD_GOAL_POSITION,    0x21, ETH_CHANNEL_CMD) \
+    X(CMD_SET_LIDAR,        0x22, ETH_CHANNEL_CMD) \
+    X(CMD_SET_CAMERA,       0x23, ETH_CHANNEL_CMD) \
+    X(CMD_SET_SPEED_MAX,    0x24, ETH_CHANNEL_CMD) \
+    X(CMD_BLOCK,            0x25, ETH_CHANNEL_CMD) \
+    X(CMD_FREE,             0x26, ETH_CHANNEL_CMD) 
 typedef enum {
 #define X(name, id, channel) ETH_MSG_##name = id,
     ETH_MESSAGE_LIST(X)
