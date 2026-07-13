@@ -4,10 +4,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-/* ------------------------------------------------------------------------
- * Protocole Zynq <-> Raspberry Pi
- * ------------------------------------------------------------------------ */
 
+/* --- IDENTIFIANTS RESEAU --- */
 #define ETH_FRAME_MAGIC      0xC0DE
 #define ETH_PROTOCOL_VERSION 1
 
@@ -16,68 +14,11 @@
 #define ETH_CMD_PORT         5002   /* Pi -> Zynq, commandes                      */
 #define ETH_RAW_CMD_PORT     5003   /* Pi -> Zynq, commandes brutes (debug)       */
 
-#define ETH_MAX_PAYLOAD      512    /* marge large vs MTU 1500, a ajuster si besoin */
+#define ETH_MAX_PAYLOAD      512 
+
 
 /* ------------------------------------------------------------------------
- * Liste des Messages -- SEUL ENDROIT A MODIFIER pour ajouter un message !
- * Colonnes : NOM, ID_HEXA, CANAL_DE_SORTIE
- * ------------------------------------------------------------------------ */
-#define ETH_MESSAGE_LIST(X) \
-    X(HEARTBEAT,   0x01, ETH_CHANNEL_TELEMETRY) \
-    X(DEBUG_TEXT,  0x02, ETH_CHANNEL_DEBUG)     \
-    X(ODOM,        0x10, ETH_CHANNEL_TELEMETRY) \
-    X(IMU,         0x11, ETH_CHANNEL_TELEMETRY) \
-    X(MOTOR_STATE, 0x12, ETH_CHANNEL_TELEMETRY) \
-    X(ROBOT_STATE, 0x13, ETH_CHANNEL_TELEMETRY) \
-    X(CMD_GENERIC, 0x20, ETH_CHANNEL_TELEMETRY)
-
-/* Génération automatique de l'enum eth_msg_type_t */
-typedef enum {
-#define X(name, id, channel) ETH_MSG_##name = id,
-    ETH_MESSAGE_LIST(X)
-#undef X
-} eth_msg_type_t;
-
-typedef struct __attribute__((packed)) {
-    uint16_t magic;        /* ETH_FRAME_MAGIC, permet de resynchroniser le flux */
-    uint8_t  version;      /* ETH_PROTOCOL_VERSION */
-    uint8_t  msg_type;     /* eth_msg_type_t */
-    uint16_t seq;          /* compteur roulant, un par canal */
-    uint32_t timestamp_us; /* horodatage Zynq, cf eth_get_timestamp_us() */
-    uint16_t payload_len;  /* longueur du payload qui suit */
-    uint16_t crc16;        /* CRC16-CCITT sur (header, crc16 mis a 0) + payload */
-} eth_frame_header_t;      /* 14 octets */
-
-/* Payloads structures pour la telemetrie -- a etendre selon besoin */
-
-typedef struct __attribute__((packed)) {
-    float x, y, theta;
-    float vx, vy, omega;
-} eth_payload_odom_t;
-
-typedef struct __attribute__((packed)) {
-    float qw, qx, qy, qz;
-    float gyro_x, gyro_y, gyro_z;
-    float accel_x, accel_y, accel_z;
-} eth_payload_imu_t;
-
-typedef struct __attribute__((packed)) {
-    uint32_t uptime_ms;
-    uint8_t  state;   /* etat machine haut niveau si tu veux l'exposer */
-    uint8_t  flags;   /* bitfield libre: match_started, emergency_stop, etc. */
-} eth_payload_heartbeat_t;
-
-typedef struct __attribute__((packed)) {
-    uint32_t timestamp_ms;
-    float x, y, theta;
-    float speed_linear, speed_direction, speed_angular;
-    uint8_t motion_done;
-} eth_payload_robot_state_t;
-
-/* ------------------------------------------------------------------------
- * Table des canaux UDP -- SEUL ENDROIT A MODIFIER pour ajouter un canal.
- * eth_driver_init() est generique et boucle sur cette table : ajouter une
- * ligne ici suffit, aucune modification de eth_driver.c n'est necessaire.
+ * Table des canaux UDP
  *
  * Colonnes : NOM, PORT, DIRECTION, FRAMED
  *   DIRECTION :
@@ -109,5 +50,38 @@ typedef enum {
 #undef X
     ETH_CHANNEL_COUNT
 } eth_channel_id_t;
+
+/* ------------------------------------------------------------------------
+ * Liste des Messages UDP
+ * Colonnes : NOM, ID_HEXA, CANAL_DE_SORTIE
+ * ------------------------------------------------------------------------ */
+#define ETH_MESSAGE_LIST(X) \
+    X(HEARTBEAT,   0x01, ETH_CHANNEL_TELEMETRY) \
+    X(DEBUG_TEXT,  0x02, ETH_CHANNEL_DEBUG)     \
+    X(ODOM,        0x10, ETH_CHANNEL_TELEMETRY) \
+    X(IMU,         0x11, ETH_CHANNEL_TELEMETRY) \
+    X(MOTOR_STATE, 0x12, ETH_CHANNEL_TELEMETRY) \
+    X(ROBOT_STATE, 0x13, ETH_CHANNEL_TELEMETRY) \
+    X(CMD_GENERIC, 0x20, ETH_CHANNEL_TELEMETRY)
+
+typedef enum {
+#define X(name, id, channel) ETH_MSG_##name = id,
+    ETH_MESSAGE_LIST(X)
+#undef X
+} eth_msg_type_t;
+
+
+/* ------------------------------------------------------------------------
+ * Structure de trame UDP (header + payload)
+ * ------------------------------------------------------------------------ */
+typedef struct __attribute__((packed)) {
+    uint16_t magic;        /* ETH_FRAME_MAGIC, permet de resynchroniser le flux */
+    uint8_t  version;      /* ETH_PROTOCOL_VERSION */
+    uint8_t  msg_type;     /* eth_msg_type_t */
+    uint16_t seq;          /* compteur roulant, un par canal */
+    uint32_t timestamp_us; /* horodatage Zynq, cf eth_get_timestamp_us() */
+    uint16_t payload_len;  /* longueur du payload qui suit */
+    uint16_t crc16;        /* CRC16-CCITT sur (header, crc16 mis a 0) + payload */
+} eth_frame_header_t;      /* 14 octets */
 
 #endif /* ETH_PROTOCOL_H */
