@@ -1,4 +1,4 @@
-#include "main.h"
+#include "../main.h"
 
 LED led[NBR_LED];
 LED color;

@@ -31,18 +31,11 @@
 
 // driver part 
 #include "Timer.h"
-#include "UART.h"
 #include "Interrupt.h"
 
 // pl part
-#include "PWM.h"
-#include "QEI.h"
 #include "AU.h"
-#include "ws2812b.h"
-
-#include "pump.h"
-#include "Valve.h"
-#include "Stepper.h"
+#include "WS2812B/ws2812b.h"
 
 //divers
 #include "User.h"
@@ -52,8 +45,9 @@
 #include "Cmd_For_Move.h"
 
 //com part
-#include "Std_Com.h"
-#include "interpreteur.h"
+#include "UART_COM/UART.h"
+#include "UART_COM/Std_Com.h"
+#include "INTERPRETEUR/interpreteur.h"
 
 // shared memory part
 #include "shared_memory.h"
@@ -67,5 +61,7 @@
 // uart pl
 #include "UART_PL.h"
 
-#include "ld19.h"
+// LD19 part
+#include "LD19/ld19.h"
+
 #endif // MAIN_H
