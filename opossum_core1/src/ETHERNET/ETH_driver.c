@@ -47,6 +47,16 @@ static const eth_channel_desc_t g_channel_desc[ETH_CHANNEL_COUNT] = {
 #undef X
 };
 
+/* * Génération automatique de la table de routage (Lookup Table).
+ * Le C99 permet d'initialiser un tableau directement à des index précis.
+ * Taille de 256 car le msg_type tient sur un uint8_t (0x00 à 0xFF).
+ */
+static const uint8_t msg_to_channel_map[256] = {
+#define X(name, id, channel) [id] = (channel),
+    ETH_MESSAGE_LIST(X)
+#undef X
+};
+
 typedef struct {
     struct udp_pcb *pcb;
     uint16_t         seq;
@@ -230,7 +240,7 @@ void eth_driver_set_cmd_handler(eth_cmd_handler_t handler)
 /* ------------------------------------------------------------------------
  * Envoi
  * ------------------------------------------------------------------------ */
-int eth_send_frame_on_channel(eth_channel_id_t chan_id, eth_msg_type_t type,
+static int eth_send_frame_on_channel(eth_channel_id_t chan_id, eth_msg_type_t type,
                                const void *payload, uint16_t payload_len)
 {
     /* buffer statique -> non reentrant : ne jamais appeler depuis une ISR,
@@ -302,28 +312,11 @@ int eth_printf(const char *fmt, ...)
 
 int eth_send_frame(eth_msg_type_t type, const void *payload, uint16_t payload_len)
 {
-    return eth_send_frame_on_channel(ETH_CHANNEL_TELEMETRY, type, payload, payload_len);
-}
+    // 1. Lecture instantanée (O(1)) du canal cible dans le tableau
+    uint8_t target_channel = msg_to_channel_map[type];
 
-int eth_send_odom(const eth_payload_odom_t *odom)
-{
-    return eth_send_frame(ETH_MSG_ODOM, odom, sizeof(*odom));
-}
-
-int eth_send_imu(const eth_payload_imu_t *imu)
-{
-    return eth_send_frame(ETH_MSG_IMU, imu, sizeof(*imu));
-}
-
-int eth_send_heartbeat(uint32_t uptime_ms, uint8_t state, uint8_t flags)
-{
-    eth_payload_heartbeat_t hb = { uptime_ms, state, flags };
-    return eth_send_frame(ETH_MSG_HEARTBEAT, &hb, sizeof(hb));
-}
-
-int eth_send_robot_state(const eth_payload_robot_state_t *state)
-{
-    return eth_send_frame(ETH_MSG_ROBOT_STATE, state, sizeof(*state));
+    // 2. Envoi direct à la fonction bas niveau
+    return eth_send_frame_on_channel(target_channel, type, payload, payload_len);
 }
 
 const eth_driver_stats_t *eth_driver_get_stats(void)

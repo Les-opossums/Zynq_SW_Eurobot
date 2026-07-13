@@ -178,7 +178,7 @@ int main()
                 pince_loop();
             }
             
-            Move_Seq_Loop();
+            //Move_Seq_Loop();
 
             LED_CLASSIC_MODE();
         }

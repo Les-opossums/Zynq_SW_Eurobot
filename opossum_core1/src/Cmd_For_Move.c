@@ -353,7 +353,7 @@ void Print_Position_loop(void) {
         eth_payload_robot_state_t rs;
         float speed_linear, speed_direction;
         compute_robot_state(&rs, &speed_linear, &speed_direction);
-        eth_send_robot_state(&rs);
+        eth_send_frame(ETH_MSG_ROBOT_STATE, &rs, sizeof(rs));
     }
 }
 

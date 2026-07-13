@@ -18,16 +18,24 @@
 
 #define ETH_MAX_PAYLOAD      512    /* marge large vs MTU 1500, a ajuster si besoin */
 
+/* ------------------------------------------------------------------------
+ * Liste des Messages -- SEUL ENDROIT A MODIFIER pour ajouter un message !
+ * Colonnes : NOM, ID_HEXA, CANAL_DE_SORTIE
+ * ------------------------------------------------------------------------ */
+#define ETH_MESSAGE_LIST(X) \
+    X(HEARTBEAT,   0x01, ETH_CHANNEL_TELEMETRY) \
+    X(DEBUG_TEXT,  0x02, ETH_CHANNEL_DEBUG)     \
+    X(ODOM,        0x10, ETH_CHANNEL_TELEMETRY) \
+    X(IMU,         0x11, ETH_CHANNEL_TELEMETRY) \
+    X(MOTOR_STATE, 0x12, ETH_CHANNEL_TELEMETRY) \
+    X(ROBOT_STATE, 0x13, ETH_CHANNEL_TELEMETRY) \
+    X(CMD_GENERIC, 0x20, ETH_CHANNEL_TELEMETRY)
+
+/* Génération automatique de l'enum eth_msg_type_t */
 typedef enum {
-    ETH_MSG_HEARTBEAT   = 0x01,
-    ETH_MSG_DEBUG_TEXT  = 0x02,
-
-    ETH_MSG_ODOM        = 0x10,
-    ETH_MSG_IMU         = 0x11,
-    ETH_MSG_MOTOR_STATE = 0x12,
-    ETH_MSG_ROBOT_STATE = 0x13,
-
-    ETH_MSG_CMD_GENERIC = 0x20,
+#define X(name, id, channel) ETH_MSG_##name = id,
+    ETH_MESSAGE_LIST(X)
+#undef X
 } eth_msg_type_t;
 
 typedef struct __attribute__((packed)) {
