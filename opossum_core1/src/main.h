@@ -47,6 +47,7 @@
 // ethernet part
 #include "ETHERNET/ETH_driver.h"
 #include "ETHERNET/robot_messages.h"
+#include "ETH_receiver.h"
 
 // shared memory part
 #include "shared_memory.h"
