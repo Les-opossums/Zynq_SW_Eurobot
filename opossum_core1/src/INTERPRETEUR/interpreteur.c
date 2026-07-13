@@ -1,4 +1,4 @@
-#include "main.h"
+#include "../main.h"
 
 char Current_Cmd[MAX_CMD_LENGTH + 1];
 uint16_t i_Current_Cmd = 0;
