@@ -2,15 +2,10 @@
 #define ETH_PROTOCOL_H
 
 #include <stdint.h>
+#include <stdbool.h>
 
 /* ------------------------------------------------------------------------
  * Protocole Zynq <-> Raspberry Pi
- *
- * Meme philosophie que les trames JeVois (HEARTBEAT/ARUCO/ROBOTPOS) :
- * un header fixe court + payload type, en little-endian natif.
- * Zynq7000 PS (Cortex-A9) et Raspberry Pi (ARM) sont tous les deux
- * little-endian -> pas de htons/htonl. A revoir si un jour un des deux
- * cotes change d'architecture.
  * ------------------------------------------------------------------------ */
 
 #define ETH_FRAME_MAGIC      0xC0DE
@@ -39,7 +34,7 @@ typedef struct __attribute__((packed)) {
     uint16_t magic;        /* ETH_FRAME_MAGIC, permet de resynchroniser le flux */
     uint8_t  version;      /* ETH_PROTOCOL_VERSION */
     uint8_t  msg_type;     /* eth_msg_type_t */
-    uint16_t seq;          /* compteur roulant, un par canal (debug/telemetry/cmd) */
+    uint16_t seq;          /* compteur roulant, un par canal */
     uint32_t timestamp_us; /* horodatage Zynq, cf eth_get_timestamp_us() */
     uint16_t payload_len;  /* longueur du payload qui suit */
     uint16_t crc16;        /* CRC16-CCITT sur (header, crc16 mis a 0) + payload */
@@ -68,7 +63,43 @@ typedef struct __attribute__((packed)) {
     uint32_t timestamp_ms;
     float x, y, theta;
     float speed_linear, speed_direction, speed_angular;
-    uint8_t  motion_done;
+    uint8_t motion_done;
 } eth_payload_robot_state_t;
+
+/* ------------------------------------------------------------------------
+ * Table des canaux UDP -- SEUL ENDROIT A MODIFIER pour ajouter un canal.
+ * eth_driver_init() est generique et boucle sur cette table : ajouter une
+ * ligne ici suffit, aucune modification de eth_driver.c n'est necessaire.
+ *
+ * Colonnes : NOM, PORT, DIRECTION, FRAMED
+ *   DIRECTION :
+ *     ETH_DIR_TX -> Zynq emet vers ce port distant (port source ephemere)
+ *     ETH_DIR_RX -> Zynq ecoute sur ce port fixe
+ *   FRAMED (uniquement significatif pour les canaux RX) :
+ *     true  -> le canal utilise eth_frame_header_t + CRC16, dispatch par
+ *              msg_type reel vers le handler de commandes
+ *     false -> payload brut sans framing (ex: texte libre), le handler est
+ *              appele avec un type factice 0xFF
+ *   Pour les canaux TX, la colonne FRAMED est ignoree (l'emission est
+ *   toujours framee via eth_send_frame_internal).
+ * ------------------------------------------------------------------------ */
+
+typedef enum {
+    ETH_DIR_TX = 0,
+    ETH_DIR_RX = 1,
+} eth_channel_dir_t;
+
+#define ETH_CHANNEL_LIST(X) \
+    X(DEBUG,     ETH_DEBUG_PORT,     ETH_DIR_TX, true)  \
+    X(TELEMETRY, ETH_TELEMETRY_PORT, ETH_DIR_TX, true)  \
+    X(CMD,       ETH_CMD_PORT,       ETH_DIR_RX, true)  \
+    X(RAW_CMD,   ETH_RAW_CMD_PORT,   ETH_DIR_RX, false)
+
+typedef enum {
+#define X(name, port, dir, framed) ETH_CHANNEL_##name,
+    ETH_CHANNEL_LIST(X)
+#undef X
+    ETH_CHANNEL_COUNT
+} eth_channel_id_t;
 
 #endif /* ETH_PROTOCOL_H */

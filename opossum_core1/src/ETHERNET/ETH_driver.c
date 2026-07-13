@@ -7,7 +7,7 @@
 #include "lwip/init.h"
 #include "lwip/udp.h"
 #include "netif/xadapter.h"
-#include "netif/etharp.h"   /* si non trouve, essaie "lwip/etharp.h" selon ta version de lwip211 */
+#include "netif/etharp.h" 
 
 #include "xparameters.h"
 #include "xtime_l.h"
@@ -16,17 +16,8 @@
 #define ETH_DEBUG_MAX_LEN 200
 #endif
 
-static struct netif    g_netif;
-static struct udp_pcb *g_dbg_pcb; // debug texte libre (port ETH_DEBUG_PORT)
-static struct udp_pcb *g_tlm_pcb;
-static struct udp_pcb *g_cmd_pcb;
-static struct udp_pcb *g_raw_cmd_pcb; // cmd pour le debug direct (ex: "raw" sur le port 5001, pour tester sans passer par l'interpréteur)
-
-
-static ip_addr_t g_peer_ip;
-
-static uint16_t g_seq_debug;
-static uint16_t g_seq_telemetry;
+static struct netif g_netif;
+static ip_addr_t    g_peer_ip;
 
 /* NO_SYS_NO_TIMERS=1 (reglage par defaut du BSP lwip211 Xilinx en mode
  * bare-metal) desactive sys_check_timeouts() : c'est a l'appli d'appeler
@@ -40,9 +31,31 @@ static eth_cmd_handler_t  g_cmd_handler;
 static eth_driver_stats_t g_stats;
 
 /* ------------------------------------------------------------------------
- * CRC16-CCITT (poly 0x1021, init 0xFFFF) -- meme famille que ta sortie
- * calibration UART, pas de table pour rester simple, cout negligeable
- * pour des trames de quelques dizaines/centaines d'octets.
+ * Table des canaux : partie statique (description, generee depuis
+ * ETH_CHANNEL_LIST de eth_protocol.h) + partie dynamique (pcb, seq).
+ * ------------------------------------------------------------------------ */
+typedef struct {
+    const char          *name;
+    uint16_t            port;
+    eth_channel_dir_t   dir;
+    uint8_t             framed;
+} eth_channel_desc_t;
+
+static const eth_channel_desc_t g_channel_desc[ETH_CHANNEL_COUNT] = {
+#define X(name, port, dir, framed) { #name, (port), (dir), (framed) },
+    ETH_CHANNEL_LIST(X)
+#undef X
+};
+
+typedef struct {
+    struct udp_pcb *pcb;
+    uint16_t         seq;
+} eth_channel_state_t;
+
+static eth_channel_state_t g_channel_state[ETH_CHANNEL_COUNT];
+
+/* ------------------------------------------------------------------------
+ * CRC16-CCITT (poly 0x1021, init 0xFFFF)
  * ------------------------------------------------------------------------ */
 static uint16_t crc16_ccitt(uint16_t crc, const uint8_t *data, uint32_t len)
 {
@@ -57,8 +70,6 @@ static uint16_t crc16_ccitt(uint16_t crc, const uint8_t *data, uint32_t len)
 
 /* ------------------------------------------------------------------------
  * Horodatage micro-seconde, base sur le global timer du Zynq (xtime_l.h).
- * Domaine d'horloge propre au Zynq, independant de la calibration
- * JeVoisClock cote vision (ne pas confondre les deux).
  * ------------------------------------------------------------------------ */
 static uint32_t eth_get_timestamp_us(void)
 {
@@ -68,27 +79,39 @@ static uint32_t eth_get_timestamp_us(void)
 }
 
 /* ------------------------------------------------------------------------
- * Reception commandes (port ETH_CMD_PORT)
+ * Reception generique -- un seul callback pour tous les canaux RX, qu'ils
+ * soient framed (header+CRC, dispatch par msg_type reel) ou non (payload
+ * brut, type factice 0xFF). Le canal concerne est passe via arg (voir
+ * udp_recv() dans eth_driver_init()).
  * ------------------------------------------------------------------------ */
-static void eth_cmd_rx_cb(void *arg, struct udp_pcb *pcb, struct pbuf *p,
-                           const ip_addr_t *addr, u16_t port)
+static void eth_generic_rx_cb(void *arg, struct udp_pcb *pcb, struct pbuf *p,
+                               const ip_addr_t *addr, u16_t port)
 {
-    (void)arg; (void)pcb; (void)addr; (void)port;
+    (void)pcb; (void)addr; (void)port;
+    const eth_channel_desc_t *chan = (const eth_channel_desc_t *)arg;
+
     if (p == NULL) {
         return;
     }
 
-    uint8_t rx_buf[sizeof(eth_frame_header_t) + ETH_MAX_PAYLOAD];
+    if (!chan->framed) {
+        /* Passthrough brut : aucune verification, on transmet tel quel. */
+        if (g_cmd_handler != NULL) {
+            g_cmd_handler(0xFF, (const uint8_t *)p->payload, (uint16_t)p->tot_len);
+        }
+        pbuf_free(p);
+        return;
+    }
 
-    if (p->tot_len < sizeof(eth_frame_header_t) || p->tot_len > sizeof(rx_buf)) {
+    uint8_t rx_buf[sizeof(eth_frame_header_t) + ETH_MAX_PAYLOAD];
+    uint16_t total_len = (uint16_t)p->tot_len;
+
+    if (total_len < sizeof(eth_frame_header_t) || total_len > sizeof(rx_buf)) {
         g_stats.rx_malformed++;
         pbuf_free(p);
         return;
     }
 
-    /* Regroupe la chaine de pbuf en un buffer lineaire (utile si un jour
-     * un payload s'etale sur plusieurs pbuf). */
-    uint16_t total_len = (uint16_t)p->tot_len;
     pbuf_copy_partial(p, rx_buf, total_len, 0);
     pbuf_free(p);
 
@@ -117,22 +140,6 @@ static void eth_cmd_rx_cb(void *arg, struct udp_pcb *pcb, struct pbuf *p,
     }
 }
 
-// Callback de réception pour le port de Debug Humain (RAW TEXT)
-static void eth_raw_cmd_rx_cb(void *arg, struct udp_pcb *pcb, struct pbuf *p, const ip_addr_t *addr, u16_t port)
-{
-    if (p != NULL) {
-        // Si on a bien enregistré la fonction de liaison dans le main.c
-        if (g_cmd_handler != NULL) {
-            // On injecte le payload brut directement. 
-            // On utilise '0xFF' comme type factice pour indiquer que c'est du debug brut.
-            g_cmd_handler(0xFF, (const uint8_t *)p->payload, p->tot_len);
-        }
-        
-        // TRES IMPORTANT : Libérer la mémoire du paquet, sinon la carte va planter !
-        pbuf_free(p);
-    }
-}
-
 /* ------------------------------------------------------------------------
  * Init / poll
  * ------------------------------------------------------------------------ */
@@ -141,10 +148,9 @@ int eth_driver_init(const eth_driver_config_t *cfg)
     ip_addr_t ipaddr, netmask, gw;
 
     memset(&g_stats, 0, sizeof(g_stats));
-    g_seq_debug       = 0;
-    g_seq_telemetry   = 0;
-    g_cmd_handler     = NULL;
+    memset(g_channel_state, 0, sizeof(g_channel_state));
     g_last_arp_tmr_ms = 0;
+    g_cmd_handler     = NULL;
 
     lwip_init();
 
@@ -161,9 +167,7 @@ int eth_driver_init(const eth_driver_config_t *cfg)
 
     /* XPAR_XEMACPS_0_BASEADDR : adapte si tu es sur GEM1 ou un nom different
      * selon ton design Vivado -- verifie dans xparameters.h genere par ton
-     * projet. */
-    /* xemac_add() retourne un struct netif* (NULL = echec), pas un code
-     * d'erreur entier -- attention a ne pas comparer a != 0. */
+     * projet. xemac_add() retourne un struct netif* (NULL = echec). */
     if (xemac_add(&g_netif, &ipaddr, &netmask, &gw,
                   (unsigned char *)cfg->mac_addr,
                   XPAR_XEMACPS_0_BASEADDR) == NULL) {
@@ -174,31 +178,32 @@ int eth_driver_init(const eth_driver_config_t *cfg)
     netif_set_up(&g_netif);
 
     /* L'activation de l'interruption EMAC est en general geree par
-     * xemac_add() en mode interrupt (cf lwip211 xlwip_config.h,
-     * XLWIP_CONFIG_INCLUDE_XEMACPS_INTERRUPT_MODE). Si chez toi ce n'est
-     * pas automatique, il faudra un XScuGic_Connect() explicite sur
-     * XPAR_XEMACPS_0_INTR vers ton GIC deja initialise, comme pour tes
-     * autres peripheriques -- a verifier sur ta config BSP reelle. */
+     * xemac_add() en mode interrupt. Si chez toi ce n'est pas automatique,
+     * il faudra un XScuGic_Connect() explicite sur XPAR_XEMACPS_0_INTR --
+     * a verifier sur ta config BSP reelle. */
 
-    g_dbg_pcb = udp_new();
-    g_tlm_pcb = udp_new();
-    g_cmd_pcb = udp_new();
-    g_raw_cmd_pcb = udp_new();
-    if (g_raw_cmd_pcb != NULL) {
-        // On écoute sur le port 5001, depuis n'importe quelle adresse IP
-        udp_bind(g_raw_cmd_pcb, IP_ADDR_ANY, ETH_RAW_CMD_PORT);
-        
-        // On branche notre fonction qui ne vérifie pas le CRC
-        udp_recv(g_raw_cmd_pcb, eth_raw_cmd_rx_cb, NULL);
-    }
-    if (!g_dbg_pcb || !g_tlm_pcb || !g_cmd_pcb) {
-        return -2;
-    }
+    /* Boucle generique sur la table de canaux : plus besoin de toucher a
+     * cette fonction quand tu ajoutes/modifies un canal dans
+     * ETH_CHANNEL_LIST (eth_protocol.h). */
+    for (int i = 0; i < ETH_CHANNEL_COUNT; i++) {
+        g_channel_state[i].pcb = udp_new();
+        g_channel_state[i].seq = 0;
 
-    udp_bind(g_dbg_pcb, IP_ADDR_ANY, 0);
-    udp_bind(g_tlm_pcb, IP_ADDR_ANY, 0);
-    udp_bind(g_cmd_pcb, IP_ADDR_ANY, ETH_CMD_PORT);
-    udp_recv(g_cmd_pcb, eth_cmd_rx_cb, NULL);
+        if (g_channel_state[i].pcb == NULL) {
+            return -2;
+        }
+
+        if (g_channel_desc[i].dir == ETH_DIR_TX) {
+            /* Emission : port source ephemere, la destination est fixee
+             * a chaque envoi (udp_sendto avec g_peer_ip + port du canal). */
+            udp_bind(g_channel_state[i].pcb, IP_ADDR_ANY, 0);
+        } else {
+            /* Reception : bind sur le port fixe du canal, callback generique
+             * avec le descripteur du canal passe en argument. */
+            udp_bind(g_channel_state[i].pcb, IP_ADDR_ANY, g_channel_desc[i].port);
+            udp_recv(g_channel_state[i].pcb, eth_generic_rx_cb, (void *)&g_channel_desc[i]);
+        }
+    }
 
     return 0;
 }
@@ -225,14 +230,16 @@ void eth_driver_set_cmd_handler(eth_cmd_handler_t handler)
 /* ------------------------------------------------------------------------
  * Envoi
  * ------------------------------------------------------------------------ */
-static int eth_send_frame_internal(struct udp_pcb *pcb, uint16_t dst_port,
-                                    eth_msg_type_t type, const void *payload,
-                                    uint16_t payload_len, uint16_t *seq_counter)
+int eth_send_frame_on_channel(eth_channel_id_t chan_id, eth_msg_type_t type,
+                               const void *payload, uint16_t payload_len)
 {
     /* buffer statique -> non reentrant : ne jamais appeler depuis une ISR,
      * uniquement depuis la boucle principale (execution sequentielle). */
     static uint8_t tx_buf[sizeof(eth_frame_header_t) + ETH_MAX_PAYLOAD];
 
+    if ((unsigned)chan_id >= ETH_CHANNEL_COUNT || g_channel_desc[chan_id].dir != ETH_DIR_TX) {
+        return -4; /* canal invalide ou pas un canal d'emission */
+    }
     if (payload_len > ETH_MAX_PAYLOAD) {
         g_stats.tx_dropped_too_big++;
         return -1;
@@ -242,7 +249,7 @@ static int eth_send_frame_internal(struct udp_pcb *pcb, uint16_t dst_port,
     hdr->magic        = ETH_FRAME_MAGIC;
     hdr->version      = ETH_PROTOCOL_VERSION;
     hdr->msg_type     = (uint8_t)type;
-    hdr->seq          = (*seq_counter)++;
+    hdr->seq          = g_channel_state[chan_id].seq++;
     hdr->timestamp_us = eth_get_timestamp_us();
     hdr->payload_len  = payload_len;
     hdr->crc16        = 0;
@@ -261,7 +268,7 @@ static int eth_send_frame_internal(struct udp_pcb *pcb, uint16_t dst_port,
     }
 
     pbuf_take(p, tx_buf, total_len);
-    err_t err = udp_sendto(pcb, p, &g_peer_ip, dst_port);
+    err_t err = udp_sendto(g_channel_state[chan_id].pcb, p, &g_peer_ip, g_channel_desc[chan_id].port);
     pbuf_free(p);
 
     if (err != ERR_OK) {
@@ -289,14 +296,13 @@ int eth_printf(const char *fmt, ...)
         len = sizeof(text_buf) - 1; /* tronque plutot que planter */
     }
 
-    return eth_send_frame_internal(g_dbg_pcb, ETH_DEBUG_PORT, ETH_MSG_DEBUG_TEXT,
-                                    text_buf, (uint16_t)len, &g_seq_debug);
+    return eth_send_frame_on_channel(ETH_CHANNEL_DEBUG, ETH_MSG_DEBUG_TEXT,
+                                      text_buf, (uint16_t)len);
 }
 
 int eth_send_frame(eth_msg_type_t type, const void *payload, uint16_t payload_len)
 {
-    return eth_send_frame_internal(g_tlm_pcb, ETH_TELEMETRY_PORT, type,
-                                    payload, payload_len, &g_seq_telemetry);
+    return eth_send_frame_on_channel(ETH_CHANNEL_TELEMETRY, type, payload, payload_len);
 }
 
 int eth_send_odom(const eth_payload_odom_t *odom)
