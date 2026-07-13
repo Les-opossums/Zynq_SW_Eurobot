@@ -69,7 +69,6 @@
 
 // ethernet part
 #include "ETHERNET/ETH_driver.h"
-
-#include "robot_messages.h"
+#include "ETHERNET/robot_messages.h"
 
 #endif // MAIN_H

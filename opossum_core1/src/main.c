@@ -25,19 +25,18 @@ int old_timer_debug_eth = 0;
 // Fonction appelée par le driver Ethernet quand une commande valide est reçue
 void on_eth_command_received(eth_msg_type_t type, const uint8_t *payload, uint16_t len) {
     
-    // Optionnel : tu peux filtrer ici selon le "type" si le PC envoie plusieurs types de messages.
-    // Ex: if (type != ETH_MSG_STRING_CMD) return;
+    if (type == ETH_MSG_CMD_GENERIC) {
+        // Option 1 : C'est du texte brut pour l'interpréteur
+        for(uint16_t i=0; i < len; i++) {
+            Interp((char)payload[i]);
+        }
+    } 
 
-    // On injecte chaque octet du payload dans ton interpréteur
-    for (uint16_t i = 0; i < len; i++) {
-        Interp((char)payload[i]);
-    }
-    
-    // Sécurité : l'interpréteur a besoin d'un '\n' ou '\r' pour valider et exécuter la commande.
-    // Si le script sur le PC a oublié de l'ajouter à la fin du texte, on force l'exécution :
-    if (len > 0 && payload[len-1] != '\n' && payload[len-1] != '\r') {
-        Interp('\n');
-    }
+    // else if (type == ETH_MSG_ODOM_TARGET) {
+    //     // Option 2 : C'est une structure binaire
+    //     eth_payload_target_t* target = (eth_payload_target_t*)payload;
+    //     robot_set_target(target->x, target->y);
+    // }
 }
 
 int main()
