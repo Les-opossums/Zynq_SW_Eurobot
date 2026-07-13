@@ -52,6 +52,7 @@ static const eth_channel_desc_t g_channel_desc[ETH_CHANNEL_COUNT] = {
  * Taille de 256 car le msg_type tient sur un uint8_t (0x00 à 0xFF).
  */
 static const uint8_t msg_to_channel_map[256] = {
+    [0 ... 255] = 0xFF, /* valeur par defaut : msg_type inconnu */
 #define X(name, id, channel) [id] = (channel),
     ETH_MESSAGE_LIST(X)
 #undef X
@@ -312,10 +313,14 @@ int eth_printf(const char *fmt, ...)
 
 int eth_send_frame(eth_msg_type_t type, const void *payload, uint16_t payload_len)
 {
-    // 1. Lecture instantanée (O(1)) du canal cible dans le tableau
-    uint8_t target_channel = msg_to_channel_map[type];
+    uint8_t target_channel = msg_to_channel_map[(uint8_t)type];
 
-    // 2. Envoi direct à la fonction bas niveau
+    if (target_channel >= ETH_CHANNEL_COUNT) {
+        /* msg_type absent de ETH_MESSAGE_LIST -- avant ce fix, tombait
+         * silencieusement sur le canal 0 (DEBUG). */
+        return -5;
+    }
+
     return eth_send_frame_on_channel(target_channel, type, payload, payload_len);
 }
 
