@@ -42,9 +42,13 @@ uint8_t Move_Cmd(void) {
         return 0;
     }else{
         move_seq_clear();
-        if (Get_Param_Float(&local_data.cmd_position.x))     return PARAM_ERROR_CODE;
-        if (Get_Param_Float(&local_data.cmd_position.y))     return PARAM_ERROR_CODE;
-        if (Get_Param_Float(&local_data.cmd_position.t))     return PARAM_ERROR_CODE;
+        float temp_val;
+        if (Get_Param_Float(&temp_val))     return PARAM_ERROR_CODE;
+        local_data.cmd_position.x = temp_val;
+        if (Get_Param_Float(&temp_val))     return PARAM_ERROR_CODE;
+        local_data.cmd_position.y = temp_val;
+        if (Get_Param_Float(&temp_val))     return PARAM_ERROR_CODE;
+        local_data.cmd_position.t = temp_val;
         // ecriture dans la mémoire partagée
         SEND_FIELD(&local_data, cmd_position);
         return 0;
@@ -57,9 +61,13 @@ uint8_t Speed_Cmd(void) {
         printf("INVALID COMMAND : AU\n");
         return 0;
     }else{
-        if (Get_Param_Float(&local_data.cmd_speed.vx)) return PARAM_ERROR_CODE;
-        if (Get_Param_Float(&local_data.cmd_speed.vy)) return PARAM_ERROR_CODE;
-        if (Get_Param_Float(&local_data.cmd_speed.vt)) return PARAM_ERROR_CODE;
+        float temp_val;
+        if (Get_Param_Float(&temp_val)) return PARAM_ERROR_CODE;
+        local_data.cmd_speed.vx = temp_val;
+        if (Get_Param_Float(&temp_val)) return PARAM_ERROR_CODE;
+        local_data.cmd_speed.vy = temp_val;
+        if (Get_Param_Float(&temp_val)) return PARAM_ERROR_CODE;
+        local_data.cmd_speed.vt = temp_val;
 
         // ecriture dans la mémoire partagée
         SEND_FIELD(&local_data, cmd_speed);
@@ -73,10 +81,14 @@ uint8_t Absolute_Speed_Cmd(void) {
         printf("INVALID COMMAND : AU\n");
         return 0;
     }else{
-        if (Get_Param_Float(&local_data.cmd_abs_speed.vx)) return PARAM_ERROR_CODE;
-        if (Get_Param_Float(&local_data.cmd_abs_speed.vy)) return PARAM_ERROR_CODE;
-        if (Get_Param_Float(&local_data.cmd_abs_speed.vt)) return PARAM_ERROR_CODE;
-        
+        float temp_val;
+        if (Get_Param_Float(&temp_val)) return PARAM_ERROR_CODE;
+        local_data.cmd_abs_speed.vx = temp_val;
+        if (Get_Param_Float(&temp_val)) return PARAM_ERROR_CODE;
+        local_data.cmd_abs_speed.vy = temp_val;
+        if (Get_Param_Float(&temp_val)) return PARAM_ERROR_CODE;
+        local_data.cmd_abs_speed.vt = temp_val;
+
         // ecriture dans la mémoire partagée
         SEND_FIELD(&local_data, cmd_abs_speed);
         return 0;
@@ -159,9 +171,13 @@ uint8_t Get_Odo_Cmd(void) {
 
 uint8_t SET_Cmd(void) {
     // Récupération de la position à définir
-    if (Get_Param_Float(&local_data.set_pos.x)) return PARAM_ERROR_CODE;
-    if (Get_Param_Float(&local_data.set_pos.y)) return PARAM_ERROR_CODE;
-    if (Get_Param_Float(&local_data.set_pos.t)) return PARAM_ERROR_CODE;
+    float temp_val;
+    if (Get_Param_Float(&temp_val)) return PARAM_ERROR_CODE;
+    local_data.set_pos.x = temp_val;
+    if (Get_Param_Float(&temp_val)) return PARAM_ERROR_CODE;
+    local_data.set_pos.y = temp_val;
+    if (Get_Param_Float(&temp_val)) return PARAM_ERROR_CODE;
+    local_data.set_pos.t = temp_val;
     // ecriture de la mémoire partagée
     SEND_FIELD(&local_data, set_pos);
     return 0;
@@ -178,23 +194,29 @@ uint8_t SET0_Cmd(void) {
 
 uint8_t Set_Lidar_Cmd(void) {
     // Récupération des mesures LIDAR
-    if (Get_Param_Float(&local_data.set_lidar.lidar_position_x))     return PARAM_ERROR_CODE;
-    if (Get_Param_Float(&local_data.set_lidar.lidar_position_y))     return PARAM_ERROR_CODE;
-    if (Get_Param_Float(&local_data.set_lidar.lidar_position_t))     return PARAM_ERROR_CODE; 
-    if (Get_Param_u32(&local_data.set_lidar.delay))                  return PARAM_ERROR_CODE;
-    // printf("lidar pos: %f %f %f\n", 
-    //         (double)(local_data.set_lidar.lidar_position_x), 
-    //         (double)(local_data.set_lidar.lidar_position_y), 
-    //         (double)(local_data.set_lidar.lidar_position_t));
+    float temp_val;
+    if (Get_Param_Float(&temp_val))     return PARAM_ERROR_CODE;
+    local_data.set_lidar.lidar_position_x = temp_val;
+    if (Get_Param_Float(&temp_val))     return PARAM_ERROR_CODE;
+    local_data.set_lidar.lidar_position_y = temp_val;
+    if (Get_Param_Float(&temp_val))     return PARAM_ERROR_CODE;
+    local_data.set_lidar.lidar_position_t = temp_val;
+    uint32_t tmp_delay;
+    if (Get_Param_u32(&tmp_delay))                  return PARAM_ERROR_CODE;
+    local_data.set_lidar.delay = tmp_delay;
     // ecriture dans la mémoire partagée
     SEND_FIELD(&local_data, set_lidar);
     return 0;
 }
 
 uint8_t Set_Lidar_Noise_Cmd(void) {
-    if(Get_Param_Float(&local_data.kalman_noise_lidar.process_noise_lidar_x)) return PARAM_ERROR_CODE;
-    if(Get_Param_Float(&local_data.kalman_noise_lidar.process_noise_lidar_y)) return PARAM_ERROR_CODE;
-    if(Get_Param_Float(&local_data.kalman_noise_lidar.process_noise_lidar_t)) return PARAM_ERROR_CODE;
+    float temp_val;
+    if(Get_Param_Float(&temp_val)) return PARAM_ERROR_CODE;
+    local_data.kalman_noise_lidar.process_noise_lidar_x = temp_val;
+    if(Get_Param_Float(&temp_val)) return PARAM_ERROR_CODE;
+    local_data.kalman_noise_lidar.process_noise_lidar_y = temp_val;
+    if(Get_Param_Float(&temp_val)) return PARAM_ERROR_CODE;
+    local_data.kalman_noise_lidar.process_noise_lidar_t = temp_val;
 
     SEND_FIELD(&local_data, kalman_noise_lidar);
     return 0;
@@ -202,13 +224,22 @@ uint8_t Set_Lidar_Noise_Cmd(void) {
 
 uint8_t Set_Camera_1_Cmd(void) {
     // Récupération des mesures caméra
-    if (Get_Param_Float(&local_data.set_camera_1.camera_position_x))     return PARAM_ERROR_CODE;
-    if (Get_Param_Float(&local_data.set_camera_1.camera_position_y))     return PARAM_ERROR_CODE;
-    if (Get_Param_Float(&local_data.set_camera_1.camera_position_t))     return PARAM_ERROR_CODE; 
-    if (Get_Param_u32(&local_data.set_camera_1.delay))                  return PARAM_ERROR_CODE;
-    if(Get_Param_Float(&local_data.set_camera_1.noise_x))                 return PARAM_ERROR_CODE;
-    if(Get_Param_Float(&local_data.set_camera_1.noise_y))                 return PARAM_ERROR_CODE;
-    if(Get_Param_Float(&local_data.set_camera_1.noise_t))                 return PARAM_ERROR_CODE;
+    float temp_val;
+    if (Get_Param_Float(&temp_val))     return PARAM_ERROR_CODE;
+    local_data.set_camera_1.camera_position_x = temp_val;
+    if (Get_Param_Float(&temp_val))     return PARAM_ERROR_CODE;
+    local_data.set_camera_1.camera_position_y = temp_val;
+    if (Get_Param_Float(&temp_val))     return PARAM_ERROR_CODE;
+    local_data.set_camera_1.camera_position_t = temp_val;
+    uint32_t tmp_delay;
+    if (Get_Param_u32(&tmp_delay))                  return PARAM_ERROR_CODE;
+    local_data.set_camera_1.delay = tmp_delay;
+    if(Get_Param_Float(&temp_val))                 return PARAM_ERROR_CODE;
+    local_data.set_camera_1.noise_x = temp_val;
+    if(Get_Param_Float(&temp_val))                 return PARAM_ERROR_CODE;
+    local_data.set_camera_1.noise_y = temp_val;
+    if(Get_Param_Float(&temp_val))                 return PARAM_ERROR_CODE;
+    local_data.set_camera_1.noise_t = temp_val;
     // ecriture dans la mémoire partagée
     SEND_FIELD(&local_data, set_camera_1);
     return 0;
@@ -216,13 +247,22 @@ uint8_t Set_Camera_1_Cmd(void) {
 
 uint8_t Set_Camera_2_Cmd(void) {
     // Récupération des mesures caméra
-    if (Get_Param_Float(&local_data.set_camera_2.camera_position_x))     return PARAM_ERROR_CODE;
-    if (Get_Param_Float(&local_data.set_camera_2.camera_position_y))     return PARAM_ERROR_CODE;
-    if (Get_Param_Float(&local_data.set_camera_2.camera_position_t))     return PARAM_ERROR_CODE; 
-    if (Get_Param_u32(&local_data.set_camera_2.delay))                  return PARAM_ERROR_CODE;
-    if(Get_Param_Float(&local_data.set_camera_2.noise_x))                 return PARAM_ERROR_CODE;
-    if(Get_Param_Float(&local_data.set_camera_2.noise_y))                 return PARAM_ERROR_CODE;
-    if(Get_Param_Float(&local_data.set_camera_2.noise_t))                 return PARAM_ERROR_CODE;
+    float temp_val;
+    if (Get_Param_Float(&temp_val))     return PARAM_ERROR_CODE;
+    local_data.set_camera_2.camera_position_x = temp_val;
+    if (Get_Param_Float(&temp_val))     return PARAM_ERROR_CODE;
+    local_data.set_camera_2.camera_position_y = temp_val;
+    if (Get_Param_Float(&temp_val))     return PARAM_ERROR_CODE;
+    local_data.set_camera_2.camera_position_t = temp_val;
+    uint32_t tmp_delay;
+    if (Get_Param_u32(&tmp_delay))                  return PARAM_ERROR_CODE;
+    local_data.set_camera_2.delay = tmp_delay;
+    if(Get_Param_Float(&temp_val))                 return PARAM_ERROR_CODE;
+    local_data.set_camera_2.noise_x = temp_val;
+    if(Get_Param_Float(&temp_val))                 return PARAM_ERROR_CODE;
+    local_data.set_camera_2.noise_y = temp_val;
+    if(Get_Param_Float(&temp_val))                 return PARAM_ERROR_CODE;
+    local_data.set_camera_2.noise_t = temp_val;
 
     // ecriture dans la mémoire partagée
     SEND_FIELD(&local_data, set_camera_2);
@@ -231,13 +271,23 @@ uint8_t Set_Camera_2_Cmd(void) {
 
 uint8_t Set_Camera_3_Cmd(void) {
     // Récupération des mesures caméra
-    if (Get_Param_Float(&local_data.set_camera_3.camera_position_x))     return PARAM_ERROR_CODE;
-    if (Get_Param_Float(&local_data.set_camera_3.camera_position_y))     return PARAM_ERROR_CODE;
-    if (Get_Param_Float(&local_data.set_camera_3.camera_position_t))     return PARAM_ERROR_CODE; 
-    if (Get_Param_u32(&local_data.set_camera_3.delay))                  return PARAM_ERROR_CODE;
-    if(Get_Param_Float(&local_data.set_camera_3.noise_x))                 return PARAM_ERROR_CODE;
-    if(Get_Param_Float(&local_data.set_camera_3.noise_y))                 return PARAM_ERROR_CODE;
-    if(Get_Param_Float(&local_data.set_camera_3.noise_t))                 return PARAM_ERROR_CODE;
+    float temp_val;
+    if (Get_Param_Float(&temp_val))     return PARAM_ERROR_CODE;
+    local_data.set_camera_3.camera_position_x = temp_val;
+    if (Get_Param_Float(&temp_val))     return PARAM_ERROR_CODE;
+    local_data.set_camera_3.camera_position_y = temp_val;
+    if (Get_Param_Float(&temp_val))     return PARAM_ERROR_CODE;
+    local_data.set_camera_3.camera_position_t = temp_val;
+    uint32_t tmp_delay;
+    if (Get_Param_u32(&tmp_delay))                  return PARAM_ERROR_CODE;
+    local_data.set_camera_3.delay = tmp_delay;
+    if(Get_Param_Float(&temp_val))                 return PARAM_ERROR_CODE;
+    local_data.set_camera_3.noise_x = temp_val;
+    if(Get_Param_Float(&temp_val))                 return PARAM_ERROR_CODE;
+    local_data.set_camera_3.noise_y = temp_val;
+    if(Get_Param_Float(&temp_val))                 return PARAM_ERROR_CODE;
+    local_data.set_camera_3.noise_t = temp_val;
+
     // ecriture dans la mémoire partagée
     SEND_FIELD(&local_data, set_camera_3);
     return 0;
@@ -245,7 +295,9 @@ uint8_t Set_Camera_3_Cmd(void) {
 
 // VMAX
 uint8_t VMAX_Cmd(void) {
-    if (Get_Param_Float(&local_data.vmax))     return PARAM_ERROR_CODE;
+    float temp_val;
+    if (Get_Param_Float(&temp_val))     return PARAM_ERROR_CODE;
+    local_data.vmax = temp_val;
     // ecriture dans la mémoire partagée
     SEND_FIELD(&local_data, vmax);
     return 0;
@@ -253,7 +305,9 @@ uint8_t VMAX_Cmd(void) {
 
 // VTMAX
 uint8_t VTMAX_Cmd(void) {
-    if (Get_Param_Float(&local_data.vtmax))    return PARAM_ERROR_CODE;
+    float temp_val;
+    if (Get_Param_Float(&temp_val))    return PARAM_ERROR_CODE;
+    local_data.vtmax = temp_val;
     // ecriture dans la mémoire partagée
     SEND_FIELD(&local_data, vtmax);
     return 0;
@@ -261,7 +315,9 @@ uint8_t VTMAX_Cmd(void) {
 
 // AMAX
 uint8_t AMAX_Cmd(void) {
-    if (Get_Param_Float(&local_data.amax))    return PARAM_ERROR_CODE;  //almax
+    float temp_val;
+    if (Get_Param_Float(&temp_val))    return PARAM_ERROR_CODE;  //almax
+    local_data.amax = temp_val;
     // ecriture dans la mémoire partagée
     SEND_FIELD(&local_data, amax);
     return 0;
@@ -269,26 +325,36 @@ uint8_t AMAX_Cmd(void) {
 
 uint8_t PWM_Func(void)
 {
-    if (Get_Param_Float(&local_data.cmd_esc.command1))    return PARAM_ERROR_CODE;
-    if (Get_Param_Float(&local_data.cmd_esc.command2))    return PARAM_ERROR_CODE;
-    if (Get_Param_Float(&local_data.cmd_esc.command3))    return PARAM_ERROR_CODE;
-    if (Get_Param_Float(&local_data.cmd_esc.command4))    return PARAM_ERROR_CODE;
-    
+    float temp_val;
+    if (Get_Param_Float(&temp_val))    return PARAM_ERROR_CODE;
+    local_data.cmd_esc.command1 = temp_val;
+    if (Get_Param_Float(&temp_val))    return PARAM_ERROR_CODE;
+    local_data.cmd_esc.command2 = temp_val;
+    if (Get_Param_Float(&temp_val))    return PARAM_ERROR_CODE;
+    local_data.cmd_esc.command3 = temp_val;
+    if (Get_Param_Float(&temp_val))    return PARAM_ERROR_CODE;
+    local_data.cmd_esc.command4 = temp_val;
+
     // ecriture dans la mémoire partagée
     SEND_FIELD(&local_data, cmd_esc);
     return 0;
 }
 
 uint8_t Enable_Kalman_Cmd(void) {
-    if (Get_Param_u32(&local_data.enable_kalman.enable_lidar_kalman))         return PARAM_ERROR_CODE;
-    if (Get_Param_u32(&local_data.enable_kalman.enable_camera_kalman))         return PARAM_ERROR_CODE;
+    uint32_t temp_val;
+    if (Get_Param_u32(&temp_val))         return PARAM_ERROR_CODE;
+    local_data.enable_kalman.enable_lidar_kalman = temp_val;
+    if (Get_Param_u32(&temp_val))         return PARAM_ERROR_CODE;
+    local_data.enable_kalman.enable_camera_kalman = temp_val;
     // ecriture dans la mémoire partagée
     SEND_FIELD(&local_data, enable_kalman);
     return 0;
 }
 
 uint8_t Set_Odo_Spacing_Cmd(void) {
-    if (Get_Param_Float(&local_data.odo_spacing)) return PARAM_ERROR_CODE;
+    float temp_val;
+    if (Get_Param_Float(&temp_val)) return PARAM_ERROR_CODE;
+    local_data.odo_spacing = temp_val;
 
     // ecriture dans la mémoire partagée
     SEND_FIELD(&local_data, odo_spacing);
@@ -469,9 +535,13 @@ uint8_t Move_Seq_Cmd(void) {
     if (AU_state) { printf("INVALID COMMAND : AU\n"); return 0; }
 
     Position pos;
-    if (Get_Param_Float(&pos.x)) return PARAM_ERROR_CODE;
-    if (Get_Param_Float(&pos.y)) return PARAM_ERROR_CODE;
-    if (Get_Param_Float(&pos.t)) return PARAM_ERROR_CODE;
+    float temp_val;
+    if (Get_Param_Float(&temp_val)) return PARAM_ERROR_CODE;
+    pos.x = temp_val;
+    if (Get_Param_Float(&temp_val)) return PARAM_ERROR_CODE;
+    pos.y = temp_val;
+    if (Get_Param_Float(&temp_val)) return PARAM_ERROR_CODE;
+    pos.t = temp_val;
 
     if (!move_seq_push(pos)) {
         printf("MOVESEX,FIFO_FULL\n");

@@ -84,7 +84,7 @@ void FEETECH_action_loop(void){
     if(Timer_ms1 - feetech_action_timer >= 1000){
         feetech_action_timer = Timer_ms1;
         feetech_test_ctnr++;
-        printf("FEETECH action loop %d\r\n", feetech_test_ctnr);
+        printf("FEETECH action loop %ld\r\n", feetech_test_ctnr);
         switch(feetech_action_state){
             case 0:
                 PutFEETECH(10, PUMP_CMD_2, 255);

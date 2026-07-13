@@ -68,7 +68,7 @@ int check_from_other_core(void *data_out, size_t size,
         uint8_t *dst_bytes = (uint8_t *)data_out;
 
         // Copie mémoire
-        memcpy(dst_bytes, src_bytes, size);
+        memcpy(dst_bytes, (const void *)src_bytes, size);
 
         __asm__ volatile("dmb sy" ::: "memory");
 

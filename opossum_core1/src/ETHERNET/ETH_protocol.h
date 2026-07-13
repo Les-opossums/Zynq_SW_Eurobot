@@ -70,10 +70,12 @@ typedef enum {
     X(CMD_GENERIC,          0x20, ETH_CHANNEL_CMD) \
     X(CMD_GOAL_POSITION,    0x21, ETH_CHANNEL_CMD) \
     X(CMD_SET_LIDAR,        0x22, ETH_CHANNEL_CMD) \
-    X(CMD_SET_CAMERA,       0x23, ETH_CHANNEL_CMD) \
-    X(CMD_SET_SPEED_MAX,    0x24, ETH_CHANNEL_CMD) \
-    X(CMD_BLOCK,            0x25, ETH_CHANNEL_CMD) \
-    X(CMD_FREE,             0x26, ETH_CHANNEL_CMD) 
+    X(CMD_SET_CAMERA_1,     0x23, ETH_CHANNEL_CMD) \
+    X(CMD_SET_CAMERA_2,     0x24, ETH_CHANNEL_CMD) \
+    X(CMD_SET_CAMERA_3,     0x25, ETH_CHANNEL_CMD) \
+    X(CMD_SET_SPEED_MAX,    0x26, ETH_CHANNEL_CMD) \
+    X(CMD_BLOCK,            0x27, ETH_CHANNEL_CMD) \
+    X(CMD_FREE,             0x28, ETH_CHANNEL_CMD) 
 typedef enum {
 #define X(name, id, channel) ETH_MSG_##name = id,
     ETH_MESSAGE_LIST(X)

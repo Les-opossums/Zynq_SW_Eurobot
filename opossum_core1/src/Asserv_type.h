@@ -64,14 +64,14 @@ typedef struct __attribute__((packed)){
     float lidar_position_x; // position of the robot according to the lidar
     float lidar_position_y; // position of the robot according to the lidar
     float lidar_position_t; // position of the robot according to the lidar
-    int delay; // calculation delay in ms 
+    uint32_t delay; // calculation delay in ms 
 } Set_lidar;
 
 typedef struct __attribute__((packed)){
     float camera_position_x; // position of the robot according to the camera
     float camera_position_y; // position of the robot according to the camera
     float camera_position_t; // position of the robot according to the camera
-    int delay; // calculation delay in ms
+    uint32_t delay; // calculation delay in ms
     float noise_x; // estimation of the noise on the x measurement (standard deviation in m)
     float noise_y; // estimation of the noise on the y measurement (standard deviation in m)
     float noise_t; // estimation of the noise on the theta measurement (standard deviation in rad)
