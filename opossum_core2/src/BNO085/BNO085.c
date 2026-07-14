@@ -11,7 +11,7 @@
  *   6. CS = 1          → fin de transaction
  */
 
-#include "main.h"
+#include "../main.h"
 
 /* ═══════════════════════════════════════════════════════════════════════════
  * Macros GPIO — XGpio (AXI) : écriture/lecture canal 1
@@ -149,21 +149,21 @@ static int gpio_init(BNO085_Dev *dev)
  * Couche SHTP
  * ═══════════════════════════════════════════════════════════════════════════ */
 
-/**
- * @brief Attend que INT passe bas.
- *        INT actif bas : le BNO085 signale qu'il a des données à lire.
- */
-static int shtp_wait_int(BNO085_Dev *dev)
-{
-    u32 timeout_us = BNO085_INT_TIMEOUT_US;
-    while (INT_READ(dev) != 0U) {
-        usleep(1);
-        if (--timeout_us == 0U) {
-            return BNO085_ERR_TIMEOUT;
-        }
-    }
-    return BNO085_OK;
-}
+// /**
+//  * @brief Attend que INT passe bas.
+//  *        INT actif bas : le BNO085 signale qu'il a des données à lire.
+//  */
+// static int shtp_wait_int(BNO085_Dev *dev)
+// {
+//     u32 timeout_us = BNO085_INT_TIMEOUT_US;
+//     while (INT_READ(dev) != 0U) {
+//         usleep(1);
+//         if (--timeout_us == 0U) {
+//             return BNO085_ERR_TIMEOUT;
+//         }
+//     }
+//     return BNO085_OK;
+// }
 
 /**
  * @brief Envoie un paquet SHTP.
@@ -261,8 +261,6 @@ static int shtp_receive(BNO085_Dev *dev, u8 *channel_out, u16 *length_out)
  * Convention : ZYX (yaw → pitch → roll).
  * Entrée : quaternion normalisé (|q| = 1).
  */
-
-#define M_PI 3.14159265358979323846f
 
 static void quat_to_euler(const BNO085_Quaternion *q,
                           float *yaw, float *pitch, float *roll)

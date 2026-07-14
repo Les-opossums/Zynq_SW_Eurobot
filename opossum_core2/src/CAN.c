@@ -679,8 +679,6 @@ void ErrorHandler(void *CallBackRef, u32 ErrorMask)
 ******************************************************************************/
 void EventHandler(void *CallBackRef, u32 IntrMask)
 {
-    XCanPs *CanPtr = (XCanPs *)CallBackRef;
-
     if (IntrMask & XCANPS_IXR_BSOFF_MASK) {
         /*
          * BUS OFF : Erreur critique. Le contrôleur s'est déconnecté du bus

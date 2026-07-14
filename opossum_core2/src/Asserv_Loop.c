@@ -142,7 +142,6 @@ float R_camera[3] = {OBS_NOISE_CAMERA_XY    * OBS_NOISE_CAMERA_XY,
 
 extern volatile uint32_t new_cmd_from_core0;
 
-static uint8_t need_kalman_hard_reset = 0;
 static int     last_odo_ms   = 0;
 static int     odo_count     = 0;
 static uint8_t slow_loop_due = 0;

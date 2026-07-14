@@ -28,6 +28,7 @@
 
 #include "User.h"
 
-#include "BNO085.h"
+// driver IMU BNO085
+#include "BNO085/BNO085.h"
 
 extern int imu_ok;
