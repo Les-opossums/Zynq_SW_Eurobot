@@ -82,6 +82,46 @@ typedef struct {
 } CAN_Message;
 
 /**
+ * @brief Statistiques d'erreurs et d'évènements bus, à des fins de monitoring/debug.
+ *
+ * Cumulatif depuis le dernier appel à CAN_ResetErrorStats() (ou depuis le
+ * dernier Init_CAN()). Ne remplace pas un scope/analyseur CAN mais permet de
+ * voir en un coup d'oeil si le bus est sain (via PlotJuggler/rqt_plot par
+ * exemple, ou un simple print périodique).
+ */
+typedef struct {
+    /* Compteurs d'erreurs élémentaires, un par bit du registre ESR */
+    uint32_t ack_error_count;
+    uint32_t bit_error_count;
+    uint32_t stuff_error_count;
+    uint32_t form_error_count;
+    uint32_t crc_error_count;
+
+    /* Compteurs d'évènements bus, issus du registre ISR */
+    uint32_t bus_off_count;
+    uint32_t rx_fifo_overflow_count;
+    uint32_t rx_fifo_underflow_count;
+    uint32_t arbitration_lost_count;
+
+    /* Compteur agrégé, pratique pour un affichage rapide ou un seuil d'alerte */
+    uint32_t total_error_count;
+
+    /* Dernier masque brut reçu (utile en debug pour distinguer des erreurs
+     * combinées survenues dans la même interruption) */
+    uint32_t last_esr_value;
+
+    /* Etat logiciel du driver (reflète CAN_IsEnabled()) */
+    uint8_t bus_enabled;
+} CAN_ErrorStats;
+
+/**
+ * @brief Statistiques d'erreurs bus courantes. Lecture seule depuis
+ * l'extérieur du driver (à mettre à jour uniquement via les fonctions du
+ * driver CAN).
+ */
+extern CAN_ErrorStats can_error_stats;
+
+/**
  * @brief Initializes the CAN controller.
  * 
  * @return Returns XST_SUCCESS on success, or an error code on failure.
@@ -179,3 +219,54 @@ void CAN_transmit_motor(int16_t motor1, int16_t motor2, int16_t motor3, int16_t 
  */
 void Init_CAN_MOTOR_variables(void);
 
+/**
+ * @brief Désactive le contrôleur CAN proprement.
+ *
+ * Coupe les interruptions du périphérique et bascule le coeur CAN en mode
+ * Configuration : il n'émet plus, ne tente plus d'arbitrer le bus et ne
+ * génère donc plus d'erreurs (ACK error, Bus-Off, ...). A utiliser lors d'un
+ * arrêt d'urgence, quand les ESC ne sont plus alimentés et ne peuvent donc
+ * plus ACKer les trames.
+ *
+ * Sans effet si le driver est déjà désactivé. Bloquant (attente courte du
+ * changement de mode) : à appeler en contexte tâche, pas dans un handler
+ * d'interruption imbriqué.
+ */
+void CAN_Disable(void);
+
+/**
+ * @brief Réactive le contrôleur CAN après un CAN_Disable().
+ *
+ * Réinitialise le coeur CAN (registres + compteurs d'erreurs matériels),
+ * le reconfigure (baudrate, bit timing, filtres) puis repasse en mode
+ * Normal et réactive les interruptions.
+ *
+ * Sans effet si le driver est déjà activé. Bloquant (attente courte du
+ * changement de mode) : à appeler en contexte tâche, pas dans un handler
+ * d'interruption imbriqué.
+ */
+void CAN_Enable(void);
+
+/**
+ * @brief Indique si le driver CAN est actuellement activé.
+ *
+ * @return TRUE si activé (mode Normal, interruptions actives), FALSE sinon
+ * (ex : suite à un arrêt d'urgence).
+ */
+uint8_t CAN_IsEnabled(void);
+
+/**
+ * @brief Remet à zéro les statistiques d'erreurs bus (can_error_stats).
+ *
+ * Le champ bus_enabled est repositionné à l'état courant du driver, tous
+ * les autres compteurs sont remis à 0.
+ */
+void CAN_ResetErrorStats(void);
+
+/**
+ * @brief Affiche les statistiques d'erreurs bus courantes via xil_printf.
+ *
+ * Utilitaire de debug rapide ; pour un monitoring continu (PlotJuggler,
+ * rqt_plot, ...) préférer lire directement les champs de can_error_stats.
+ */
+void CAN_PrintErrorStats(void);
