@@ -9,15 +9,61 @@ git clone git@github.com:Les-opossums/Zynq_SW_Eurobot.git
 cd Zynq_SW_Eurobot
 git checkout feature/feetech`
 ```
-
 Lancer Vitis (**Xilinx Vitis 2020.2**), quand le launcher demande de choisir un **Workspace**, il faut donc sélectionner `Zynq_SW_Eurobot/` fraîchement cloné.
-## 2. Creation de la **Platform**
+
+
+## 2. Récupération du wrapper
+Pour récupérer le wrapper nous avons un script bash pour télécharger le fichier `.xsa` (configuration matérielle Vivado/Vitis)
+depuis les [releases GitHub](https://github.com/Les-opossums/Zynq_HW_Eurobot_2025/releases)
+du dépôt `Zynq_HW_Eurobot_2025`.
+ 
+Compatible Linux natif et Windows via Git Bash.
+ 
+### Prérequis
+ 
+- `curl` (déjà présent sous Linux et dans Git Bash)
+- `python3` ou `python` dans le PATH (utilisé pour parser le JSON de l'API GitHub —
+  déjà présent avec un environnement Vitis/ROS2 classique)
+### Utilisation
+ 
+```bash
+# Récupérer la dernière release publiée (y compris les pre-releases)
+bash update_hw.sh
+ 
+# Récupérer une release précise, par son tag
+bash update_hw.sh v0.1.0-alpha1
+```
+ 
+### Comportement
+ 
+1. Le répertoire `./opossum_hw` est créé s'il n'existe pas, et tout `.xsa` déjà
+   présent y est supprimé avant le téléchargement.
+2. Si aucune version n'est précisée (`latest`), le script récupère **la release
+   la plus récente**, pre-release incluse (contrairement à l'endpoint GitHub
+   `/releases/latest`, qui ignore les pre-releases).
+3. Si la release choisie est marquée comme **pre-release** sur GitHub, un
+   warning est affiché avant le téléchargement.
+4. Le premier fichier `.xsa` trouvé parmi les assets de la release est
+   téléchargé dans `./opossum_hw/`.
+
+### Erreurs courantes
+ 
+| Message | Cause probable |
+|---|---|
+| `HTTP 404` | Tag inexistant, ou dépôt privé sans authentification |
+| `HTTP 403` (mention *rate limit*) | Quota anonyme de l'API GitHub dépassé (60 requêtes/h/IP) |
+| `Aucun fichier .xsa trouve pour cette release` | La release existe mais n'a pas d'asset `.xsa` attaché |
+| `python n'est pas installe` | Installer Python, ou vérifier qu'il est dans le PATH (`python3 --version`) |
+
+## 3. Creation de la **Platform**
 1. Cliquer sur `Create Platform Project` 
 2. Lui donner un nom (ex: `Zynq_block_design_wrapper)
 3. Sélectionner `Create a new platform from hardware (XSA)`
 4. Choisir le fichier de description HW `Zynq_block_design_wrapper.xsa` présent dans `Zynq_SW_Eurobot/`
 5. Cliquer sur `Finish`
-## 3. Creation du **System** + **Applications**
+
+
+## 4. Creation du **System** + **Applications**
 Vitis c'est super ! (non.) 
 **Note importante :** Vitis refuse de créer un projet si le dossier de destination existe déjà. Pour conserver nos fichiers sources actuels, on est obligé de contourner en faisant un renommage temporaire.
 
@@ -38,7 +84,7 @@ Répéter les étapes pour créer l'Application `opossum_core2`, en choisissant 
 #### Restauration des sources : 
 1. Copier les sources de `_opossum_core1/src/` vers `opossum_core1/src/` puis supprimer `_opossum_core1`
 2. Copier les sources de `_opossum_core2/src/` vers `opossum_core2/src/` puis supprimer `_opossum_core2`
-## 4. Configuration des **bibliothèques**
+## 5. Configuration des **bibliothèques**
 On a maintenant un projet fonctionnel mais qui ne build pas ! 
 Pas de soucis, il faut simplement ajouter la librairie math (`m`) au Build tool : 
 1. Clique droit sur `opossum_core1` puis `C/C++ Build Settings`
