@@ -10,6 +10,11 @@
 #define ASSERV_MODE_SPEED 30
 #define ASSERV_MODE_ABSOLUTE_SPEED 31
 
+// États de fin de mouvement (motion_done)
+#define MOTION_MOVING   0  // Le robot est en train d'exécuter une consigne
+#define MOTION_SUCCESS  1  // Le robot a atteint sa cible avec succès
+#define MOTION_BRAKED   2  // Le robot s'est arrêté (Arrêt d'urgence, blocage, freinage manuel)
+
 #define DIST_TOL 0.015 // 5mm
 #define ANGLE_TOL 0.0349066 // 1 deg
 
