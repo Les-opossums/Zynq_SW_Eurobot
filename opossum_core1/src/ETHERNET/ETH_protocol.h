@@ -65,6 +65,7 @@ typedef enum {
     X(IMU,                  0x11, ETH_CHANNEL_TELEMETRY) \
     X(MOTOR_STATE,          0x12, ETH_CHANNEL_TELEMETRY) \
     X(ROBOT_STATE,          0x13, ETH_CHANNEL_TELEMETRY) \
+    X(AU,                   0x14, ETH_CHANNEL_TELEMETRY) \
     \
     /* --- MESSAGES RX --- */ \
     X(CMD_GENERIC,          0x20, ETH_CHANNEL_CMD) \
