@@ -110,6 +110,7 @@ void IHM_loop(void){
        previous_leash_state = leash_state;
        if(leash_state == 1){
            printf("LEASH\n");
+           eth_send_frame(ETH_MSG_LEASH, &leash_state, sizeof(leash_state));
            current_mode = 60;
            start_timer_match = Timer_ms1;
        }else{

@@ -400,7 +400,7 @@ void Print_Position_loop(void) {
     if (!auto_printpos_en) {
         return;
     }
-    if (!CHECK_FIELD(&local_data, kalman_out) || !CHECK_FIELD(&local_data, speed_robot) || !CHECK_FIELD(&local_data, motion_done)) {
+    if (!CHECK_FIELD(&local_data, kalman_out) || !CHECK_FIELD(&local_data, speed_robot)) {
         // printf("POS ERROR: Position or speed not valid\n");
         return;
     }
