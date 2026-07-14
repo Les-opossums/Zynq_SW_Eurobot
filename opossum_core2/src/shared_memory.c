@@ -73,6 +73,12 @@ void init_shared_memory() {
     shared_mem->flag_cmd_speed_constrained_valid = 0;
     shared_mem->flag_cmd_speed_constrained_ack = 0;
 
+    shared_mem->flag_kalman_noise_lidar_valid = 0;
+    shared_mem->flag_kalman_noise_lidar_ack = 0;
+
+    shared_mem->flag_motion_done_valid = 0;
+    shared_mem->flag_motion_done_ack = 0;
+
     // Ensure writes are complete
     __asm__ volatile("dsb sy");
 }

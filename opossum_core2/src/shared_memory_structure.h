@@ -113,6 +113,10 @@ typedef struct {
     volatile uint32_t flag_kalman_noise_lidar_ack;   // CORE1 -> CORE0: 1 new kalman noise lidar taken into account, 0 otherwise
     Set_lidar_noise kalman_noise_lidar; // estimation of the process noise on the lidar measurement for the kalman filter (standard deviation in m for x and y, in rad for theta)
 
+    volatile uint32_t flag_motion_done_valid; // CORE1 -> CORE0: 1 if motion done is valid, 0 otherwise
+    volatile uint32_t flag_motion_done_ack;   // CORE0 -> CORE1: 1 new motion done taken into account, 0 otherwise
+    uint32_t motion_done; // 0 if the robot is moving, 1 if the robot
+
 } sharedCommand;
 
 #endif // SHARED_MEMORY_STRUCTURE_H
