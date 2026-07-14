@@ -1,6 +1,19 @@
 #include "main.h"
+#include <string.h>
 
 XCanPs CanInstance; 	/* The instance of the CAN device */
+
+/*
+ * Etat logiciel du driver : TRUE tant que le controleur CAN est en mode
+ * Normal et participe au bus. Passe a FALSE sur CAN_Disable() (ex: arret
+ * d'urgence), ce qui coupe toute tentative d'emission/reception.
+ */
+static volatile uint8_t CAN_bus_enabled = FALSE;
+
+/*
+ * Statistiques d'erreurs bus, exposees pour monitoring/debug.
+ */
+CAN_ErrorStats can_error_stats;
 /*
  * Buffers to hold frames to send and receive. These are declared as global so
  * that they are not on the stack.
@@ -47,6 +60,11 @@ int motor4_current_order = 0;
 
 
 void CAN_transmit_motor(int16_t motor1, int16_t motor2, int16_t motor3, int16_t motor4){
+	if (!CAN_bus_enabled) {
+		/* Bus desactive (arret d'urgence) : on n'emet rien. */
+		return;
+	}
+
 	TxFrame[2] = (u32)(motor2_current_order & 0xFF) << 24 | 
 						((motor2_current_order >> 8) & 0xFF) << 16 | 
 						((motor1_current_order & 0xFF) << 8) | 
@@ -163,9 +181,134 @@ int Init_CAN(void){
 
 	XCanPs_EnterMode(CanInstPtr, XCANPS_MODE_NORMAL);
 	while (XCanPs_GetMode(CanInstPtr) != XCANPS_MODE_NORMAL);
+
+	CAN_bus_enabled = TRUE;
+	CAN_ResetErrorStats();
+
 	// Perform any other initialization steps or start your application here
 	xil_printf("CAN initialized successfully\r\n");
 	return XST_SUCCESS;
+}
+
+/*****************************************************************************/
+/**
+*
+* Desactive proprement le controleur CAN (voir CAN.h pour le detail).
+*
+******************************************************************************/
+void CAN_Disable(void){
+	if (!CAN_bus_enabled) {
+		return; // deja desactive
+	}
+
+	/*
+	 * Coupe toutes les interruptions du peripherique CAN : plus aucun
+	 * handler (Send/Recv/Error/Event) ne sera appele apres cet appel.
+	 */
+	XCanPs_IntrDisable(&CanInstance, XCANPS_IXR_ALL);
+
+	/*
+	 * Le mode Configuration stoppe completement la participation au bus :
+	 * plus d'emission, plus de tentative d'arbitration, donc plus
+	 * d'erreurs d'ACK generees quand les ESC ne sont plus alimentes.
+	 * C'est ce qui casse la boucle Bus-Off -> reset -> reconfigure ->
+	 * ACK error -> Bus-Off observee sous arret d'urgence.
+	 */
+	XCanPs_EnterMode(&CanInstance, XCANPS_MODE_CONFIG);
+	while (XCanPs_GetMode(&CanInstance) != XCANPS_MODE_CONFIG);
+
+	CAN_bus_enabled = FALSE;
+	can_error_stats.bus_enabled = FALSE;
+
+	xil_printf("CAN desactive\r\n");
+}
+
+/*****************************************************************************/
+/**
+*
+* Reactive le controleur CAN apres un CAN_Disable() (voir CAN.h pour le
+* detail).
+*
+******************************************************************************/
+void CAN_Enable(void){
+	int Status;
+
+	if (CAN_bus_enabled) {
+		return; // deja active
+	}
+
+	/*
+	 * Repart d'un coeur CAN propre : XCanPs_Reset() reinitialise les
+	 * registres materiels, y compris les compteurs d'erreurs (TEC/REC) et
+	 * l'etat Bus-Off eventuel. Les handlers enregistres via
+	 * XCanPs_SetHandler() ne sont pas affectes (ils vivent dans la
+	 * structure d'instance logicielle, pas dans le materiel).
+	 */
+	XCanPs_Reset(&CanInstance);
+
+	Status = Config(&CanInstance);
+	if (Status != XST_SUCCESS) {
+		xil_printf("Error: Impossible de reconfigurer le CAN\r\n");
+		return;
+	}
+
+	Status = CAN_configure_filters();
+	if (Status != XST_SUCCESS) {
+		xil_printf("Error: Impossible de reconfigurer les filtres CAN\r\n");
+		return;
+	}
+
+	XCanPs_IntrEnable(&CanInstance, XCANPS_IXR_ALL);
+
+	XCanPs_EnterMode(&CanInstance, XCANPS_MODE_NORMAL);
+	while (XCanPs_GetMode(&CanInstance) != XCANPS_MODE_NORMAL);
+
+	CAN_bus_enabled = TRUE;
+	can_error_stats.bus_enabled = TRUE;
+
+	xil_printf("CAN reactive\r\n");
+}
+
+/*****************************************************************************/
+/**
+*
+* Indique si le driver CAN est actuellement actif (voir CAN.h).
+*
+******************************************************************************/
+uint8_t CAN_IsEnabled(void){
+	return CAN_bus_enabled;
+}
+
+/*****************************************************************************/
+/**
+*
+* Remet a zero les statistiques d'erreurs bus (voir CAN.h).
+*
+******************************************************************************/
+void CAN_ResetErrorStats(void){
+	memset(&can_error_stats, 0, sizeof(CAN_ErrorStats));
+	can_error_stats.bus_enabled = CAN_bus_enabled;
+}
+
+/*****************************************************************************/
+/**
+*
+* Affiche les statistiques d'erreurs bus courantes via xil_printf (debug).
+*
+******************************************************************************/
+void CAN_PrintErrorStats(void){
+	xil_printf("--- CAN bus status ---\r\n");
+	xil_printf("Enabled          : %d\r\n", can_error_stats.bus_enabled);
+	xil_printf("ACK errors       : %u\r\n", (unsigned int)can_error_stats.ack_error_count);
+	xil_printf("Bit errors       : %u\r\n", (unsigned int)can_error_stats.bit_error_count);
+	xil_printf("Stuff errors     : %u\r\n", (unsigned int)can_error_stats.stuff_error_count);
+	xil_printf("Form errors      : %u\r\n", (unsigned int)can_error_stats.form_error_count);
+	xil_printf("CRC errors       : %u\r\n", (unsigned int)can_error_stats.crc_error_count);
+	xil_printf("Bus-off events   : %u\r\n", (unsigned int)can_error_stats.bus_off_count);
+	xil_printf("RX overflow      : %u\r\n", (unsigned int)can_error_stats.rx_fifo_overflow_count);
+	xil_printf("RX underflow     : %u\r\n", (unsigned int)can_error_stats.rx_fifo_underflow_count);
+	xil_printf("Arbitration lost : %u\r\n", (unsigned int)can_error_stats.arbitration_lost_count);
+	xil_printf("Total errors     : %u\r\n", (unsigned int)can_error_stats.total_error_count);
 }
 
 int CAN_configure_filters(void){
@@ -216,6 +359,11 @@ void CAN_transmit(XCanPs *InstancePtr){
     u8 *FramePtr;
 	int Index;
 	int Status;
+
+	if (!CAN_bus_enabled) {
+		/* Bus desactive (arret d'urgence) : on n'emet rien. */
+		return;
+	}
 
 	/*
 	 * Create correct values for Identifier and Data Length Code Register.
@@ -290,7 +438,12 @@ int Config(XCanPs *InstancePtr){
 /*******************************************************/
 void SendFrame(XCanPs *InstancePtr){
 	int Status;
-	
+
+	if (!CAN_bus_enabled) {
+		/* Bus desactive (arret d'urgence) : on n'emet rien. */
+		return;
+	}
+
 	/*
 	 * Create correct values for Identifier and Data Length Code Register.
 	 */
@@ -451,36 +604,40 @@ void ErrorHandler(void *CallBackRef, u32 ErrorMask)
 		/*
 		 * ACK Error handling code should be put here.
 		 */
-		// xil_printf("ACK Error\r\n");
+		can_error_stats.ack_error_count++;
 	}
 
 	if (ErrorMask & XCANPS_ESR_BERR_MASK) {
 		/*
 		 * Bit Error handling code should be put here.
 		 */
-		// xil_printf("Bit Error\r\n");
+		can_error_stats.bit_error_count++;
 	}
 
 	if (ErrorMask & XCANPS_ESR_STER_MASK) {
 		/*
 		 * Stuff Error handling code should be put here.
 		 */
-		// xil_printf("Stuff Error\r\n");
+		can_error_stats.stuff_error_count++;
 	}
 
 	if (ErrorMask & XCANPS_ESR_FMER_MASK) {
 		/*
 		 * Form Error handling code should be put here.
 		 */
-		// xil_printf("Form Error\r\n");
+		can_error_stats.form_error_count++;
 	}
 
 	if (ErrorMask & XCANPS_ESR_CRCER_MASK) {
 		/*
 		 * CRC Error handling code should be put here.
 		 */
-		// xil_printf("CRC Error\r\n");
+		can_error_stats.crc_error_count++;
 	}
+
+	can_error_stats.total_error_count++;
+	can_error_stats.last_esr_value = ErrorMask;
+
 	XCanPs_ClearBusErrorStatus(CanPtr, ErrorMask);
 
 	/*
@@ -522,70 +679,63 @@ void ErrorHandler(void *CallBackRef, u32 ErrorMask)
 ******************************************************************************/
 void EventHandler(void *CallBackRef, u32 IntrMask)
 {
-	XCanPs *CanPtr = (XCanPs *)CallBackRef;
+    XCanPs *CanPtr = (XCanPs *)CallBackRef;
 
-	if (IntrMask & XCANPS_IXR_BSOFF_MASK) {
-		/*
-		 * Entering Bus off status interrupt requires
-		 * the CAN device be reset and reconfigured.
-		 */
-		XCanPs_Reset(CanPtr);
-		Config(CanPtr);
-		return;
+    if (IntrMask & XCANPS_IXR_BSOFF_MASK) {
+        /*
+         * BUS OFF : Erreur critique. Le contrôleur s'est déconnecté du bus
+         * suite à un trop grand nombre d'erreurs matérielles.
+         */
+        can_error_stats.bus_off_count++; // CORRECTION : On monitore l'erreur !    
 	}
 
-	if (IntrMask & XCANPS_IXR_RXOFLW_MASK) {
-		/*
-		 * Code to handle RX FIFO Overflow Interrupt should be put here.
-		 */
-		XCanPs_IntrClear(CanPtr, XCANPS_IXR_RXOFLW_MASK);
-		// xil_printf("RX FIFO Overflow\r\n");
-	}
+    if (IntrMask & XCANPS_IXR_RXOFLW_MASK) {
+        /*
+         * RX FIFO Overflow : Des messages ont été perdus car la FIFO de réception est pleine.
+         */
+        can_error_stats.rx_fifo_overflow_count++;
+        
+        // Note : XCanPs_IntrClear n'est généralement pas nécessaire ici car le 
+        // XCanPs_IntrHandler du BSP Xilinx nettoie déjà le flag d'interruption 
+        // avant d'appeler ce callback. Mais le laisser ne pose pas de problème.
+        // XCanPs_IntrClear(CanPtr, XCANPS_IXR_RXOFLW_MASK);
+    }
 
-	if (IntrMask & XCANPS_IXR_RXUFLW_MASK) {
-		/*
-		 * Code to handle RX FIFO Underflow Interrupt
-		 * should be put here.
-		 */
-		// xil_printf("RX FIFO Underflow\r\n");
-	}
+    if (IntrMask & XCANPS_IXR_RXUFLW_MASK) {
+        /*
+         * RX FIFO Underflow : Le code a tenté de lire une FIFO vide.
+         */
+        can_error_stats.rx_fifo_underflow_count++;
+    }
 
-	if (IntrMask & XCANPS_IXR_TXBFLL_MASK) {
-		/*
-		 * Code to handle TX High Priority Buffer Full
-		 * Interrupt should be put here.
-		 */
-		// xil_printf("TX High Priority Buffer Full\r\n");
-	}
+    if (IntrMask & XCANPS_IXR_TXBFLL_MASK) {
+        /*
+         * TX High Priority Buffer Full.
+         */
+        // can_error_stats.tx_hp_buffer_full_count++; // A décommenter si tu as ce champ
+    }
 
-	if (IntrMask & XCANPS_IXR_TXFLL_MASK) {
-		/*
-		 * Code to handle TX FIFO Full Interrupt should be put here.
-		 */
-		// xil_printf("TX FIFO Full\r\n");
-	}
+    if (IntrMask & XCANPS_IXR_TXFLL_MASK) {
+        /*
+         * TX FIFO Full : La FIFO d'envoi est pleine (souvent dû à un bus saturé ou coupé).
+         */
+        // can_error_stats.tx_fifo_full_count++; // A décommenter si tu as ce champ
+    }
 
-	if (IntrMask & XCANPS_IXR_WKUP_MASK) {
-		/*
-		 * Code to handle Wake up from sleep mode Interrupt
-		 * should be put here.
-		 */
-		// xil_printf("Wake up from sleep mode\r\n");
-	}
+    if (IntrMask & XCANPS_IXR_WKUP_MASK) {
+        /* Wake up from sleep mode */
+    }
 
-	if (IntrMask & XCANPS_IXR_SLP_MASK) {
-		/*
-		 * Code to handle Enter sleep mode Interrupt should be put here.
-		 */
-		// xil_printf("Enter sleep mode\r\n");
-	}
+    if (IntrMask & XCANPS_IXR_SLP_MASK) {
+        /* Enter sleep mode */
+    }
 
-	if (IntrMask & XCANPS_IXR_ARBLST_MASK) {
-		/*
-		 * Code to handle Lost bus arbitration Interrupt
-		 * should be put here.
-		 */
-		// xil_printf("Lost bus arbitration\r\n");
-	}
+    if (IntrMask & XCANPS_IXR_ARBLST_MASK) {
+        /*
+         * Arbitration Lost : Le contrôleur a tenté de parler mais un autre noeud
+         * (avec un ID plus prioritaire) a pris le bus. Ce n'est pas une "erreur" fatale,
+         * mais en monitorer le nombre est très utile pour détecter un bus saturé.
+         */
+        can_error_stats.arbitration_lost_count++; // CORRECTION : Ajout du monitoring
+    }
 }
-

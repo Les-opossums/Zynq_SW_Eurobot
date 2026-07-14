@@ -77,22 +77,68 @@ int main()
     
     IMU_Init();
 
+    int old_timer_can_stats = 0;
+    int previous_AU_state = 0; // Pour détecter le moment où l'on relâche l'AU
+    int esc_init_timer = 0;    // Chronomètre pour l'attente des ESC
+    int esc_ready = 1;         // Drapeau : 1 = ESC prêts, 0 = en attente
+
     while(1){ 
         if(Timer_ms1 - old_timer_ms1 > 100) {
             // printf("X: %.4f | Y: %.4f | Z: %.4f\n", imu.data.gyro.x, imu.data.gyro.y, imu.data.gyro.z);
             old_timer_ms1 = Timer_ms1;
         }
+
+        if(Timer_ms1 - old_timer_can_stats >= 1000) {
+            // Affiche les stats sur le port série
+            CAN_PrintErrorStats(); 
+            old_timer_can_stats = Timer_ms1;
+        }
+
         AU_Loop();
+        if (previous_AU_state == 1 && AU_state == 0) {
+            esc_ready = 0;              // Les ESC ne sont pas encore prêts
+            esc_init_timer = Timer_ms1; // On lance le chronomètre
+        }
+        previous_AU_state = AU_state;   // Mise à jour pour le prochain tour
+
+        
         if(AU_state == 1){
             if(Timer_ms1 - old_timer_AU >= 100) {
                 // xil_printf("AU activated, stopping asserv\n\r");
                 old_timer_AU = Timer_ms1;
             }
+            
+            if (CAN_IsEnabled()) {
+                CAN_Disable();
+            }
+
             motion_free();
             Init_CAN_MOTOR_variables();
             Init_Asserv();
-        }else{
-            Asserv_Loop();
+            
+        } else {
+            // L'arrêt d'urgence est relâché
+            
+            if (!esc_ready) {
+                // On attend 2000 millisecondes (2 secondes) que les ESC bootent
+                // Ajuste cette valeur selon le temps de démarrage réel de tes ESC
+                if (Timer_ms1 - esc_init_timer >= 2000) {
+                    esc_ready = 1; // Le délai est écoulé
+                    
+                    // Optionnel mais très utile : on remet les erreurs à zéro
+                    // pour effacer les ACK errors qui auraient pu se produire
+                    // pendant la coupure de l'alim.
+                    CAN_ResetErrorStats(); 
+                }
+            } 
+            else {
+                // Les ESC sont censés être prêts, on relance la machine !
+                if (!CAN_IsEnabled()) {
+                    CAN_Enable();
+                }
+
+                Asserv_Loop();
+            }
         }
     }
 
