@@ -33,6 +33,13 @@ extern int emergency_break_requested;
 /******************************    Fonctions    *******************************/
 
 /**
+ * @brief Update the shared motion done status and notify Core 0.
+ * 
+ * @param new_state The new motion done status.
+ */
+void update_shared_motion_done(int new_state);
+
+/**
  * @brief Initialize the asservissement system.
  * 
  */

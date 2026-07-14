@@ -28,6 +28,17 @@ float a_max = DEFAULT_CONSTRAINT_A_MAX;
 int emergency_break_requested = 0;
 
 /****************************** Fonctions    *******************************/
+// Fonction qui met à jour l'état et prévient le Core 0
+void update_shared_motion_done(int new_state) {
+    // 1. Mise à jour de la variable globale locale pour le Core 1
+    motion_done = new_state; 
+    
+    // 2. Mise à jour de la structure locale pour l'envoi
+    local_data.motion_done = (uint32_t)new_state;
+    
+    // 3. Envoi via la mémoire partagée (lève l'interruption vers Core 0)
+    SEND_FIELD(&local_data, motion_done);
+}
 
 // init de tout l'asservissement
 void asserv_init(void) {
@@ -47,7 +58,8 @@ void asserv_init(void) {
 
     // init des consignes / modes de ce fichier :
     asserv_mode = ASSERV_MODE_OFF;
-    motion_done = MOTION_SUCCESS; // Initialisé à 1 (prêt/succès)
+    motion_done = MOTION_SUCCESS; // Le robot est initialement immobile
+    update_shared_motion_done(MOTION_SUCCESS); // Notifie Core 0 de l'état initial
     blocked_time = 0;
 
     Wanted_Pos.x = 0;
@@ -75,20 +87,23 @@ void motion_block(void) {
     speed_order_constrained.vx = 0.0f;
     speed_order_constrained.vy = 0.0f;
     speed_order_constrained.vt = 0.0f;
-    motion_done = MOTION_BRAKED; // Arrêt forcé (2)
+    motion_done = MOTION_BRAKED; // Le robot est en arrêt forcé
+    update_shared_motion_done(MOTION_BRAKED); // Notifie Core 0 que le robot est en arrêt forcé
 }
 
 void motion_off(void) {
     asserv_mode = ASSERV_MODE_OFF;
     if (motion_done == MOTION_MOVING) {
-        motion_done = MOTION_BRAKED; // Si coupé en plein vol, c'est un arrêt forcé (2)
+        motion_done = MOTION_SUCCESS;
+        update_shared_motion_done(MOTION_SUCCESS); 
     }
 }
 
 void motion_free(void) {
     asserv_mode = ASSERV_MODE_FREE;
     if (motion_done == MOTION_MOVING) {
-        motion_done = MOTION_BRAKED; // Si libéré en plein vol, c'est un arrêt forcé (2)
+        update_shared_motion_done(MOTION_SUCCESS);
+        motion_done = MOTION_SUCCESS;
     }
 }
 
@@ -111,6 +126,7 @@ void motion_pos(Position pos) {
     
     asserv_mode = ASSERV_MODE_POS;
     motion_done = MOTION_MOVING; // Le mouvement démarre ! (0)
+    update_shared_motion_done(MOTION_MOVING);
 }
 
 void motion_speed(Speed speed) {
@@ -133,12 +149,14 @@ void motion_speed(Speed speed) {
     
     asserv_mode = ASSERV_MODE_SPEED;
     motion_done = MOTION_MOVING; // Le mouvement démarre ! (0)
+    update_shared_motion_done(MOTION_MOVING);
 }
 
 void motion_absolute_speed(Speed speed) {
     Wanted_Speed = speed;
     asserv_mode = ASSERV_MODE_ABSOLUTE_SPEED;
     motion_done = MOTION_MOVING; // Le mouvement démarre ! (0)
+    update_shared_motion_done(MOTION_MOVING);
 }
 
 
@@ -211,9 +229,12 @@ void speed_asserv_break_step(void) {
         speed_order.vy = 0;
         speed_order.vt = 0;
         pid_vitesse_reset();
+
+        motion_done = MOTION_BRAKED; // Confirme l'arrêt (2)
+        update_shared_motion_done(MOTION_BRAKED);
         
         motion_free(); // Passe l'asservissement en mode Libre
-        motion_done = MOTION_BRAKED; // Confirme l'arrêt (2)
+        
         printf("Break,done\n");
     }
 }
@@ -294,10 +315,11 @@ void pos_asserv_step(void) {
         if (v_now < DEFAULT_SPEED_LIN_STOP || stop_zone_timer_ms > 20) {
             // 20 pas de slow loop = 200ms de timeout de sécurité
             in_stop_zone = 0;
+
+            motion_done = MOTION_SUCCESS; 
+            update_shared_motion_done(MOTION_SUCCESS);
             
             motion_free(); 
-            motion_done = MOTION_SUCCESS; // <--- C'est ici qu'on valide le SUCCES ! (1)
-            
             printf("Pos,done\n");
         }
     }
@@ -350,8 +372,11 @@ void asserv_check_blocked(float period) {
            (fabs(speed_robot_asserv.vt - speed_order_constrained.vt) > 0.4)    ) {
         if (blocked_time >= ASSERV_BLOCK_TIME_LIMIT) {
             printf("asserv,blocked\n");
-            motion_free();
+
             motion_done = MOTION_BRAKED; // <--- Bloqué = Interrompu = 2
+            update_shared_motion_done(MOTION_BRAKED);
+
+            motion_free();
             blocked_time = 0;
         }
         blocked_time += period;
