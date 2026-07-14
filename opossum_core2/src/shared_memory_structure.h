@@ -50,10 +50,6 @@ typedef struct {
     volatile uint32_t flag_asserv_mode_ack;   // CORE1 -> CORE0: 1 new asserv mode taken into account, 0 otherwise
     int asserv_mode; // asserv mode (0: free, 1: position, 2: speed, 3: absolute speed, 4: break)
 
-    volatile uint32_t flag_asserv_done_valid; // CORE0 -> CORE1: 1 if asserv done is valid, 0 otherwise
-    volatile uint32_t flag_asserv_done_ack;   // CORE1 -> CORE0: 1 new asserv done taken into account, 0 otherwise
-    int asserv_done; // 1 if asserv is done, 0 otherwise
-
     volatile uint32_t flag_set_pos_valid; // CORE0 -> CORE1: 1 if asserv done is valid, 0 otherwise
     volatile uint32_t flag_set_pos_ack;   // CORE1 -> CORE0: 1 new asserv done taken into account, 0 otherwise
     Position set_pos; // position to set in the world frame

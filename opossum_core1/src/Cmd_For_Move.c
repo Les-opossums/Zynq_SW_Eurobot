@@ -129,8 +129,8 @@ uint8_t Start_Wheel_FF_Calibration_Cmd(void) {
 
 uint8_t Asserv_Done_Cmd(void) {
     // lecture de la mémoire partagée
-    CHECK_FIELD(&local_data, asserv_done);
-    printf("%d\n", local_data.asserv_done);
+    CHECK_FIELD(&local_data, motion_done);
+    printf("%ld\n", local_data.motion_done);
     return 0;
 }
 
@@ -393,14 +393,14 @@ static void compute_robot_state(eth_payload_robot_state_t *rs, float *speed_line
     rs->speed_linear     = *speed_linear;
     rs->speed_direction  = *speed_direction;
     rs->speed_angular    = local_data.speed_robot.vt;
-    rs->motion_done      = (uint8_t)local_data.asserv_done; // <-- a adapter au vrai nom/type du champ chez toi
+    rs->motion_done      = (uint8_t)local_data.motion_done;
 }
 
 void Print_Position_loop(void) {
     if (!auto_printpos_en) {
         return;
     }
-    if (!CHECK_FIELD(&local_data, kalman_out) || !CHECK_FIELD(&local_data, speed_robot)) {
+    if (!CHECK_FIELD(&local_data, kalman_out) || !CHECK_FIELD(&local_data, speed_robot) || !CHECK_FIELD(&local_data, motion_done)) {
         // printf("POS ERROR: Position or speed not valid\n");
         return;
     }
@@ -553,9 +553,9 @@ uint8_t Move_Seq_Cmd(void) {
 
 // À appeler dans la main loop de Core 0 — dépile et envoie le prochain move
 void Move_Seq_Loop(void) {
-    CHECK_FIELD(&local_data, asserv_done);   // lit asserv_done depuis Core 1
+    CHECK_FIELD(&local_data, motion_done);   // lit motion_done depuis Core 1
 
-    if (move_seq_active && local_data.asserv_done) {
+    if (move_seq_active && local_data.motion_done) {
         move_seq_active = 0;                 // move terminé, on est prêt pour le suivant
     }
 

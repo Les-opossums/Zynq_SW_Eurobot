@@ -37,9 +37,6 @@ void init_shared_memory() {
     shared_mem->flag_asserv_mode_valid = 0;
     shared_mem->flag_asserv_mode_ack = 0;
 
-    shared_mem->flag_asserv_done_valid = 0;
-    shared_mem->flag_asserv_done_ack = 0;
-
     shared_mem->flag_set_pos_valid = 0;
     shared_mem->flag_set_pos_ack = 0;
 
