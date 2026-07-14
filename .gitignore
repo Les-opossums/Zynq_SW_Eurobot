@@ -33,3 +33,5 @@ Zynq_block_design_wrapper/
 **/opossum_core1/opossum_core1.project
 **/opossum_core1/.gitignore
 **/opossum_core1/opossum_core1.prj
+
+Opossum_hw/
