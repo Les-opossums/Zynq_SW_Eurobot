@@ -1,51 +1,66 @@
 # Mise en place du projet SW sous Vitis 
-Les étapes suivantes décrivent la manière pour importer le projet SW sur Vitis en conservant notre *gconf* actuelle. 
+Les ï¿½tapes suivantes dï¿½crivent la maniï¿½re pour importer le projet SW sur Vitis en conservant notre *gconf* actuelle. 
 
-## 1. Récupération du projet
+## 1. Rï¿½cupï¿½ration du projet
 
-Clonez le dépôt et basculez sur la branche de développement :
+Clonez le dï¿½pï¿½t et basculez sur la branche de dï¿½veloppement :
 ```bash
 git clone git@github.com:Les-opossums/Zynq_SW_Eurobot.git
 cd Zynq_SW_Eurobot
 git checkout feature/feetech`
 ```
 
-Lancer Vitis (**Xilinx Vitis 2020.2**), quand le launcher demande de choisir un **Workspace**, il faut donc sélectionner `Zynq_SW_Eurobot/` fraîchement cloné.
+Lancer Vitis (**Xilinx Vitis 2020.2**), quand le launcher demande de choisir un **Workspace**, il faut donc sï¿½lectionner `Zynq_SW_Eurobot/` fraï¿½chement clonï¿½.
 ## 2. Creation de la **Platform**
 1. Cliquer sur `Create Platform Project` 
 2. Lui donner un nom (ex: `Zynq_block_design_wrapper)
-3. Sélectionner `Create a new platform from hardware (XSA)`
-4. Choisir le fichier de description HW `Zynq_block_design_wrapper.xsa` présent dans `Zynq_SW_Eurobot/`
+3. Sï¿½lectionner `Create a new platform from hardware (XSA)`
+4. Choisir le fichier de description HW `Zynq_block_design_wrapper.xsa` prï¿½sent dans `Zynq_SW_Eurobot/`
 5. Cliquer sur `Finish`
 ## 3. Creation du **System** + **Applications**
 Vitis c'est super ! (non.) 
-**Note importante :** Vitis refuse de créer un projet si le dossier de destination existe déjà. Pour conserver nos fichiers sources actuels, on est obligé de contourner en faisant un renommage temporaire.
+**Note importante :** Vitis refuse de crï¿½er un projet si le dossier de destination existe dï¿½jï¿½. Pour conserver nos fichiers sources actuels, on est obligï¿½ de contourner en faisant un renommage temporaire.
 
-#### Étape de contournement :
-1. Renommer les répertoires `opossum_core1/` et `opossum_core2/` (`_opossum_core1/` et `_opossum_core2/` par exemple)
-#### Création d'opossum_core1 :
+#### ï¿½tape de contournement :
+1. Renommer les rï¿½pertoires `opossum_core1/` et `opossum_core2/` (`_opossum_core1/` et `_opossum_core2/` par exemple)
+#### Crï¿½ation d'opossum_core1 :
 1. `File` -> `New` -> `Application Project ...`
-2. Sélectionner la **platform** créée précédemment 
+2. Sï¿½lectionner la **platform** crï¿½ï¿½e prï¿½cï¿½demment 
 3. `Application project name` : `opossum_core1`
 4. `System project name` : `Eurobot_2025_System`
 5. Cocher `Show all processors in the hardware specification`
-6. Sélectionner `ps7_cortexa9_1`
+6. Sï¿½lectionner `ps7_cortexa9_1`
 7. \[Optionnel] : Renommer le `Name` et `Display Name` 
 8. Choisir `Empty Application` puis `Finish`
-#### Création d'opossum_core2 :
-Répéter les étapes pour créer l'Application `opossum_core2`, en choisissant cette fois le System existant et le cœur `ps7_cortexa9_0`.
+#### Crï¿½ation d'opossum_core2 :
+Rï¿½pï¿½ter les ï¿½tapes pour crï¿½er l'Application `opossum_core2`, en choisissant cette fois le System existant et le cï¿½ur `ps7_cortexa9_0`.
 
 #### Restauration des sources : 
 1. Copier les sources de `_opossum_core1/src/` vers `opossum_core1/src/` puis supprimer `_opossum_core1`
 2. Copier les sources de `_opossum_core2/src/` vers `opossum_core2/src/` puis supprimer `_opossum_core2`
-## 4. Configuration des **bibliothèques**
+## 4. Configuration des **bibliothï¿½ques**
 On a maintenant un projet fonctionnel mais qui ne build pas ! 
 Pas de soucis, il faut simplement ajouter la librairie math (`m`) au Build tool : 
 1. Clique droit sur `opossum_core1` puis `C/C++ Build Settings`
-2. Sélectionner `[ All configurations ]` pour la `Configuration`
-3. Chercher `Librairies` dans la catégorie `ARM v7 gcc linker` de l'onglet `Tool Settings`
+2. Sï¿½lectionner `[ All configurations ]` pour la `Configuration`
+3. Chercher `Librairies` dans la catï¿½gorie `ARM v7 gcc linker` de l'onglet `Tool Settings`
 4. Cliquer sur le `+` puis ajouter `m`
 5. Apply and close
-6. Réitérer pour `opossum_core2`
+6. Rï¿½itï¿½rer pour `opossum_core2`
 
 On est good, normalement le repo git est clean et le projet est fonctionnel ! 
+
+
+# Setup nÃ©cessaire pour la communication avec le haut niveau : 
+
+## 1. Communication RÃ©seau (Ethernet)
+
+La communication entre le Raspberry Pi (ROS 2) et le Zynq 7000 se fait via une liaison Ethernet UDP bare-metal 100MBits/s.
+
+ðŸ‘‰ [Voir la documentation dÃ©taillÃ©e du Driver Ethernet UDP](./opossum_core1/src/ETHERNET/README.md)
+
+## 2. Communication sÃ©rie (UART)
+
+Alternativement, la communication peut se faire en UART (Legacy 2024/2025).
+
+ðŸ‘‰ [Documentation TBD]
