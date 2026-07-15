@@ -137,9 +137,8 @@ Cette manipulation est à faire pour le projet d'application CPU0 **ET** CPU1.
 3. Naviguez vers **C/C++ Build** -> **Settings**.
 4. Dans l'onglet *Tool Settings*, déroulez **ARM v7 gcc compiler** et cliquez sur **Directories**.
 5. Dans la zone *Include paths (-I)*, cliquez sur l'icône **Ajouter (+)**.
-6. Tapez directement le chemin relatif suivant (à adapter selon l'emplacement de votre dossier workspace) :
-   `"${workspace_loc:/opossum_common}"` 
-   *(Note : Si le dossier est au-dessus du workspace, utilisez `../../opossum_common`)*
+6. Tapez directement le chemin relatif suivant :
+   `"${workspace_loc}\opossum_common"` 
 7. Cliquez sur **Apply and Close**.
 
 ### Étape 2 : Nettoyer et Compiler
