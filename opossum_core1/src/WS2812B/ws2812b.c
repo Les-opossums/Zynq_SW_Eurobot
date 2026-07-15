@@ -9,8 +9,8 @@ XGpio LED_DATA;
 int LED_old_timer_ms1 = 0;
 
 void ws2812b_init(){
-   XGpio_Initialize(&LED_ADDR, XPAR_AXI_GPIO_25_DEVICE_ID);
-   XGpio_Initialize(&LED_DATA, XPAR_AXI_GPIO_26_DEVICE_ID);
+   XGpio_Initialize(&LED_ADDR, XPAR_AXI_GPIO_0_DEVICE_ID);
+   XGpio_Initialize(&LED_DATA, XPAR_AXI_GPIO_1_DEVICE_ID);
 
    XGpio_SetDataDirection(&LED_ADDR, 1, 0);
    XGpio_SetDataDirection(&LED_DATA, 1, 0);

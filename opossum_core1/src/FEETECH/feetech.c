@@ -56,7 +56,7 @@ static XGpio GpioFeetechDir;  // instance AXI GPIO
 /* Initialize FEETECH port using board-specific macros */
 void Init_Com_FEETECH(void){
     /* Put bus in receive mode */
-    XGpio_Initialize(&GpioFeetechDir, XPAR_AXI_GPIO_24_DEVICE_ID);
+    XGpio_Initialize(&GpioFeetechDir, XPAR_AXI_GPIO_6_DEVICE_ID);
     XGpio_SetDataDirection(&GpioFeetechDir, FEETECH_DIR_CHANNEL, 0x0); // en sortie
     XGpio_DiscreteWrite(&GpioFeetechDir, FEETECH_DIR_CHANNEL, FEETECH_DIR_RX);
 

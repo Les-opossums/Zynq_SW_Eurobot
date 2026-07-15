@@ -101,7 +101,6 @@ int main()
 
 
     ws2812b_init();
-    init_switch();
 
     init_shared_memory();
 
