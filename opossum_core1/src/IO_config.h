@@ -6,8 +6,6 @@
 /* ================================================================= *
  * DEFINITION DU COEUR ACTUEL ET DU MAITRE MATERIEL
  * ================================================================= */
-// /!\ À CHANGER SELON LE PROJET : CORE_CPU0 pour le projet 0, CORE_CPU1 pour le 1
-#define THIS_CORE CORE_CPU0
 
 // Quel coeur a le droit de faire le Reset/Init global du périphérique ?
 #define GPIO_MASTER_CORE CORE_CPU0

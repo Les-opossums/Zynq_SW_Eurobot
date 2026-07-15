@@ -94,6 +94,36 @@ Pas de soucis, il faut simplement ajouter la librairie math (`m`) au Build tool 
 5. Apply and close
 6. Réitérer pour `opossum_core2`
 
+## 6. Définir `THIS_CORE` dans les paramètres de Vitis
+
+Cette étape est indispensable pour configurer le compilateur afin qu'il ne prenne que ce qui concerne le coeur qu'il compile dans les src partagées.
+
+### Pour le projet du CPU0
+
+1. Fais un clic droit sur le projet d'application **opossum_core1** dans l'explorateur, puis ouvre :
+   - **C/C++ Build Settings**, ou
+   - **Properties** → **C/C++ Build** → **Settings**.
+2. Va dans **ARM v7 gcc compiler** → **Symbols**.
+3. Clique sur l'icône **Ajouter (+)**.
+4. Saisis exactement pour le core1 :
+   ```text
+   THIS_CORE=0 
+   ```
+   *(sans espaces)*.
+5. Applique les modifications et ferme la fenêtre.
+
+### Pour le projet du CPU1
+
+Répète la même opération sur le projet **opossum_core2**.
+
+Ajoute le symbole suivant :
+
+```text
+THIS_CORE=1
+```
+
+> **Remarque :** On utilise directement les valeurs `0` et `1` car le préprocesseur doit pouvoir évaluer les directives `#if` avant même l'inclusion des fichiers d'en-tête.
+
 On est good, normalement le repo git est clean et le projet est fonctionnel ! 
 
 
