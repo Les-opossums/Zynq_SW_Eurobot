@@ -163,3 +163,9 @@ La communication entre le Raspberry Pi (ROS 2) et le Zynq 7000 se fait via une l
 Alternativement, la communication peut se faire en UART (Legacy 2024/2025).
 
 👉 [Documentation TBD]
+
+
+# Setup entre hardware et software : 
+
+## 1. Setup GPIO PS
+👉 [Voir la documentation détaillée du Driver GPIO](./opossum_common/IO_MANAGER/README.md)
