@@ -1,5 +1,5 @@
 #include "IO_manager.h"
-#include "../IO_config.h"
+#include "IO_config.h"
 
 // Instanciation du tableau
 static const io_pin_config_t io_table[] = IO_CONFIG_TABLE;

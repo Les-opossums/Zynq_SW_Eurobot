@@ -1,7 +1,7 @@
 #ifndef IO_CONFIG_H
 #define IO_CONFIG_H
 
-#include "IO_MANAGER/IO_manager.h"
+#include "IO_manager.h"
 
 /* ================================================================= *
  * DEFINITION DU COEUR ACTUEL ET DU MAITRE MATERIEL

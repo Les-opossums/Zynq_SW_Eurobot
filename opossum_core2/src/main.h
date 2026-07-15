@@ -32,6 +32,6 @@
 
 // driver IO manager
 #include "IO_MANAGER/IO_manager.h"
-#include "IO_config.h"
+#include "IO_MANAGER/IO_config.h"
 
 extern int imu_ok;

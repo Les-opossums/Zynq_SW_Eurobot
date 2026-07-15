@@ -124,6 +124,30 @@ THIS_CORE=1
 
 > **Remarque :** On utilise directement les valeurs `0` et `1` car le préprocesseur doit pouvoir évaluer les directives `#if` avant même l'inclusion des fichiers d'en-tête.
 
+## 7. Setup du dossier partagé entre les coeurs
+
+Pour éviter la duplication de code entre le CPU0 et le CPU1, les fichiers communs (comme le gestionnaire d'IO) sont placés dans le dossier externe `opossum_common`.
+Lors de la première importation du projet sur un nouveau PC, vous devez indiquer au compilateur où trouver ce dossier.
+
+### Étape 1 : Ajouter le chemin d'inclusion (Include Path)
+Cette manipulation est à faire pour le projet d'application CPU0 **ET** CPU1.
+
+1. Dans l'explorateur Vitis, faites un **clic droit** sur le projet d'application (ex: `app_cpu0`) -> **Properties** (ou *C/C++ Build Settings*).
+2. Vérifiez en haut de la fenêtre que **Configuration** est réglé sur **[ All configurations ]** (très important).
+3. Naviguez vers **C/C++ Build** -> **Settings**.
+4. Dans l'onglet *Tool Settings*, déroulez **ARM v7 gcc compiler** et cliquez sur **Directories**.
+5. Dans la zone *Include paths (-I)*, cliquez sur l'icône **Ajouter (+)**.
+6. Tapez directement le chemin relatif suivant (à adapter selon l'emplacement de votre dossier workspace) :
+   `"${workspace_loc:/opossum_common}"` 
+   *(Note : Si le dossier est au-dessus du workspace, utilisez `../../opossum_common`)*
+7. Cliquez sur **Apply and Close**.
+
+### Étape 2 : Nettoyer et Compiler
+1. Project -> **Clean...** (Nettoyez tous les projets).
+2. Project -> **Build All**.
+
+
+
 On est good, normalement le repo git est clean et le projet est fonctionnel ! 
 
 
