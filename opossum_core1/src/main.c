@@ -22,7 +22,6 @@ static eth_driver_config_t eth_cfg = {
 
 int AU_state,previous_AU_state = 0;
 
-
 int main()
 {
     init_shared_memory();
