@@ -3,28 +3,67 @@
 
 #include "IO_MANAGER/IO_manager.h"
 
-/* * 1. DECLARATION DES VARIABLES METIER */
-extern int leash_state;
+/* ================================================================= *
+ * DEFINITION DU COEUR ACTUEL ET DU MAITRE MATERIEL
+ * ================================================================= */
+// /!\ À CHANGER SELON LE PROJET : CORE_CPU0 pour le projet 0, CORE_CPU1 pour le 1
+#define THIS_CORE CORE_CPU0
+
+// Quel coeur a le droit de faire le Reset/Init global du périphérique ?
+#define GPIO_MASTER_CORE CORE_CPU0
+
+
+/* ================================================================= *
+ * DÉCLARATION DES VARIABLES & DES LIGNES DE CONFIGURATION
+ * ================================================================= */
+
+// --- IO PARTAGÉES (Lues ou écrites par les deux coeurs) ---
 extern int AU_state;
-extern int team_state;
-extern int IO_1_state;
-extern int IO_2_state;
-extern int IO_3_state;
+#define ROW_AU {55, IO_DIR_INPUT, &AU_state, CORE_BOTH},
 
-/*
- * 2. TABLE DE CONFIGURATION DES IO
- * Format : { PIN_NUMBER, DIRECTION, &VARIABLE }
- */
+
+// --- IO SPÉCIFIQUES AU CPU 0 ---
+#if THIS_CORE == CORE_CPU0
+    extern int leash_state;
+    extern int team_state;
+    extern int IO_1_state;
+    extern int IO_2_state;
+    extern int IO_3_state;
+
+    #define ROW_LEASH {54, IO_DIR_INPUT, &leash_state, CORE_CPU0},
+    #define ROW_TEAM  {56, IO_DIR_INPUT, &team_state,  CORE_CPU0},
+    #define ROW_IO1   {57, IO_DIR_INPUT, &IO_1_state,  CORE_CPU0},
+    #define ROW_IO2   {58, IO_DIR_INPUT, &IO_2_state,  CORE_CPU0},
+    #define ROW_IO3   {59, IO_DIR_INPUT, &IO_3_state,  CORE_CPU0},
+#else
+    #define ROW_LEASH // Vide pour le CPU1
+    #define ROW_TEAM  // Vide pour le CPU1
+    #define ROW_IO1   // Vide pour le CPU1
+    #define ROW_IO2   // Vide pour le CPU1
+    #define ROW_IO3   // Vide pour le CPU1
+#endif
+
+
+// --- IO SPÉCIFIQUES AU CPU 1 ---
+#if THIS_CORE == CORE_CPU1
+    // (Ajoute tes extern et tes définitions ROW_ ici plus tard)
+#else
+    // (Ajoute les ROW_ vides ici plus tard)
+#endif
+
+
+/* ================================================================= *
+ * ASSEMBLAGE DU TABLEAU FINAL
+ * ================================================================= */
+// Le préprocesseur va automatiquement ignorer les macros qui sont vides
+// selon le coeur défini tout en haut.
 #define IO_CONFIG_TABLE { \
-    {54, IO_DIR_INPUT,  &leash_state}, \
-    {55, IO_DIR_INPUT,  &AU_state}, \
-    {56, IO_DIR_OUTPUT, &team_state}, \
-    {57, IO_DIR_INPUT,  &IO_1_state}, \
-    {58, IO_DIR_INPUT,  &IO_2_state}, \
-    {59, IO_DIR_OUTPUT, &IO_3_state} \
+    ROW_AU \
+    ROW_LEASH \
+    ROW_TEAM \
+    ROW_IO1 \
+    ROW_IO2 \
+    ROW_IO3 \
 }
-
-// 3. NOMBRE D'IO 
-#define IO_CONFIG_COUNT 6
 
 #endif /* IO_CONFIG_H */

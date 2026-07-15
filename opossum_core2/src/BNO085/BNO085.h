@@ -40,9 +40,9 @@
  * par Vivado/Vitis. Vérifiez les noms exacts dans votre xparameters.h
  * si votre design nomme les IPs différemment.
  */
-#define BNO085_GPIO_CS_ID        XPAR_AXI_GPIO_27_DEVICE_ID
-#define BNO085_GPIO_RST_ID       XPAR_AXI_GPIO_29_DEVICE_ID
-#define BNO085_GPIO_INT_ID       XPAR_AXI_GPIO_30_DEVICE_ID
+#define BNO085_GPIO_CS_ID        XPAR_AXI_GPIO_5_DEVICE_ID
+#define BNO085_GPIO_RST_ID       XPAR_AXI_GPIO_3_DEVICE_ID
+#define BNO085_GPIO_INT_ID       XPAR_AXI_GPIO_4_DEVICE_ID
 
 /*
  * Canal AXI GPIO utilisé (1 ou 2).

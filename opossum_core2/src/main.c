@@ -18,6 +18,9 @@ BNO085_Dev imu;                /* Handle IMU — global ou static main */
 int        imu_ok     = 0;     /* 1 si init réussie                  */
 int        imu_last_print_ms = 0;
 
+int AU_state, previous_AU_state = 0; // Pour détecter le moment où l'on relâche l'AU
+
+
 void IMU_Init(void)
 {
     int ret = BNO085_Init(&imu);
@@ -72,13 +75,11 @@ int main()
 
 
     Init_CAN();
-    Init_AU();
     Init_Asserv();
     
     IMU_Init();
 
     int old_timer_can_stats = 0;
-    int previous_AU_state = 0; // Pour détecter le moment où l'on relâche l'AU
     int esc_init_timer = 0;    // Chronomètre pour l'attente des ESC
     int esc_ready = 1;         // Drapeau : 1 = ESC prêts, 0 = en attente
 
@@ -94,7 +95,7 @@ int main()
             old_timer_can_stats = Timer_ms1;
         }
 
-        AU_Loop();
+        
         if (previous_AU_state == 1 && AU_state == 0) {
             esc_ready = 0;              // Les ESC ne sont pas encore prêts
             esc_init_timer = Timer_ms1; // On lance le chronomètre

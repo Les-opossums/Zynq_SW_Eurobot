@@ -24,11 +24,14 @@
 
 #include "Asserv_Loop.h"
 #include "CAN.h"
-#include "AU.h"
 
 #include "User.h"
 
 // driver IMU BNO085
 #include "BNO085/BNO085.h"
+
+// driver IO manager
+#include "IO_MANAGER/IO_manager.h"
+#include "IO_config.h"
 
 extern int imu_ok;
