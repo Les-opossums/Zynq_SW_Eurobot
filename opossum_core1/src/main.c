@@ -20,6 +20,9 @@ static eth_driver_config_t eth_cfg = {
     .peer_ip    = (192u << 24) | (168u << 16) | (1u << 8) | 20u,  // IP de ton PC
 };
 
+int AU_state,previous_AU_state = 0;
+
+
 int main()
 {
     init_shared_memory();
@@ -93,8 +96,7 @@ int main()
     }
     eth_driver_set_cmd_handler(on_eth_command_received);
 
-    init_AU();
-    uint8_t previous_AU_state = AU_state; // Pour détecter le changement d'état
+    
     uint32_t au_recovery_timer = 0;       // Timer pour les 2 secondes
     uint8_t au_recovering = 0;            // Flag : 1 = on est en train d'attendre les 2s
 
@@ -107,30 +109,63 @@ int main()
     xil_printf("Init done\n\r");
 
     while(1){
-        if (Timer_ms1 - old_timer_ms1 >= 1000) {
-            old_timer_ms1 = Timer_ms1;
-        }
-
+        
+        /* 
+         *    Lecture des caractères reçus sur l'UART
+         *    Si un caractère est reçu, on le passe à l'interpréteur.
+         */
         if (Get_Std_In(&c)) {
             Interp(c);
         }
 
-        AU_Loop();
-        LED_loop();
-        Std_Com_Loop();
-        Print_Position_loop();
-
-        Speed_Timed_Loop();
-
+        /* 
+         *    Gestion de l'Ethernet
+         *    On appelle cette fonction régulièrement pour traiter les trames entrantes.
+        */
         eth_driver_poll();
 
-        if(AU_state == 1){
+        /*
+         *    Gestion de la communication standard
+         */
+        Std_Com_Loop();
+
+        /*
+         *    Mise à jour des variables métier avec l'état actuel des IO
+         */
+        IO_Manager_Update(); 
+
+        /*
+         *    Gestion du ruban led WS2812B
+         */
+        LED_loop();
+
+        
+        /*
+         *    print de Robotdata 
+         */
+        Print_Position_loop();
+
+
+        /*
+         *    Gestion de l'AU et des actionneurs
+            *   Si l'AU est actif, on bloque les actionneurs et on met le mode AU sur les LEDs.
+            *   Si l'AU est relâché, on attend 2 secondes avant de reprendre les actionneurs.
+         */
+        if(AU_state){
+            // 1. Détection de l'appui sur l'AU
+            if(previous_AU_state == 0){
+                xil_printf("AU %d\n\r", AU_state);
+                eth_send_frame(ETH_MSG_AU, &AU_state, sizeof(AU_state));
+            }
+
+            // 2. On est en train d'appuyer sur l'AU, donc on bloque les actionneurs et on met le mode AU sur les LEDs
             LED_AU();
             AU_pinces();
+            
+            au_recovering = 0; // Si on appuie sur l'AU pendant qu'on attendait les 2s, on annule l'attente
 
-            // Si on appuie sur l'AU pendant qu'on attendait les 2s, on annule l'attente
-            au_recovering = 0;
         }else{
+            // 1. Détection du relâchement de l'AU
             if (previous_AU_state == 1) {
                 au_recovering = 1;              // On lance la phase de récupération
                 au_recovery_timer = Timer_ms1;  // On enregistre l'heure de départ
@@ -148,12 +183,15 @@ int main()
 
             // 3. Exécution classique si on n'est PAS en phase de récupération
             if (!au_recovering) {
+                // 1. On refait l'init des pinces, on est sur que les cartes slaves sont correctement redémarrées si on sort du recovering
                 Init_Pinces_Loop();
+
+                // 2. On exécute la boucle de com avec les cartes FEETECH
                 FEETECH_Loop();
+
+                // 3. On exécute la boucle de gestion des actionneurs
                 pince_loop();
             }
-            
-            //Move_Seq_Loop();
 
             LED_CLASSIC_MODE();
         }

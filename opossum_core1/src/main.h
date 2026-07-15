@@ -7,6 +7,7 @@
 #include <sleep.h>
 #include <xil_io.h>
 #include <xparameters.h>
+
 #include <math.h>
 
 #include "xpseudo_asm.h"
@@ -14,6 +15,7 @@
 #include "platform.h"
 #include "xil_printf.h"
 #include "xgpio.h"
+#include "xgpiops.h"
 #include "xscutimer.h"
 #include "xil_exception.h"
 #include "xparameters_ps.h"
@@ -30,7 +32,6 @@
 #include "Interrupt.h"
 
 // pl part
-#include "AU.h"
 #include "WS2812B/ws2812b.h"
 
 //divers
@@ -64,5 +65,9 @@
 // LD19 part
 #include "LD19/ld19.h"
 
+
+//IO manager_part
+#include "IO_MANAGER/IO_manager.h"
+#include "IO_config.h"
 
 #endif // MAIN_H
