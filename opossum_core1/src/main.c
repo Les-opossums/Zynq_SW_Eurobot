@@ -104,6 +104,15 @@ int main()
 
     init_shared_memory();
 
+    Status = IO_Manager_Init();
+    if (Status != XST_SUCCESS) {
+        xil_printf("IO Manager init failed\n\r");
+        Status = 0;
+    } else {
+        xil_printf("IO Manager init done\n\r");
+        Status = 0;
+    }
+
     xil_printf("Init done\n\r");
 
     while(1){

@@ -70,6 +70,15 @@ int main()
         return XST_FAILURE;
     }
     
+    Status = IO_Manager_Init();
+    if (Status != XST_SUCCESS) {
+        xil_printf("IO Manager init failed\n\r");
+        Status = 0;
+    } else {
+        xil_printf("IO Manager init done\n\r");
+        Status = 0;
+    }
+
     // initialise shared memory
     init_shared_memory();
 
@@ -79,15 +88,18 @@ int main()
     
     IMU_Init();
 
+
     int old_timer_can_stats = 0;
     int esc_init_timer = 0;    // Chronomètre pour l'attente des ESC
     int esc_ready = 1;         // Drapeau : 1 = ESC prêts, 0 = en attente
 
     while(1){ 
-        if(Timer_ms1 - old_timer_ms1 > 100) {
-            // printf("X: %.4f | Y: %.4f | Z: %.4f\n", imu.data.gyro.x, imu.data.gyro.y, imu.data.gyro.z);
-            old_timer_ms1 = Timer_ms1;
-        }
+
+        /*
+         *    Mise à jour des variables métier avec l'état actuel des IO
+         */
+        IO_Manager_Update(); 
+
 
         if(Timer_ms1 - old_timer_can_stats >= 1000) {
             // Affiche les stats sur le port série
