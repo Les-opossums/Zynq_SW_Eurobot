@@ -100,8 +100,6 @@ int main()
     uint8_t au_recovering = 0;            // Flag : 1 = on est en train d'attendre les 2s
 
 
-    ws2812b_init();
-
     init_shared_memory();
 
     Status = IO_Manager_Init();

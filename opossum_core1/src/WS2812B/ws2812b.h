@@ -1,35 +1,31 @@
-#ifndef WS2812B_H
-#define WS2812B_H
+#ifndef LED_CONTROLLER_H
+#define LED_CONTROLLER_H
 
-#define AXI_LED_ADDR XPAR_AXI_GPIO_0_BASEADDR
-#define AXI_LED_DATA XPAR_AXI_GPIO_1_BASEADDR
+// --- Paramètres matériels ---
+// À REMPLACER par l'adresse exacte trouvée dans ton xparameters.h
+#define WS2812B_BASEADDR    0x43C00000 // Exemple générique, mets ton XPAR_AXI_WS2812B_...
+#define NBR_LED             44
 
-#define NBR_LED 44
+// Code d'erreur pour la fonction de commande (à adapter selon ton projet)
+#define PARAM_ERROR_CODE    1
 
-#define DEFAULT_RED 0x0000FF
-#define DEFAULT_GREEN 0x00FF00
-#define DEFAULT_BLUE 0xFF0000
+// --- Structure pour le tampon logiciel des LEDs ---
+typedef struct {
+    uint8_t red;
+    uint8_t green;
+    uint8_t blue;
+} LED_Color_t;
 
-typedef struct{
-   uint8_t red;
-   uint8_t green;
-   uint8_t blue;
-}LED;
-
-extern int validation_state;
+// --- Déclaration des variables globales (visibles par d'autres fichiers si besoin) ---
+extern LED_Color_t led[NBR_LED];
 extern uint8_t led_animation_mode;
 
-void ws2812b_init();
-
-void ws2812b_set_color(int led_id, LED color);
-void start_transfer();
-
-void LED_loop();
-void LED_MODE();
-
+// --- Prototypes des fonctions ---
+void ws2812b_set_led_rgb(uint32_t led_index, uint8_t r, uint8_t g, uint8_t b);
+void LED_loop(void);
+void LED_MODE(void);
 void LED_AU(void);
 void LED_CLASSIC_MODE(void);
-
 uint8_t LED_cmd(void);
 
-#endif // WS2812B_H
+#endif // LED_CONTROLLER_H
