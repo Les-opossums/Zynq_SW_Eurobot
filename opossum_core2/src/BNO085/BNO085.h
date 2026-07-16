@@ -34,22 +34,6 @@
  */
 #define BNO085_SPI_PRESCALER     XSPIPS_CLK_PRESCALE_32 
 
-/* ─── AXI GPIO — Device IDs ─────────────────────────────────────────────── */
-/*
- * Ces macros correspondent aux entrées générées dans xparameters.h
- * par Vivado/Vitis. Vérifiez les noms exacts dans votre xparameters.h
- * si votre design nomme les IPs différemment.
- */
-#define BNO085_GPIO_CS_ID        XPAR_AXI_GPIO_5_DEVICE_ID
-#define BNO085_GPIO_RST_ID       XPAR_AXI_GPIO_3_DEVICE_ID
-#define BNO085_GPIO_INT_ID       XPAR_AXI_GPIO_4_DEVICE_ID
-
-/*
- * Canal AXI GPIO utilisé (1 ou 2).
- * Si l'IP est configurée avec un seul canal 1-bit, c'est toujours le canal 1.
- */
-#define BNO085_GPIO_CHANNEL      1U
-
 /* ─── Constantes SHTP ───────────────────────────────────────────────────── */
 
 #define SHTP_HEADER_SIZE         4U
@@ -139,9 +123,9 @@ typedef struct {
 typedef struct {
     XSpiPs  spi;
 
-    XGpio   gpio_cs;    /**< axi_gpio_27 — sortie, CS actif bas   */
-    XGpio   gpio_rst;   /**< axi_gpio_29 — sortie, RST actif bas  */
-    XGpio   gpio_int;   /**< axi_gpio_30 — entrée, INT actif bas  */
+    u32     pin_cs;
+    u32     pin_rst;
+    u32     pin_int;
 
     u8      tx_buf[SHTP_MAX_PACKET_SIZE];
     u8      rx_buf[SHTP_MAX_PACKET_SIZE];
@@ -157,7 +141,7 @@ typedef struct {
  * @param dev  Handle alloué par l'appelant (statique ou global recommandé).
  * @return BNO085_OK ou code d'erreur négatif.
  */
-int BNO085_Init(BNO085_Dev *dev);
+int BNO085_Init(BNO085_Dev *dev, u32 pin_cs, u32 pin_rst, u32 pin_int);
 
 /**
  * @brief Reset matériel du BNO085 (RST bas puis haut) et attente démarrage.

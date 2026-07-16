@@ -10,7 +10,6 @@
 // Quel coeur a le droit de faire le Reset/Init global du périphérique ?
 #define GPIO_MASTER_CORE CORE_CPU0
 
-
 /* ================================================================= *
  * DÉCLARATION DES VARIABLES & DES LIGNES DE CONFIGURATION
  * ================================================================= */
@@ -44,9 +43,25 @@ extern int AU_state;
 
 // --- IO SPÉCIFIQUES AU CPU 1 ---
 #if THIS_CORE == CORE_CPU1
-    // (Ajoute tes extern et tes définitions ROW_ ici plus tard)
+    extern int bno_cs_state;
+    extern int bno_rst_state;
+    extern int bno_int_state;
+    extern int bno_wake_state;
+
+    #define IO_PIN_BNO_CS  63U
+    #define IO_PIN_BNO_RST 61U
+    #define IO_PIN_BNO_INT 60U
+
+    #define ROW_BNO_RST  {61, IO_DIR_OUTPUT, &bno_rst_state, CORE_CPU1},
+    #define ROW_BNO_WAKE {62, IO_DIR_OUTPUT, &bno_wake_state, CORE_CPU1},
+    #define ROW_BNO_CS   {63, IO_DIR_OUTPUT, &bno_cs_state, CORE_CPU1},
+    #define ROW_BNO_INT  {60, IO_DIR_INPUT,  &bno_int_state, CORE_CPU1},
 #else
-    // (Ajoute les ROW_ vides ici plus tard)
+    #define ROW_BNO_RST  // Vide pour le CPU0
+    #define ROW_BNO_WAKE // Vide pour le CPU0
+    #define ROW_BNO_CS   // Vide pour le CPU0
+    #define ROW_BNO_INT  // Vide pour le CPU0
+
 #endif
 
 
@@ -62,6 +77,10 @@ extern int AU_state;
     ROW_IO1 \
     ROW_IO2 \
     ROW_IO3 \
+    ROW_BNO_RST \
+    ROW_BNO_WAKE \
+    ROW_BNO_CS \
+    ROW_BNO_INT \
 }
 
 #endif /* IO_CONFIG_H */

@@ -1,29 +1,34 @@
 /**
  * @file BNO085.c
- * @brief Driver BNO085 (SHTP/SH-2 sur SPI) pour Zynq7000 — GPIO sur AXI
+ * @brief Driver BNO085 (SHTP/SH-2 sur SPI) pour Zynq7000 — GPIO via IO_manager
  *
  * Flux SPI (lecture d'un paquet SHTP) :
- *   1. INT passe bas   → BNO085 a des données prêtes
- *   2. CS = 0          → début de transaction
- *   3. Transfert 4 B   → header : [len_L, len_H, canal, seq]
- *   4. len = (len_H<<8 | len_L) & 0x7FFF  (bit 15 = flag continuation)
- *   5. Transfert restant → cargo / payload  (dans rx_buf depuis l'offset 0)
- *   6. CS = 1          → fin de transaction
+ * 1. INT passe bas   → BNO085 a des données prêtes
+ * 2. CS = 0          → début de transaction
+ * 3. Transfert 4 B   → header : [len_L, len_H, canal, seq]
+ * 4. len = (len_H<<8 | len_L) & 0x7FFF  (bit 15 = flag continuation)
+ * 5. Transfert restant → cargo / payload  (dans rx_buf depuis l'offset 0)
+ * 6. CS = 1          → fin de transaction
  */
 
 #include "../main.h"
 
+int bno_cs_state;  /* CS actif bas */
+int bno_rst_state; /* RST actif bas */
+int bno_int_state; /* INT actif bas */
+int bno_wake_state; /* WAKE actif bas */
+
 /* ═══════════════════════════════════════════════════════════════════════════
- * Macros GPIO — XGpio (AXI) : écriture/lecture canal 1
+ * Macros GPIO — Accès direct via IO_manager
  * ═══════════════════════════════════════════════════════════════════════════ */
 
-#define CS_LOW(dev)    XGpio_DiscreteWrite(&(dev)->gpio_cs,   BNO085_GPIO_CHANNEL, 0U)
-#define CS_HIGH(dev)   XGpio_DiscreteWrite(&(dev)->gpio_cs,   BNO085_GPIO_CHANNEL, 1U)
-#define RST_LOW(dev)   XGpio_DiscreteWrite(&(dev)->gpio_rst,  BNO085_GPIO_CHANNEL, 0U)
-#define RST_HIGH(dev)  XGpio_DiscreteWrite(&(dev)->gpio_rst,  BNO085_GPIO_CHANNEL, 1U)
+#define CS_LOW(dev)    IO_Manager_DirectWrite((dev)->pin_cs, 0U)
+#define CS_HIGH(dev)   IO_Manager_DirectWrite((dev)->pin_cs, 1U)
+#define RST_LOW(dev)   IO_Manager_DirectWrite((dev)->pin_rst, 0U)
+#define RST_HIGH(dev)  IO_Manager_DirectWrite((dev)->pin_rst, 1U)
 
 /* INT est actif bas : retourne 0 quand le BNO085 a des données */
-#define INT_READ(dev)  XGpio_DiscreteRead(&(dev)->gpio_int, BNO085_GPIO_CHANNEL)
+#define INT_READ(dev)  IO_Manager_DirectRead((dev)->pin_int)
 
 /* ─── Utilitaire Q-point ─────────────────────────────────────────────────── */
 
@@ -59,7 +64,7 @@ static int spi_init(BNO085_Dev *dev)
     /*
      * Mode 3 (CPOL=1, CPHA=1).
      * XSPIPS_FORCE_SSELECT_OPTION désactive le CS hardware du PS SPI
-     * car on gère CS manuellement via AXI GPIO.
+     * car on gère CS manuellement via IO_manager.
      */
     XSpiPs_SetOptions(&dev->spi,
                       XSPIPS_MASTER_OPTION        |
@@ -102,68 +107,10 @@ static int spi_transfer(BNO085_Dev *dev, const u8 *tx, u8 *rx, u16 len)
     return BNO085_OK;
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
- * GPIO — AXI GPIO (XGpio)
- * ═══════════════════════════════════════════════════════════════════════════ */
-
-static int gpio_init(BNO085_Dev *dev)
-{
-    int ret;
-
-    /* --- CS (sortie) --- */
-    ret = XGpio_Initialize(&dev->gpio_cs, BNO085_GPIO_CS_ID);
-    if (ret != XST_SUCCESS) {
-        xil_printf("[BNO085] Erreur : init GPIO CS (id=%d, ret=%d)\r\n",
-                   BNO085_GPIO_CS_ID, ret);
-        return BNO085_ERR_GPIO;
-    }
-    /* Direction 0 = sortie pour tous les bits du canal */
-    XGpio_SetDataDirection(&dev->gpio_cs, BNO085_GPIO_CHANNEL, 0x0U);
-
-    /* --- RST (sortie) --- */
-    ret = XGpio_Initialize(&dev->gpio_rst, BNO085_GPIO_RST_ID);
-    if (ret != XST_SUCCESS) {
-        xil_printf("[BNO085] Erreur : init GPIO RST (id=%d, ret=%d)\r\n",
-                   BNO085_GPIO_RST_ID, ret);
-        return BNO085_ERR_GPIO;
-    }
-    XGpio_SetDataDirection(&dev->gpio_rst, BNO085_GPIO_CHANNEL, 0x0U);
-
-    /* --- INT (entrée) --- */
-    ret = XGpio_Initialize(&dev->gpio_int, BNO085_GPIO_INT_ID);
-    if (ret != XST_SUCCESS) {
-        xil_printf("[BNO085] Erreur : init GPIO INT (id=%d, ret=%d)\r\n",
-                   BNO085_GPIO_INT_ID, ret);
-        return BNO085_ERR_GPIO;
-    }
-    /* Direction 0xFFFFFFFF = entrée pour tous les bits */
-    XGpio_SetDataDirection(&dev->gpio_int, BNO085_GPIO_CHANNEL, 0xFFFFFFFFU);
-
-    /* --- États initiaux sûrs --- */
-    CS_HIGH(dev);    /* CS désactivé */
-    RST_HIGH(dev);   /* RST inactif  */
-    return BNO085_OK;
-}
 
 /* ═══════════════════════════════════════════════════════════════════════════
  * Couche SHTP
  * ═══════════════════════════════════════════════════════════════════════════ */
-
-// /**
-//  * @brief Attend que INT passe bas.
-//  *        INT actif bas : le BNO085 signale qu'il a des données à lire.
-//  */
-// static int shtp_wait_int(BNO085_Dev *dev)
-// {
-//     u32 timeout_us = BNO085_INT_TIMEOUT_US;
-//     while (INT_READ(dev) != 0U) {
-//         usleep(1);
-//         if (--timeout_us == 0U) {
-//             return BNO085_ERR_TIMEOUT;
-//         }
-//     }
-//     return BNO085_OK;
-// }
 
 /**
  * @brief Envoie un paquet SHTP.
@@ -202,9 +149,9 @@ static int shtp_send(BNO085_Dev *dev, u8 channel,
  * @brief Lit un paquet SHTP.
  *
  * Après retour BNO085_OK :
- *   - *channel_out  : canal SHTP du paquet reçu
- *   - *length_out   : longueur du cargo (payload, sans les 4 octets header)
- *   - dev->rx_buf[] : contient le payload (offset 0)
+ * - *channel_out  : canal SHTP du paquet reçu
+ * - *length_out   : longueur du cargo (payload, sans les 4 octets header)
+ * - dev->rx_buf[] : contient le payload (offset 0)
  */
 static int shtp_receive(BNO085_Dev *dev, u8 *channel_out, u16 *length_out)
 {
@@ -288,11 +235,11 @@ static void quat_to_euler(const BNO085_Quaternion *q,
  * @brief Parse un payload SH-2 (Feature Report).
  *
  * Format commun des rapports d'entrée (Input Reports) SH-2 :
- *   buf[0]   : Report ID
- *   buf[1]   : Sequence number
- *   buf[2]   : Status / delay LSB  (bits 0-1 = calib status)
- *   buf[3]   : Delay MSB
- *   buf[4+]  : Données (Q-point variables selon le rapport)
+ * buf[0]   : Report ID
+ * buf[1]   : Sequence number
+ * buf[2]   : Status / delay LSB  (bits 0-1 = calib status)
+ * buf[3]   : Delay MSB
+ * buf[4+]  : Données (Q-point variables selon le rapport)
  */
 static void sh2_parse_report(BNO085_Dev *dev, const u8 *buf, u16 len)
 {
@@ -452,27 +399,29 @@ int BNO085_Reset(BNO085_Dev *dev)
     return BNO085_ERR_TIMEOUT;
 }
 
-int BNO085_Init(BNO085_Dev *dev)
+int BNO085_Init(BNO085_Dev *dev, u32 pin_cs, u32 pin_rst, u32 pin_int)
 {
     memset(dev, 0, sizeof(BNO085_Dev));
 
+    /* Sauvegarde de la configuration matérielle */
+    dev->pin_cs  = pin_cs;
+    dev->pin_rst = pin_rst;
+    dev->pin_int = pin_int;
+
     xil_printf("[BNO085] Initialisation...\r\n");
 
-    /* 1. GPIO AXI */
-    int ret = gpio_init(dev);
-    if (ret != BNO085_OK) {
-        xil_printf("[BNO085] Erreur init GPIO\r\n");
-        return ret;
-    }
+    /* Assure des états initiaux sûrs (l'init GPIO est gérée par IO_manager) */
+    CS_HIGH(dev);
+    RST_HIGH(dev);
 
-    /* 2. SPI PS */
-    ret = spi_init(dev);
+    /* 1. SPI PS */
+    int ret = spi_init(dev);
     if (ret != BNO085_OK) {
         xil_printf("[BNO085] Erreur init SPI\r\n");
         return ret;
     }
 
-    /* 3. Reset + boot */
+    /* 2. Reset + boot */
     ret = BNO085_Reset(dev);
     if (ret != BNO085_OK) return ret;
 

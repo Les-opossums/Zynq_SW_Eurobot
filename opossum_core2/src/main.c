@@ -23,7 +23,7 @@ int AU_state, previous_AU_state = 0; // Pour détecter le moment où l'on relâc
 
 void IMU_Init(void)
 {
-    int ret = BNO085_Init(&imu);
+    int ret = BNO085_Init(&imu, IO_PIN_BNO_CS, IO_PIN_BNO_RST, IO_PIN_BNO_INT);
     if (ret != BNO085_OK) {
         xil_printf("[IMU] Echec initialisation (%d) — IMU desactive\r\n", ret);
         return;
