@@ -42,4 +42,8 @@ int IO_Manager_Init(void);
  */
 void IO_Manager_Update(void);
 
+// Accès direct pour les périphériques nécessitant du temps réel (ex: SPI CS)
+void IO_Manager_DirectWrite(u32 pin, u32 value);
+u32 IO_Manager_DirectRead(u32 pin);
+
 #endif /* IO_MANAGER_H */

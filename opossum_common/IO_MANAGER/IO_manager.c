@@ -49,3 +49,11 @@ void IO_Manager_Update(void) {
         }
     }
 }
+
+void IO_Manager_DirectWrite(u32 pin, u32 value) {
+    XGpioPs_WritePin(&Gpio, pin, value);
+}
+
+u32 IO_Manager_DirectRead(u32 pin) {
+    return XGpioPs_ReadPin(&Gpio, pin);
+}
