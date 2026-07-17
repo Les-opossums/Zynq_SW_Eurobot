@@ -2,7 +2,7 @@
 #include "../IO_config.h"
 #include "xil_printf.h"
 
-// --- declarations des différents contextes de périphériques (ex: GPIO PS, GPIO AXI, UART AXI, etc.) ---
+// --- declarations des differents contextes de peripheriques (ex: GPIO PS, GPIO AXI, UART AXI, etc.) ---
 ps_gpio_context_t PsGpio_Ctx; // Contexte du driver GPIO PS
 
 led_color_t Led_Buffer[NBR_LED];
@@ -20,39 +20,36 @@ int IO_Manager_Init(void) {
     int Status;
     int success_count = 0;
 
-    xil_printf("[CPU%d]IO_Manager Initialisation\n", THIS_CORE);
+    xil_printf("[CPU%d]IO_Manager Initialisation\n", THIS_CORE_ID);
 
     for(int i = 0; i<NumDevices; i++){
         io_device_t *dev = &DeviceTable[i];
 
-        // 1 - Vérification de la propriété du périphérique
         if(dev->owner != THIS_CORE && dev->owner != CORE_BOTH){
             continue;
         }
 
-        // 2 - Initialisation du périphérique
         if(dev->init != NULL){
             Status = dev->init(dev->driver_instance);
             if (Status != XST_SUCCESS) {
-                xil_printf("[CPU%d]Erreur d'initialisation du périphérique %d\n", THIS_CORE, i);
+                xil_printf("[CPU%d]Erreur d'initialisation du peripherique %d\n", THIS_CORE_ID, i);
             } else {
                 success_count++;
-                xil_printf("[CPU%d]Périphérique %d initialisé avec succès\n", THIS_CORE, i);
+                xil_printf("[CPU%d]Peripherique %d initialise avec succes\n", THIS_CORE_ID, i);
             }
         }
 
-        // 3 - Gestion des interruptions si nécessaire
         if(dev->irq_id != 0 && dev->irq_handler != NULL){
             Status = IRQ_Manager_Connect(dev->irq_id, dev->irq_handler, dev->driver_instance);
             if (Status != XST_SUCCESS) {
-                xil_printf("[CPU%d]Erreur de connexion de l'interruption pour le périphérique %d\n", THIS_CORE, i);
+                xil_printf("[CPU%d]Erreur de connexion de l'interruption pour le peripherique %d\n", THIS_CORE_ID, i);
             } else {
-                xil_printf("[CPU%d]Interruption pour le périphérique %d connectée avec succès\n", THIS_CORE, i);
+                xil_printf("[CPU%d]Interruption pour le peripherique %d connectee avec succes\n", THIS_CORE_ID, i);
             }
         }
-        success_count++;
+        // ligne "success_count++;" supprimée d'ici
     }
-    xil_printf("[CPU%d]IO_Manager Initialisation terminée : %d périphériques initialisés avec succès sur %d\n", THIS_CORE, success_count, NumDevices);
+    xil_printf("[CPU%d]IO_Manager Initialisation terminee : %d peripheriques initialises avec succes sur %d\n", THIS_CORE_ID, success_count, NumDevices);
     return XST_SUCCESS;
 }
 
@@ -60,12 +57,12 @@ void IO_Manager_Update(void) {
     for(int i = 0; i<NumDevices; i++){
         io_device_t *dev = &DeviceTable[i];
 
-        // Vérification de la propriété du périphérique
+        // Verification de la propriete du peripherique
         if(dev->owner != THIS_CORE && dev->owner != CORE_BOTH){
             continue;
         }
 
-        // Mise à jour du périphérique si la fonction est définie
+        // Mise à jour du peripherique si la fonction est definie
         if(dev->update != NULL){
             dev->update(dev->driver_instance);
         }
