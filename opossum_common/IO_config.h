@@ -56,7 +56,7 @@ extern ps_gpio_context_t PsGpio_Ctx; // Contexte du driver GPIO PS
 /* ================================================================= *
  * Configuration du bandeau LED WS2812B
  * ================================================================= */
-#define WS2812B_BASEADDR    XPAR_WS2812B_0_S00_AXI_BASEADDR 
+#define WS2812B_BASEADDR    XPAR_AXI_WS2812B_RAM_0_BASEADDR 
 #define NBR_LED             44
 
 extern led_color_t Led_Buffer[NBR_LED];
@@ -76,7 +76,7 @@ extern ws2812b_context_t Ws2812b_Ctx; // Contexte du driver WS2812B
         .update = PS_GPIO_Update \
     }, \
     { \
-        .type = DEV_TYPE_LED_STRIP, \
+        .type = DEV_TYPE_WS2812B, \
         .owner = CORE_CPU0, \
         .driver_instance = &Ws2812b_Ctx, \
         .irq_id = 0, \

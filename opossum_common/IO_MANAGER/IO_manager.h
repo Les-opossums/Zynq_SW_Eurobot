@@ -3,6 +3,7 @@
 
 #include "xil_types.h"
 #include "../IRQ_MANAGER/IRQ_manager.h"
+#include "../CORE_ID/core_id.h"
 
 // --- definition pour l'architecture multi-coeurs ---
 typedef enum {

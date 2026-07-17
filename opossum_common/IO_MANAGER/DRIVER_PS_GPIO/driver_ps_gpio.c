@@ -116,7 +116,7 @@ void PS_GPIO_Update(void *instance) {
                 *(pin->state_var) = XGpioPs_ReadPin(&ctx->instance, pin->pin_number);
             }
         } else {
-            XGPioPs_WritePin(&ctx->instance, pin->pin_number, *(pin->state_var));
+        	XGpioPs_WritePin(&ctx->instance, pin->pin_number, *(pin->state_var));
         }
     }
 }

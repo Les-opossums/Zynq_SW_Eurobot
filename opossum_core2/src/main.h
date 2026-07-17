@@ -14,10 +14,6 @@
 #include "xgpio.h"
 #include <math.h>
 
-
-#include "shared_memory.h"
-#include "shared_memory_structure.h"
-
 #include "Timer.h"
 
 #include "interrupt.h"

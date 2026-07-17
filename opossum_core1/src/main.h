@@ -50,11 +50,6 @@
 #include "ETHERNET/robot_messages.h"
 #include "ETH_receiver.h"
 
-// shared memory part
-#include "shared_memory.h"
-#include "shared_memory_structure.h"
-//#define DEBUG
-
 //feetech part
 #include "FEETECH/feetech_UART.h"
 #include "FEETECH/feetech.h"
