@@ -35,18 +35,17 @@ extern void leash_Callback(void *callback_ref);
 
 #define PS_GPIO_PINS { \
     /* PIN,     DIRECTION,      INTERRUPTION,           VARIABLE LIEE,      CALLBACK SPECIFIQUE */\
-    { 55,       IO_DIR_INPUT,   PIN_IRQ_EDGE_BOTH,      &AU_state,          NULL}, \
-    { 54,       IO_DIR_INPUT,   PIN_IRQ_EDGE_RISING,    &leash_state,       leash_Callback}, \
-    { 56,       IO_DIR_INPUT,   PIN_IRQ_NONE,           &team_state,        NULL}, \
-    { 57,       IO_DIR_INPUT,   PIN_IRQ_NONE,           &IO_1_state,        NULL}, \
-    { 58,       IO_DIR_INPUT,   PIN_IRQ_NONE,           &IO_2_state,        NULL}, \
-    { 59,       IO_DIR_INPUT,   PIN_IRQ_NONE,           &IO_3_state,        NULL}, \
-    { 61,       IO_DIR_OUTPUT,  PIN_IRQ_NONE,           &bno_rst_state,     NULL}, \
-    { 62,       IO_DIR_OUTPUT,  PIN_IRQ_NONE,           &bno_wake_state,    NULL}, \
-    { 63,       IO_DIR_OUTPUT,  PIN_IRQ_NONE,           &bno_cs_state,      NULL}, \
-    { 60,       IO_DIR_INPUT ,  PIN_IRQ_EDGE_FALLING,   &bno_int_state,     NULL} \
+    { 55,       PS_GPIO_DIR_INPUT,   PIN_IRQ_NONE,           &AU_state,          NULL}, \
+    { 54,       PS_GPIO_DIR_INPUT,   PIN_IRQ_EDGE_RISING,    &leash_state,       leash_Callback}, \
+    { 56,       PS_GPIO_DIR_INPUT,   PIN_IRQ_NONE,           &team_state,        NULL}, \
+    { 57,       PS_GPIO_DIR_INPUT,   PIN_IRQ_NONE,           &IO_1_state,        NULL}, \
+    { 58,       PS_GPIO_DIR_INPUT,   PIN_IRQ_NONE,           &IO_2_state,        NULL}, \
+    { 59,       PS_GPIO_DIR_INPUT,   PIN_IRQ_NONE,           &IO_3_state,        NULL}, \
+    { 61,       PS_GPIO_DIR_OUTPUT,  PIN_IRQ_NONE,           &bno_rst_state,     NULL}, \
+    { 62,       PS_GPIO_DIR_OUTPUT,  PIN_IRQ_NONE,           &bno_wake_state,    NULL}, \
+    { 63,       PS_GPIO_DIR_OUTPUT,  PIN_IRQ_NONE,           &bno_cs_state,      NULL}, \
+    { 60,       PS_GPIO_DIR_INPUT ,  PIN_IRQ_EDGE_FALLING,   &bno_int_state,     NULL} \
 }
-
 
 /* ================================================================= *
  * Configuration du driver GPIO PS

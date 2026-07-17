@@ -65,10 +65,10 @@ int PS_GPIO_Init(void *instance) {
     for (u32 i = 0; i < ctx->num_pins; i++) {
         const gpio_pin_config_t *pin = &ctx->pin_table[i];
 
-        //direction  & output enable
-        XGpioPs_SetDirection(&ctx->instance, pin->pin_number, pin->direction);
+        //direction & output enable
+        XGpioPs_SetDirectionPin(&ctx->instance, pin->pin_number, pin->direction);
         if(pin->direction == PS_GPIO_DIR_OUTPUT) {
-            XGpioPs_SetOutputEnable(&ctx->instance, pin->pin_number, 1);
+            XGpioPs_SetOutputEnablePin(&ctx->instance, pin->pin_number, 1);
         }
 
         //interruption
@@ -92,7 +92,6 @@ int PS_GPIO_Init(void *instance) {
             XGpioPs_IntrEnablePin(&ctx->instance, pin->pin_number);
         }
     }
-
     return XST_SUCCESS;
 }
 

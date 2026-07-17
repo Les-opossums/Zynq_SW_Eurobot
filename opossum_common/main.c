@@ -20,17 +20,15 @@ void On_IPC_Message_Received(void *callback_ref) {
 int main(void){
     IPC_Init();
     IRQ_Manager_Init();
-    Timer_Manager_Init();
-    
+    int Status = Timer_Manager_Init();
+    xil_printf("Timer_Manager_Init Status = %d\n", Status);
     IRQ_Manager_Connect(IPC_SGI_INT_ID, On_IPC_Message_Received, NULL);
 
     IO_Manager_Init();
     IRQ_Manager_Start();
     IPC_SyncCores();
 
-
-    Timer_Manager_Init();
-
+    xil_printf("Entree dans la boucle principale\n");
 
     while(1){
         IO_Manager_Update();

@@ -1,5 +1,13 @@
 #include "IO_config.h"
 
+// --- Table des broches GPIO PS, instanciée à partir de la macro PS_GPIO_PINS ---
+static gpio_pin_config_t PsGpio_PinTable[] = PS_GPIO_PINS;
+
+ps_gpio_context_t PsGpio_Ctx = {
+    .pin_table = PsGpio_PinTable,
+    .num_pins  = sizeof(PsGpio_PinTable) / sizeof(gpio_pin_config_t)
+};
+
 // --- Définition des variables d'état déclarées extern dans IO_config.h ---
 volatile int AU_state    = 0;
 volatile int leash_state = 0;
