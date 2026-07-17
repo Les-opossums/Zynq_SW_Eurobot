@@ -35,7 +35,7 @@ int main(void){
 
         #if THIS_CORE_ID == CORE_ID_CPU0
             // execution du code du core 0
-            LED_AU_Test_Update();
+            // LED_AU_Test_Update();
         #else
             // execution du code du core 1
         #endif
