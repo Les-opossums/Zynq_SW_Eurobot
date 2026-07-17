@@ -1,94 +1,66 @@
 #ifndef IO_CONFIG_H
 #define IO_CONFIG_H
 
-#include "IO_manager.h"
 #include "xparameters.h"
 
+/* ================================================================= *
+ * Include vers l'IO Manager
+ * ================================================================= */
+#include "IO_manager.h"
 
 /* ================================================================= *
- * Definition des includes et des variables externes
+ * Include vers les drivers spécifiques
  * ================================================================= */
-#include "xgpio.h"
-
+#include "DRIVER_PS_GPIO/driver_ps_gpio.h"
 
 /* ================================================================= *
- * DEFINITION DU COEUR ACTUEL ET DU MAITRE MATERIEL
+ * Variables globales des états
  * ================================================================= */
-
-// Quel coeur a le droit de faire le Reset/Init global du périphérique ?
-#define GPIO_MASTER_CORE CORE_CPU0
+extern volatile int AU_state;        // Etat de l'AU (0 = relâché, 1 = appuyé)
+extern volatile int leash_state;     // Etat de la laisse (0 = relâchée, 1 = attachée)
+extern volatile int team_state;      // Etat de l'équipe (0 = équipe 1, 1 = équipe 2)
+extern volatile int IO_1_state;
+extern volatile int IO_2_state;
+extern volatile int IO_3_state;
+extern volatile int bno_cs_state;
+extern volatile int bno_rst_state;
+extern volatile int bno_int_state;
+extern volatile int bno_wake_state;
 
 /* ================================================================= *
- * DÉCLARATION DES VARIABLES & DES LIGNES DE CONFIGURATION
+ * Fonctions de callback pour les interruptions (Optionnel)
  * ================================================================= */
+extern void leash_Callback(void *callback_ref);
 
-// --- IO PARTAGÉES (Lues ou écrites par les deux coeurs) ---
-extern int AU_state;
-#define ROW_AU {55, IO_DIR_INPUT, &AU_state, CORE_BOTH},
+#define PS_GPIO_PINS { \
+    /* PIN,     DIRECTION,      INTERRUPTION,           VARIABLE LIEE,      CALLBACK SPECIFIQUE */\
+    { 55,       IO_DIR_INPUT,   PIN_IRQ_EDGE_BOTH,      &AU_state,          NULL}, \
+    { 54,       IO_DIR_INPUT,   PIN_IRQ_EDGE_RISING,    &leash_state,       leash_Callback}, \
+    { 56,       IO_DIR_INPUT,   PIN_IRQ_NONE,           &team_state,        NULL}, \
+    { 57,       IO_DIR_INPUT,   PIN_IRQ_NONE,           &IO_1_state,        NULL}, \
+    { 58,       IO_DIR_INPUT,   PIN_IRQ_NONE,           &IO_2_state,        NULL}, \
+    { 59,       IO_DIR_INPUT,   PIN_IRQ_NONE,           &IO_3_state,        NULL}, \
+    { 61,       IO_DIR_OUTPUT,  PIN_IRQ_NONE,           &bno_rst_state,     NULL}, \
+    { 62,       IO_DIR_OUTPUT,  PIN_IRQ_NONE,           &bno_wake_state,    NULL}, \
+    { 63,       IO_DIR_OUTPUT,  PIN_IRQ_NONE,           &bno_cs_state,      NULL}, \
+    { 60,       IO_DIR_INPUT ,  PIN_IRQ_EDGE_FALLING,   &bno_int_state,     NULL} \
+}
 
-
-// --- IO SPÉCIFIQUES AU CPU 0 ---
-#if THIS_CORE == CORE_CPU0
-    extern int leash_state;
-    extern int team_state;
-    extern int IO_1_state;
-    extern int IO_2_state;
-    extern int IO_3_state;
-
-    #define ROW_LEASH {54, IO_DIR_INPUT, &leash_state, CORE_CPU0},
-    #define ROW_TEAM  {56, IO_DIR_INPUT, &team_state,  CORE_CPU0},
-    #define ROW_IO1   {57, IO_DIR_INPUT, &IO_1_state,  CORE_CPU0},
-    #define ROW_IO2   {58, IO_DIR_INPUT, &IO_2_state,  CORE_CPU0},
-    #define ROW_IO3   {59, IO_DIR_INPUT, &IO_3_state,  CORE_CPU0},
-#else
-    #define ROW_LEASH // Vide pour le CPU1
-    #define ROW_TEAM  // Vide pour le CPU1
-    #define ROW_IO1   // Vide pour le CPU1
-    #define ROW_IO2   // Vide pour le CPU1
-    #define ROW_IO3   // Vide pour le CPU1
-#endif
-
-
-// --- IO SPÉCIFIQUES AU CPU 1 ---
-#if THIS_CORE == CORE_CPU1
-    extern int bno_cs_state;
-    extern int bno_rst_state;
-    extern int bno_int_state;
-    extern int bno_wake_state;
-
-    #define IO_PIN_BNO_CS  63U
-    #define IO_PIN_BNO_RST 61U
-    #define IO_PIN_BNO_INT 60U
-
-    #define ROW_BNO_RST  {61, IO_DIR_OUTPUT, &bno_rst_state, CORE_CPU1},
-    #define ROW_BNO_WAKE {62, IO_DIR_OUTPUT, &bno_wake_state, CORE_CPU1},
-    #define ROW_BNO_CS   {63, IO_DIR_OUTPUT, &bno_cs_state, CORE_CPU1},
-    #define ROW_BNO_INT  {60, IO_DIR_INPUT,  &bno_int_state, CORE_CPU1},
-#else
-    #define ROW_BNO_RST  // Vide pour le CPU0
-    #define ROW_BNO_WAKE // Vide pour le CPU0
-    #define ROW_BNO_CS   // Vide pour le CPU0
-    #define ROW_BNO_INT  // Vide pour le CPU0
-
-#endif
-
+extern ps_gpio_context_t PsGpio_Ctx; // Contexte du driver GPIO PS
 
 /* ================================================================= *
- * ASSEMBLAGE DU TABLEAU FINAL
+ * Table de l'io manager
  * ================================================================= */
-// Le préprocesseur va automatiquement ignorer les macros qui sont vides
-// selon le coeur défini tout en haut.
-#define IO_CONFIG_TABLE { \
-    ROW_AU \
-    ROW_LEASH \
-    ROW_TEAM \
-    ROW_IO1 \
-    ROW_IO2 \
-    ROW_IO3 \
-    ROW_BNO_RST \
-    ROW_BNO_WAKE \
-    ROW_BNO_CS \
-    ROW_BNO_INT \
+#define IO_DEVICE_TABLE { \
+    { \
+        .type = DEV_TYPE_GPIO_PS, \
+        .owner = CORE_CPU0, \
+        .driver_instance = &PsGpio_Ctx, \
+        .irq_id = XPAR_XGPIOPS_0_INTR, \
+        .irq_handler = (Xil_InterruptHandler)XGpioPs_IntrHandler, \
+        .init = PS_GPIO_Init, \
+        .update = PS_GPIO_Update \
+    } \
 }
 
 #endif /* IO_CONFIG_H */
