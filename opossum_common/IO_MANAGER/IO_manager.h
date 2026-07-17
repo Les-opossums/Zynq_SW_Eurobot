@@ -1,49 +1,43 @@
 #ifndef IO_MANAGER_H
 #define IO_MANAGER_H
 
-#include "xgpiops.h"
-#include "xparameters.h"
+#include "xil_types.h"
+#include "../IRQ_MANAGER/IRQ_manager.h"
 
-// Définition des directions pour plus de clarté
+// --- definition pour l'architecture multi-coeurs ---
 typedef enum {
-    IO_DIR_INPUT = 0,
-    IO_DIR_OUTPUT = 1
-} io_direction_t;
+    CORE_CPU0 = 0,
+    CORE_CPU1 = 1,
+    CORE_BOTH = 2
+} core_owner_t;
 
-// Identifiants des coeurs
-#define CORE_CPU0 0
-#define CORE_CPU1 1
-#define CORE_BOTH 2
+// --- types de périphériques gérés ---
+typedef enum {
+    DEV_TYPE_GPIO_PS,
+    DEV_TYPE_GPIO_AXI,
+    DEV_TYPE_UART_AXI,
+    DEV_TYPE_I2C,
+    DEV_TYPE_SPI
+} dev_type_t;
 
-typedef int core_id_t;
-
-// Structure définissant la configuration d'une broche
+// ---structure universelle d'un périphérique ---
 typedef struct {
-    u32 pin_number;           // Le numéro de la broche (ex: 54 pour EMIO 0)
-    io_direction_t direction; // Entrée (0) ou Sortie (1)
-    int *data_ptr;            // Pointeur vers ta variable métier
-    core_id_t owner;          // Indique quel coeur est propriétaire de cette IO
-} io_pin_config_t;
+    dev_type_t type;       // Type de périphérique
+    core_owner_t owner;    // Propriétaire du périphérique
+    void *driver_instance; // Pointeur vers l'instance du driver (ex: XGpio pour GPIO)
 
-/**
- * @brief Initialise le gestionnaire d'entrées/sorties
- * 
- * @note Cette fonction doit être appelée une seule fois au démarrage du système.
- * Suivant le coeur sur lequel elle est exécutée, elle initialise le contrôleur GPIO et configure les broches selon la table de configuration.
- * 
- * @return int 
- */
+    // paramètres d'intéruption (optionnels)
+    u32 irq_id;            // ID de l'interruption associée (0 si pas d'interruption)
+    Xil_InterruptHandler irq_handler; // Pointeur vers la fonction de gestion de l'interruption
+
+    //pointeurs de fonctions (méthode de l'objet)
+    int (*init)(void *instance); // Fonction d'initialisation du périphérique
+    void(*update)(void *instance); // Fonction de mise à jour (lecture/écriture
+}io_device_t;
+
+
 int IO_Manager_Init(void);
-
-/**
- * @brief Met à jour l'état des broches gérées par le gestionnaire d'entrées/sorties 
- * 
- * @note Cette fonction doit être appelée régulièrement dans la boucle principale du programme. Seul les broches appartenant au coeur courant ou partagées sont traitées.
- */
 void IO_Manager_Update(void);
 
-// Accès direct pour les périphériques nécessitant du temps réel (ex: SPI CS)
-void IO_Manager_DirectWrite(u32 pin, u32 value);
-u32 IO_Manager_DirectRead(u32 pin);
 
 #endif /* IO_MANAGER_H */

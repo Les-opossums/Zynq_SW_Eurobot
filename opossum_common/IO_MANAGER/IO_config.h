@@ -2,6 +2,14 @@
 #define IO_CONFIG_H
 
 #include "IO_manager.h"
+#include "xparameters.h"
+
+
+/* ================================================================= *
+ * Definition des includes et des variables externes
+ * ================================================================= */
+#include "xgpio.h"
+
 
 /* ================================================================= *
  * DEFINITION DU COEUR ACTUEL ET DU MAITRE MATERIEL
