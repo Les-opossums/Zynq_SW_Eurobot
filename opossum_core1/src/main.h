@@ -65,9 +65,4 @@
 // LD19 part
 #include "LD19/ld19.h"
 
-
-//IO manager_part
-#include "IO_MANAGER/IO_manager.h"
-#include "IO_MANAGER/IO_config.h"
-
 #endif // MAIN_H

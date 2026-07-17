@@ -5,6 +5,14 @@
 // --- declarations des différents contextes de périphériques (ex: GPIO PS, GPIO AXI, UART AXI, etc.) ---
 ps_gpio_context_t PsGpio_Ctx; // Contexte du driver GPIO PS
 
+led_color_t Led_Buffer[NBR_LED];
+ws2812b_context_t Ws2812b_Ctx = {
+    .base_addr = WS2812B_BASEADDR,
+    .num_leds = NBR_LED,
+    .led_buffer = Led_Buffer,
+    .refresh_period_ms = 10
+};
+
 static io_device_t DeviceTable[] = IO_DEVICE_TABLE;
 static const int NumDevices = sizeof(DeviceTable) / sizeof(io_device_t);
 

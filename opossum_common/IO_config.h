@@ -12,6 +12,7 @@
  * Include vers les drivers spécifiques
  * ================================================================= */
 #include "IO_MANAGER/DRIVER_PS_GPIO/driver_ps_gpio.h"
+#include "IO_MANAGER/DRIVER_WS2812B/driver_ws2812b.h"
 
 /* ================================================================= *
  * Variables globales des états
@@ -46,7 +47,20 @@ extern void leash_Callback(void *callback_ref);
     { 60,       IO_DIR_INPUT ,  PIN_IRQ_EDGE_FALLING,   &bno_int_state,     NULL} \
 }
 
+
+/* ================================================================= *
+ * Configuration du driver GPIO PS
+ * ================================================================= */
 extern ps_gpio_context_t PsGpio_Ctx; // Contexte du driver GPIO PS
+
+/* ================================================================= *
+ * Configuration du bandeau LED WS2812B
+ * ================================================================= */
+#define WS2812B_BASEADDR    XPAR_WS2812B_0_S00_AXI_BASEADDR 
+#define NBR_LED             44
+
+extern led_color_t Led_Buffer[NBR_LED];
+extern ws2812b_context_t Ws2812b_Ctx; // Contexte du driver WS2812B
 
 /* ================================================================= *
  * Table de l'io manager
@@ -60,6 +74,15 @@ extern ps_gpio_context_t PsGpio_Ctx; // Contexte du driver GPIO PS
         .irq_handler = (Xil_InterruptHandler)XGpioPs_IntrHandler, \
         .init = PS_GPIO_Init, \
         .update = PS_GPIO_Update \
+    }, \
+    { \
+        .type = DEV_TYPE_LED_STRIP, \
+        .owner = CORE_CPU0, \
+        .driver_instance = &Ws2812b_Ctx, \
+        .irq_id = 0, \
+        .irq_handler = NULL, \
+        .init = WS2812B_Init, \
+        .update = WS2812B_Update \
     } \
 }
 

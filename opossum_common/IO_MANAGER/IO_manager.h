@@ -17,7 +17,8 @@ typedef enum {
     DEV_TYPE_GPIO_AXI,
     DEV_TYPE_UART_AXI,
     DEV_TYPE_I2C,
-    DEV_TYPE_SPI
+    DEV_TYPE_SPI,
+    DEV_TYPE_WS2812B,
 } dev_type_t;
 
 // ---structure universelle d'un périphérique ---
@@ -32,7 +33,7 @@ typedef struct {
 
     //pointeurs de fonctions (méthode de l'objet)
     int (*init)(void *instance); // Fonction d'initialisation du périphérique
-    void(*update)(void *instance); // Fonction de mise à jour (lecture/écriture
+    void(*update)(void *instance); // Fonction de mise à jour (lecture/écriture)
 }io_device_t;
 
 
