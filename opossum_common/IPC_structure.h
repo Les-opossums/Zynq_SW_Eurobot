@@ -1,24 +1,34 @@
-#ifndef SHARED_MEMORY_STRUCTURE_H
-#define SHARED_MEMORY_STRUCTURE_H
+#ifndef IPC_STRUCTURE_H
+#define IPC_STRUCTURE_H
 
 #include <stdint.h>
-#include "main.h"
-#include "Asserv_type.h"
+#include "common_type.h"
 
 /**
  * @brief This strcucture describes the organization of the shared memory
- * 
- * @note 
- * Here is the list of variables that are shared between the two cores:
- * 
- * - `cmd_position`: contains the goal position in the world frame
- * 
- * - `cmd_speed`: contains the goal speed in the robot frame
  */
 typedef struct {
-    // ******************************* CORE0 -> CORE1 *******************************
-    //
-    // ******************************************************************************
+    // ===========================================================================
+    // 1 - VARIABLES TRANSPARENTES (Accès direct, pas de flag de validité)
+    // ===========================================================================
+    volatile uint32_t core0_ready; // 1 if core0 is ready, 0 otherwise
+    volatile uint32_t core1_ready; // 1 if core1 is ready, 0 otherwise
+
+    // etats des gpio gérés par CPU0 lus par CPU1
+    volatile uint32_t AU_state;        // Etat de l'AU (0 = relâché, 1 = appuyé)
+    volatile uint32_t leash_state;     // Etat de la laisse (0 = relâchée, 1 = attachée)
+
+    // commandes GPIO envoyées par CPU1, exécutées par CPU0
+    volatile uint32_t bno_cs_state;
+    volatile uint32_t bno_rst_state;
+    volatile uint32_t bno_int_state;
+    volatile uint32_t bno_wake_state;    
+
+    // ===========================================================================
+    // 2 - BOITE AUX LETTRE (Messages avec Valid/Ack et Interrupt)
+    // ===========================================================================
+
+    // ********************************* CORE0 -> CORE1 *********************************
     volatile uint32_t flag_cmd_position_valid; // CORE0 -> CORE1: 1 if position is valid, 0 otherwise
     volatile uint32_t flag_cmd_position_ack;   // CORE1 -> CORE0: 1 new position taken into account, 0 otherwise
     Position cmd_position;
@@ -79,9 +89,11 @@ typedef struct {
     volatile uint32_t flag_odo_spacing_ack;   // CORE1 -> CORE0: 1 new odo spacing taken into account, 0 otherwise
     float odo_spacing; // spacing between the wheels in meters
     
-    // ******************************* CORE1 -> CORE0 *******************************
-    //
-    // ******************************************************************************
+    
+    
+    
+    // ********************************* CORE1 -> CORE0 *********************************
+
     volatile uint32_t flag_kalman_out_valid; // CORE1 -> CORE0: 1 if kalman output is valid, 0 otherwise
     volatile uint32_t flag_kalman_out_ack;   // CORE0 -> CORE1: 1 new kalman output taken into account, 0 otherwise
     Position kalman_out;
@@ -114,6 +126,6 @@ typedef struct {
     volatile uint32_t flag_motion_done_ack;   // CORE0 -> CORE1: 1 new motion done taken into account, 0 otherwise
     uint32_t motion_done; // 0 if the robot is moving, 1 if the robot
 
-} sharedCommand;
+} ipc_shared_data_t;
 
-#endif // SHARED_MEMORY_STRUCTURE_H
+#endif // IPC_STRUCTURE_H

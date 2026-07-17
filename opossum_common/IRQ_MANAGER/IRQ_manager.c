@@ -2,7 +2,7 @@
 
 static XScuGic InterruptController;
 
-int IRQ_manager_init(void) {
+int IRQ_Manager_Init(void) {
     int Status;
     XScuGic_Config *gICconfig;
 

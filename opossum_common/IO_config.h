@@ -6,12 +6,12 @@
 /* ================================================================= *
  * Include vers l'IO Manager
  * ================================================================= */
-#include "IO_manager.h"
+#include "IO_MANAGER/io_manager.h"
 
 /* ================================================================= *
  * Include vers les drivers spécifiques
  * ================================================================= */
-#include "DRIVER_PS_GPIO/driver_ps_gpio.h"
+#include "IO_MANAGER/DRIVER_PS_GPIO/driver_ps_gpio.h"
 
 /* ================================================================= *
  * Variables globales des états
@@ -19,9 +19,9 @@
 extern volatile int AU_state;        // Etat de l'AU (0 = relâché, 1 = appuyé)
 extern volatile int leash_state;     // Etat de la laisse (0 = relâchée, 1 = attachée)
 extern volatile int team_state;      // Etat de l'équipe (0 = équipe 1, 1 = équipe 2)
-extern volatile int IO_1_state;
-extern volatile int IO_2_state;
-extern volatile int IO_3_state;
+extern volatile int IO_1_state;      // switch IHM
+extern volatile int IO_2_state;      // switch IHM
+extern volatile int IO_3_state;      // switch IHM
 extern volatile int bno_cs_state;
 extern volatile int bno_rst_state;
 extern volatile int bno_int_state;

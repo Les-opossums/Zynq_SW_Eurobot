@@ -5,7 +5,7 @@
 #include "xil_exception.h"
 
 
-int IRQ_manager_init(void);
+int IRQ_Manager_Init(void);
 
 int IRQ_Manager_Connect(u32 irq_id, Xil_InterruptHandler handler, void *callback_ref);
 

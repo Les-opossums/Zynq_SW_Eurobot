@@ -1,5 +1,5 @@
 #include "IO_manager.h"
-#include "IO_config.h"
+#include "../IO_config.h"
 #include "xil_printf.h"
 
 // --- declarations des différents contextes de périphériques (ex: GPIO PS, GPIO AXI, UART AXI, etc.) ---
