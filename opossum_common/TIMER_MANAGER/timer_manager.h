@@ -3,8 +3,9 @@
 
 #include "xil_types.h"
 
-extern volatile u32 Timer_ms1;
+extern volatile int Timer_ms1;
 
-int Timer_Manager_Init(void);
+int  Timer_Manager_Init(void);
+void Delay_ms(int ms);
 
 #endif /* TIMER_MANAGER_H */
