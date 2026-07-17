@@ -2,9 +2,8 @@
 #include "IO_config.h"
 #include "xil_printf.h"
 
-#ifndef THIS_CORE
-    #error "THIS_CORE n'est pas défini lors de la compilation !"
-#endif
+// --- declarations des différents contextes de périphériques (ex: GPIO PS, GPIO AXI, UART AXI, etc.) ---
+ps_gpio_context_t PsGpio_Ctx; // Contexte du driver GPIO PS
 
 static io_device_t DeviceTable[] = IO_DEVICE_TABLE;
 static const int NumDevices = sizeof(DeviceTable) / sizeof(io_device_t);
