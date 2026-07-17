@@ -1,27 +1,26 @@
 #include "IPC_manager.h"
+#include "../CORE_ID/core_id.h" 
+#include "../IRQ_MANAGER/IRQ_manager.h"
+
 #include "xil_mmu.h"
 #include "xpseudo_asm.h"
 #include "xscugic.h"
 #include "xparameters.h"
 #include <string.h>
 
-extern XScuGic INTC_Inst;
-
-
-
 void IPC_Init(void) {
     //disable cache on OCM (Strongly Ordered, NONCACHEABLE, shareable)
     Xil_SetTlbAttributes(IPC_SHARED_MEM_ADDR,0x14de2); 
     dmb(); //waits until write has finished
 
-    #if THIS_CORE == CORE_CPU0
+    #if THIS_CORE_ID == CORE_ID_CPU0
         memset((void *)IPC_DATA, 0, sizeof(ipc_shared_data_t));
         dmb(); //waits until write has finished
     #endif
 }
 
 void IPC_SyncCores(void) {
-    #if THIS_CORE == CORE_CPU0
+    #if THIS_CORE_ID == CORE_ID_CPU0
         IPC_DATA->core0_ready = 1;
         dmb(); //waits until write has finished
         while (IPC_DATA->core1_ready == 0) {
@@ -39,12 +38,12 @@ void IPC_SyncCores(void) {
 }
 
 static void trigger_other_core_interrupt(void) {
-    #if THIS_CORE == CORE_CPU0
+    #if THIS_CORE_ID == CORE_ID_CPU0
         // Send SGI to core 1
-        XScuGic_SoftwareIntr(&INTC_Inst, IPC_SGI_INT_ID, 0x02); // CPU1 is bit 1
+        XScuGic_SoftwareIntr(IRQ_Manager_GetInstance(), IPC_SGI_INT_ID, 0x02); // CPU1 is bit 1
     #else
         // Send SGI to core 0
-        XScuGic_SoftwareIntr(&INTC_Inst, IPC_SGI_INT_ID, 0x01); // CPU0 is bit 0
+        XScuGic_SoftwareIntr(IRQ_Manager_GetInstance(), IPC_SGI_INT_ID, 0x01); // CPU0 is bit 0
     #endif
 }
 

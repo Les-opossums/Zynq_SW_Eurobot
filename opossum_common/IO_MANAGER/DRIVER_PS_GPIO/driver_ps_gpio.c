@@ -59,7 +59,7 @@ int PS_GPIO_Init(void *instance) {
     }
 
     // 2 - Configurer le callback générique pour les interruptions
-    XGpioPs_SetCallback(&ctx->instance, (void *)ctx, PS_GPIO_Callback);
+    XGpioPs_SetCallbackHandler(&ctx->instance, (void *)ctx, (XGpioPs_Handler)PS_GPIO_Callback);
 
     // 3 - Configurer chaque broche selon la table de configuration
     for (u32 i = 0; i < ctx->num_pins; i++) {

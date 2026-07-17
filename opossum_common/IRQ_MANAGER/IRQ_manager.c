@@ -43,3 +43,7 @@ void IRQ_Manager_Start(void) {
     // Enable interrupts in the processor.
     Xil_ExceptionEnable();
 }
+
+XScuGic *IRQ_Manager_GetInstance(void) {
+    return &InterruptController;
+}
