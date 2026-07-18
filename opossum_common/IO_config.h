@@ -92,7 +92,8 @@ extern uart_ps_context_t UartComm_Ctx;
         .irq_id = XPAR_XGPIOPS_0_INTR, \
         .irq_handler = (Xil_InterruptHandler)XGpioPs_IntrHandler, \
         .init = PS_GPIO_Init, \
-        .update = PS_GPIO_Update \
+        .update = PS_GPIO_Update, \
+        .deinit = NULL \
     }, \
     { \
         .type = DEV_TYPE_WS2812B, \
@@ -101,7 +102,8 @@ extern uart_ps_context_t UartComm_Ctx;
         .irq_id = 0, \
         .irq_handler = NULL, \
         .init = WS2812B_Init, \
-        .update = WS2812B_Update \
+        .update = WS2812B_Update, \
+        .deinit = NULL \
     }, \
     {   .type = DEV_TYPE_IMU_BNO085, \
         .owner = CORE_CPU0, \
@@ -109,7 +111,8 @@ extern uart_ps_context_t UartComm_Ctx;
         .irq_id = 0, \
         .irq_handler = NULL, \
         .init = BNO085_IO_Init, \
-        .update = BNO085_IO_Update \
+        .update = BNO085_IO_Update, \
+        .deinit = NULL \
     }, \
     { \
         .type = DEV_TYPE_UART_PS, \
@@ -118,7 +121,8 @@ extern uart_ps_context_t UartComm_Ctx;
         .irq_id = XPAR_XUARTPS_0_INTR, \
         .irq_handler = (Xil_InterruptHandler)XUartPs_InterruptHandler, \
         .init = UART_PS_Init, \
-        .update = UART_PS_Update \
+        .update = UART_PS_Update, \
+        .deinit = NULL \
     } \
 }
 

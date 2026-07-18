@@ -7,7 +7,6 @@
 
 // --- Table des broches GPIO PS, instanciée à partir de la macro PS_GPIO_PINS ---
 static gpio_pin_config_t PsGpio_PinTable[] = PS_GPIO_PINS;
-
 ps_gpio_context_t PsGpio_Ctx = {
     .pin_table = PsGpio_PinTable,
     .num_pins  = sizeof(PsGpio_PinTable) / sizeof(gpio_pin_config_t)
@@ -54,3 +53,15 @@ uart_ps_context_t UartComm_Ctx = {
     .baudrate  = UART_COMM_BAUDRATE,
     .is_console = 1
 };
+
+// ==================================================================
+// Définition du contexte du driver WS2812B
+// ==================================================================
+led_color_t Led_Buffer[NBR_LED];
+ws2812b_context_t Ws2812b_Ctx = {
+    .base_addr = WS2812B_BASEADDR,
+    .num_leds = NBR_LED,
+    .led_buffer = Led_Buffer,
+    .refresh_period_ms = 10
+};
+

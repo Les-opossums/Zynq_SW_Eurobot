@@ -34,9 +34,12 @@ typedef struct {
     u32 irq_id;            // ID de l'interruption associée (0 si pas d'interruption)
     Xil_InterruptHandler irq_handler; // Pointeur vers la fonction de gestion de l'interruption
 
+    volatile u8 is_active; // Indique si le périphérique est actif (1) ou inactif (0)
+
     //pointeurs de fonctions (méthode de l'objet)
     int (*init)(void *instance); // Fonction d'initialisation du périphérique
     void(*update)(void *instance); // Fonction de mise à jour (lecture/écriture)
+    void (*deinit)(void *instance); // Fonction de désinitialisation du périphérique (optionnelle)
 }io_device_t;
 
 
