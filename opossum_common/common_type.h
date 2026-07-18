@@ -41,6 +41,7 @@ typedef struct __attribute__((packed)){
     PID_err err1;
     PID_err err2;
     PID_err err3;
+    PID_err err4;
 } PID_speed;
 
 typedef struct __attribute__((packed)){

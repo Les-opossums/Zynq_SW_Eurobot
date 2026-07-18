@@ -2,7 +2,7 @@
 #define __KALMAN_FIFO_H_
 
 #include <stdint.h>
-
+#include "../../../opossum_common/common_type.h"
 #include "kalman.h"
 
 #define REPROPAGATE_STEPS_PER_TICK 20  // slots traités par cycle de fast loop (10 × ~23µs = ~230µs max par tick)
