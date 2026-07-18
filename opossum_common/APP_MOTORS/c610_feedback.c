@@ -1,8 +1,6 @@
 #include "c610_feedback.h"
 
-int angle_motor_1 = 0, angle_motor_2 = 0, angle_motor_3 = 0, angle_motor_4 = 0;
-int speed_motor_1 = 0, speed_motor_2 = 0, speed_motor_3 = 0, speed_motor_4 = 0;
-int torque_motor_1 = 0, torque_motor_2 = 0, torque_motor_3 = 0, torque_motor_4 = 0;
+C610_MotorFeedback_t motor_feedback[4];
 
 static void decode_c610(const u32 *frame_words, int *angle, int *speed, int *torque) {
     u8 b1 = (frame_words[2] >> 24) & 0xFF;
@@ -19,25 +17,27 @@ static void decode_c610(const u32 *frame_words, int *angle, int *speed, int *tor
 
 void C610_Motor1_Callback(void *app_ctx, const u32 *frame_words, u8 dlc) {
     (void)app_ctx; (void)dlc;
-    decode_c610(frame_words, &angle_motor_1, &speed_motor_1, &torque_motor_1);
+    decode_c610(frame_words, &motor_feedback[0].angle_motor, &motor_feedback[0].speed_motor, &motor_feedback[0].torque_motor);
 }
 void C610_Motor2_Callback(void *app_ctx, const u32 *frame_words, u8 dlc) {
     (void)app_ctx; (void)dlc;
-    decode_c610(frame_words, &angle_motor_2, &speed_motor_2, &torque_motor_2);
+    decode_c610(frame_words, &motor_feedback[1].angle_motor, &motor_feedback[1].speed_motor, &motor_feedback[1].torque_motor);
 }
 void C610_Motor3_Callback(void *app_ctx, const u32 *frame_words, u8 dlc) {
     (void)app_ctx; (void)dlc;
-    decode_c610(frame_words, &angle_motor_3, &speed_motor_3, &torque_motor_3);
+    decode_c610(frame_words, &motor_feedback[2].angle_motor, &motor_feedback[2].speed_motor, &motor_feedback[2].torque_motor);
 }
 void C610_Motor4_Callback(void *app_ctx, const u32 *frame_words, u8 dlc) {
     (void)app_ctx; (void)dlc;
-    decode_c610(frame_words, &angle_motor_4, &speed_motor_4, &torque_motor_4);
+    decode_c610(frame_words, &motor_feedback[3].angle_motor, &motor_feedback[3].speed_motor, &motor_feedback[3].torque_motor);
 }
 
 void Init_CAN_MOTOR_variables(void) {
-    angle_motor_1 = angle_motor_2 = angle_motor_3 = angle_motor_4 = 0;
-    speed_motor_1 = speed_motor_2 = speed_motor_3 = speed_motor_4 = 0;
-    torque_motor_1 = torque_motor_2 = torque_motor_3 = torque_motor_4 = 0;
+    for (int i = 0; i < 4; i++) {
+        motor_feedback[i].angle_motor = 0;
+        motor_feedback[i].speed_motor = 0;
+        motor_feedback[i].torque_motor = 0;
+    }
 }
 
 void CAN_transmit_motor(can_io_context_t *ctx, int16_t motor1, int16_t motor2, int16_t motor3, int16_t motor4) {
