@@ -88,15 +88,12 @@ static void receive_commands(void)
     if (CHECK_FIELD(&rx, cmd_abs_speed)) { motion_set_absolute_speed(&rx.cmd_abs_speed); }
     
     if (CHECK_FIELD(&rx, asserv_mode)) {
+        ctx.manual_esc_enabled = 0;
         if (rx.asserv_mode == 0) { 
-            // Mode libre : désactive les moteurs et le contrôle manuel
             motion_free();    
-            ctx.manual_esc_enabled = 0;
         } 
         else if (rx.asserv_mode == 4) { 
-            // Mode bloqué : maintient la position, désactive le contrôle manuel
             motion_block();   
-            ctx.manual_esc_enabled = 0;
         }
     }
 
