@@ -10,9 +10,9 @@
 #define ESC_TX_MESSAGE_ID  0x200
 
 typedef struct {
-    int angle_motor;
-    int speed_motor;
-    int torque_motor;
+    volatile int angle_motor;
+    volatile int speed_motor;
+    volatile int torque_motor;
 } C610_MotorFeedback_t;
 
 /* Le tableau d'instances de nos moteurs reste disponible */

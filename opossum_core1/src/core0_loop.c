@@ -11,6 +11,9 @@ void App_Init(void) {
 
 void App_Loop(void) {
     Com_Interpreter_Update();
+    IPC_DATA->AU_state = (uint32_t)AU_state;
+    IPC_DATA->leash_state = (uint32_t)leash_state;
+    __asm__ volatile("dmb sy" ::: "memory");
     // Le reste du code de ton Core0_Loop
 
     static u32 print_timer = 0;

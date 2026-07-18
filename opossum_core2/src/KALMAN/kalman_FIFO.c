@@ -1,4 +1,6 @@
 #include "kalman_FIFO.h"
+#include "../ASSERV/asserv_default.h"
+#include <string.h>
 
 KalmanFIFO kalman_fifo;
 
@@ -168,7 +170,7 @@ uint8_t lidar_consecutive_rejections = 0;
 
 // Retourne l'index du slot, ou -1 si invalide
 int kalman_fifo_insert_lidar(KalmanFIFO* fifo, Set_lidar* data, float R_lidar[3]) {
-    if (data->delay < 0 || data->delay > 200) return -1;
+    if (data->delay > 200U) return -1;
 
     int idx = kalman_fifo_get_delay(fifo, data->delay, ODO_EVERY_MS);
     if (idx < 0) return -1;
@@ -196,7 +198,7 @@ uint8_t camera_consecutive_rejections[3] = {0, 0, 0};
 
 int kalman_fifo_insert_camera(KalmanFIFO* fifo, Set_camera* data, uint8_t cam_id) {
     if (cam_id >= 3) return -1; // 0-indexé !
-    if (data->delay < 0 || data->delay > 200) return -1;
+    if (data->delay > 200U) return -1;
 
     int idx = kalman_fifo_get_delay(fifo, data->delay, ODO_EVERY_MS);
     if (idx < 0) return -1;

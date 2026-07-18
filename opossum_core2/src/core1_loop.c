@@ -1,11 +1,12 @@
 #include "../../opossum_common/app_interface.h"
+#include "ASSERV/asserv_loop.h"
 
 void App_Init(void) {
     // Initialisations spécifiques au CPU1
 
-    // Asserv_Init();
+    asserv_loop_init();
 }
 
 void App_Loop(void) {
-    // Le code de ton Core1_Loop
+    asserv_loop_update();
 }

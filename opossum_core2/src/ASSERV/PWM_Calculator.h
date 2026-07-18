@@ -4,11 +4,11 @@
 #include "../../../opossum_common/common_type.h"
 
 /**
- * @brief Calculates the PWM commands for the ESCs based on the current speed measurements and desired speed orders.
- * 
- * @param commande 
+ * @brief Calculates the PWM commands for the ESCs based on the current speed measurements and desired speed
+ * orders.
+ *
+ * @param commande
  */
 void Asserv_PWM_calculator(ESC_Command *commande);
-
 
 #endif

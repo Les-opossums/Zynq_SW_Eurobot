@@ -52,7 +52,7 @@ void kalman_predict(KalmanState* state, float dt) {
     // Les 36 éléments de P sont lus une seule fois chacun.
     float p00=state->P[0][0], p01=state->P[0][1], p02=state->P[0][2],
           p03=state->P[0][3], p04=state->P[0][4], p05=state->P[0][5];
-    float p10=state->P[1][0], p11=state->P[1][1], p12=state->P[1][2],
+    float p11=state->P[1][1], p12=state->P[1][2],
           p13=state->P[1][3], p14=state->P[1][4], p15=state->P[1][5];
     float p20=state->P[2][0], p21=state->P[2][1], p22=state->P[2][2],
           p23=state->P[2][3], p24=state->P[2][4], p25=state->P[2][5];
@@ -71,15 +71,12 @@ void kalman_predict(KalmanState* state, float dt) {
     float fp04=p04+F02*p24+F03*p34+F04*p44+F05*p54;
     float fp05=p05+F02*p25+F03*p35+F04*p45+F05*p55;
 
-    float fp10=p10+F12*p20+F13*p30+F14*p40+F15*p50;
     float fp11=p11+F12*p21+F13*p31+F14*p41+F15*p51;
     float fp12=p12+F12*p22+F13*p32+F14*p42+F15*p52;
     float fp13=p13+F12*p23+F13*p33+F14*p43+F15*p53;
     float fp14=p14+F12*p24+F13*p34+F14*p44+F15*p54;
     float fp15=p15+F12*p25+F13*p35+F14*p45+F15*p55;
 
-    float fp20=p20+dt*p50;
-    float fp21=p21+dt*p51;
     float fp22=p22+dt*p52;
     float fp23=p23+dt*p53;
     float fp24=p24+dt*p54;
