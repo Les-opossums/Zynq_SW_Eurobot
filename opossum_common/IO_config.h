@@ -172,7 +172,7 @@ extern eth_io_context_t Eth_Ctx;
         .init = ETH_IO_Init, \
         .update = ETH_IO_Update, \
         .deinit = NULL \
-    }
+    } \
 }
 
 #endif /* IO_CONFIG_H */

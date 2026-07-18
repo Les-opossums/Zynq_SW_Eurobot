@@ -1,8 +1,11 @@
 #include "driver_eth_io.h"
 #include "../../IRQ_MANAGER/IRQ_manager.h"
 #include "netif/xadapter.h"
+#include "netif/xemacpsif.h" 
 #include "xstatus.h"
 #include "xil_printf.h"
+#include "xemacps.h" 
+#include "xparameters.h" // Ajout de l'en-tête pour lire les identifiants matériels (XPAR_...)
 
 int ETH_IO_Init(void *instance) {
     eth_io_context_t *ctx = (eth_io_context_t *)instance;
@@ -12,13 +15,11 @@ int ETH_IO_Init(void *instance) {
         return XST_FAILURE;
     }
 
-    /* Connexion explicite de l'IRQ EMAC via notre IRQ_Manager commun --
-     * NE PAS laisser xemac_add()/le BSP gerer sa propre instance XScuGic.
-     * Nom de struct/champ a confirmer selon ta version du portage lwIP
-     * (voir netif/xadapter.h de ton BSP) : */
-    xemacif_s *xemac = (xemacif_s *)(eth_driver_get_netif()->state);
+    /* Connexion explicite de l'IRQ EMAC via notre IRQ_Manager commun. */
+    xemacpsif_s *xemac = (xemacpsif_s *)(eth_driver_get_netif()->state);
 
-    int Status = IRQ_Manager_Connect(xemac->emacps.Config.IntrId,
+    // Remplacement du champ inexistant par la constante matérielle de l'EMAC0
+    int Status = IRQ_Manager_Connect(XPAR_XEMACPS_0_INTR,
                                       (Xil_InterruptHandler)XEmacPs_IntrHandler,
                                       &xemac->emacps);
     if (Status != XST_SUCCESS) {
