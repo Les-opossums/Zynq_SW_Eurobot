@@ -2,6 +2,8 @@
 
 void App_Init(void) {
     // Initialisations spécifiques au CPU1
+
+    // Asserv_Init();
 }
 
 void App_Loop(void) {
