@@ -13,6 +13,7 @@
  * ================================================================= */
 #include "IO_MANAGER/DRIVER_PS_GPIO/driver_ps_gpio.h"
 #include "IO_MANAGER/DRIVER_WS2812B/driver_ws2812b.h"
+#include "IO_MANAGER/DRIVER_BNO085/driver_bno085_io.h"
 
 /* ================================================================= *
  * Variables globales des états
@@ -41,10 +42,10 @@ extern void leash_Callback(void *callback_ref);
     { 57,       PS_GPIO_DIR_INPUT,   PIN_IRQ_NONE,           &IO_1_state,        NULL}, \
     { 58,       PS_GPIO_DIR_INPUT,   PIN_IRQ_NONE,           &IO_2_state,        NULL}, \
     { 59,       PS_GPIO_DIR_INPUT,   PIN_IRQ_NONE,           &IO_3_state,        NULL}, \
-    { 61,       PS_GPIO_DIR_OUTPUT,  PIN_IRQ_NONE,           &bno_rst_state,     NULL}, \
-    { 62,       PS_GPIO_DIR_OUTPUT,  PIN_IRQ_NONE,           &bno_wake_state,    NULL}, \
-    { 63,       PS_GPIO_DIR_OUTPUT,  PIN_IRQ_NONE,           &bno_cs_state,      NULL}, \
-    { 60,       PS_GPIO_DIR_INPUT ,  PIN_IRQ_EDGE_FALLING,   &bno_int_state,     NULL} \
+    { 61,       PS_GPIO_DIR_OUTPUT,  PIN_IRQ_NONE,           NULL,     NULL}, /* bno_rst — piloté directement par le driver */ \
+    { 62,       PS_GPIO_DIR_OUTPUT,  PIN_IRQ_NONE,           &bno_wake_state,    NULL}, /* bno_cs  — piloté directement par le driver */ \
+    { 63,       PS_GPIO_DIR_OUTPUT,  PIN_IRQ_NONE,           NULL,      NULL}, \
+    { 60,       PS_GPIO_DIR_INPUT ,  PIN_IRQ_EDGE_FALLING,   &bno_int_state,     BNO085_INT_Callback} \
 }
 
 /* ================================================================= *
@@ -60,6 +61,16 @@ extern ps_gpio_context_t PsGpio_Ctx; // Contexte du driver GPIO PS
 
 extern led_color_t Led_Buffer[NBR_LED];
 extern ws2812b_context_t Ws2812b_Ctx; // Contexte du driver WS2812B
+
+/* ================================================================= *
+ * Configuration du driver BNO085
+ * ================================================================= 
+ */
+#define BNO085_REPORTS { \
+    { SH2_GYROSCOPE_CALIBRATED, 2000U }, \
+}
+
+extern bno085_io_context_t Imu_Ctx;
 
 /* ================================================================= *
  * Table de l'io manager
@@ -82,6 +93,14 @@ extern ws2812b_context_t Ws2812b_Ctx; // Contexte du driver WS2812B
         .irq_handler = NULL, \
         .init = WS2812B_Init, \
         .update = WS2812B_Update \
+    }, \
+    {   .type = DEV_TYPE_IMU_BNO085, \
+        .owner = CORE_CPU0, \
+        .driver_instance = &Imu_Ctx, \
+        .irq_id = 0, \
+        .irq_handler = NULL, \
+        .init = BNO085_IO_Init, \
+        .update = BNO085_IO_Update \
     } \
 }
 

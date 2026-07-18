@@ -1,5 +1,10 @@
 #include "IO_config.h"
 
+
+// ==================================================================
+// Définition du contexte du driver GPIO PS
+// ==================================================================
+
 // --- Table des broches GPIO PS, instanciée à partir de la macro PS_GPIO_PINS ---
 static gpio_pin_config_t PsGpio_PinTable[] = PS_GPIO_PINS;
 
@@ -8,7 +13,8 @@ ps_gpio_context_t PsGpio_Ctx = {
     .num_pins  = sizeof(PsGpio_PinTable) / sizeof(gpio_pin_config_t)
 };
 
-// --- Définition des variables d'état déclarées extern dans IO_config.h ---
+// --- Variables globales des états des entrées/sorties ---
+
 volatile int AU_state    = 0;
 volatile int leash_state = 0;
 volatile int team_state  = 0;
@@ -25,3 +31,17 @@ void leash_Callback(void *callback_ref) {
     (void)callback_ref;
     // rien pour l'instant, juste pour que le link passe
 }
+
+// ==================================================================
+// Définition du contexte du driver BNO085
+// ==================================================================
+static bno085_report_config_t Bno085_ReportTable[] = BNO085_REPORTS;
+
+bno085_io_context_t Imu_Ctx = {
+    .gpio_ctx      = &PsGpio_Ctx,
+    .pin_cs        = 63,
+    .pin_rst       = 61,
+    .pin_int       = 60,
+    .report_table  = Bno085_ReportTable,
+    .num_reports   = sizeof(Bno085_ReportTable) / sizeof(bno085_report_config_t)
+};

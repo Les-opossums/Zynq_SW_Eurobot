@@ -13,6 +13,8 @@ ws2812b_context_t Ws2812b_Ctx = {
     .refresh_period_ms = 10
 };
 
+
+
 static io_device_t DeviceTable[] = IO_DEVICE_TABLE;
 static const int NumDevices = sizeof(DeviceTable) / sizeof(io_device_t);
 

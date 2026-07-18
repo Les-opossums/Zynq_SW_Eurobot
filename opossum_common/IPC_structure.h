@@ -24,6 +24,12 @@ typedef struct {
     volatile uint32_t bno_int_state;
     volatile uint32_t bno_wake_state;    
 
+    // --- Donnees IMU (CORE0 -> CORE1, lecture transparente) ---
+    volatile float    imu_gyro_x, imu_gyro_y, imu_gyro_z;       // rad/s
+    volatile float    imu_accel_x, imu_accel_y, imu_accel_z;    // m/s²
+    volatile uint32_t imu_calib_status;
+    volatile uint32_t imu_seq; // incrémenté à chaque mise à jour par CORE0
+
     // ===========================================================================
     // 2 - BOITE AUX LETTRE (Messages avec Valid/Ack et Interrupt)
     // ===========================================================================
