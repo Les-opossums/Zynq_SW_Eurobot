@@ -22,11 +22,15 @@ int IO_Manager_Init(void) {
         if(dev->init != NULL){
             Status = dev->init(dev->driver_instance);
             if (Status != XST_SUCCESS) {
+                dev->is_active = 0; // Marque le périphérique comme inactif en cas d'échec d'initialisation
                 xil_printf("[CPU%d]Erreur d'initialisation du peripherique %d\n", THIS_CORE_ID, i);
             } else {
+                dev->is_active = 1;
                 success_count++;
                 xil_printf("[CPU%d]Peripherique %d initialise avec succes\n", THIS_CORE_ID, i);
             }
+        } else {
+            dev->is_active = 1; // pas d'init nécessaire -> actif par défaut
         }
 
         if(dev->irq_id != 0 && dev->irq_handler != NULL){
@@ -37,7 +41,6 @@ int IO_Manager_Init(void) {
                 xil_printf("[CPU%d]Interruption pour le peripherique %d connectee avec succes\n", THIS_CORE_ID, i);
             }
         }
-        // ligne "success_count++;" supprimée d'ici
     }
     xil_printf("[CPU%d]IO_Manager Initialisation terminee : %d peripheriques initialises avec succes sur %d\n", THIS_CORE_ID, success_count, NumDevices);
     return XST_SUCCESS;
