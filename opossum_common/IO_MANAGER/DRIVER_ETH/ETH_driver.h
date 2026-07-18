@@ -2,7 +2,7 @@
 #define ETH_DRIVER_H
 
 #include <stdint.h>
-#include "eth_protocol.h"
+#include "../../ETH_protocol.h"
 
 /**
  * @brief Structure contenant les statistiques du driver Ethernet.
