@@ -45,3 +45,12 @@ bno085_io_context_t Imu_Ctx = {
     .report_table  = Bno085_ReportTable,
     .num_reports   = sizeof(Bno085_ReportTable) / sizeof(bno085_report_config_t)
 };
+
+// ==================================================================
+// Définition du contexte du driver UART PS
+// ==================================================================
+uart_ps_context_t UartComm_Ctx = {
+    .device_id = UART_COMM_DEVICE_ID,
+    .baudrate  = UART_COMM_BAUDRATE,
+    .is_console = 1
+};

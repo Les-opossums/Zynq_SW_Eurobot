@@ -14,6 +14,7 @@
 #include "IO_MANAGER/DRIVER_PS_GPIO/driver_ps_gpio.h"
 #include "IO_MANAGER/DRIVER_WS2812B/driver_ws2812b.h"
 #include "IO_MANAGER/DRIVER_BNO085/driver_bno085_io.h"
+#include "IO_MANAGER/DRIVER_UART_PS/driver_uart_ps.h"
 
 /* ================================================================= *
  * Variables globales des états
@@ -73,6 +74,14 @@ extern ws2812b_context_t Ws2812b_Ctx; // Contexte du driver WS2812B
 extern bno085_io_context_t Imu_Ctx;
 
 /* ================================================================= *
+ * Configuration UART PS (communication avec les autres cartes)
+ * ================================================================= */
+#define UART_COMM_DEVICE_ID   XPAR_XUARTPS_0_DEVICE_ID
+#define UART_COMM_BAUDRATE    921600
+
+extern uart_ps_context_t UartComm_Ctx;
+
+/* ================================================================= *
  * Table de l'io manager
  * ================================================================= */
 #define IO_DEVICE_TABLE { \
@@ -101,6 +110,15 @@ extern bno085_io_context_t Imu_Ctx;
         .irq_handler = NULL, \
         .init = BNO085_IO_Init, \
         .update = BNO085_IO_Update \
+    }, \
+    { \
+        .type = DEV_TYPE_UART_PS, \
+        .owner = CORE_CPU0, \
+        .driver_instance = &UartComm_Ctx, \
+        .irq_id = XPAR_XUARTPS_0_INTR, \
+        .irq_handler = (Xil_InterruptHandler)XUartPs_InterruptHandler, \
+        .init = UART_PS_Init, \
+        .update = UART_PS_Update \
     } \
 }
 

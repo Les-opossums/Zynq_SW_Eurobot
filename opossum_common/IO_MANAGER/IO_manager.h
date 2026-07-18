@@ -17,6 +17,7 @@ typedef enum {
     DEV_TYPE_GPIO_PS,
     DEV_TYPE_GPIO_AXI,
     DEV_TYPE_UART_AXI,
+    DEV_TYPE_UART_PS,
     DEV_TYPE_I2C,
     DEV_TYPE_SPI,
     DEV_TYPE_WS2812B,

@@ -3,7 +3,7 @@
 #include "IPC_MANAGER/IPC_manager.h"
 #include "IRQ_MANAGER/IRQ_manager.h"
 #include "TIMER_MANAGER/timer_manager.h"
-
+#include "APP_COM/com_interpreter_loop.h"
 
 // temporaire pour debug
 #include "APP_TEST/led_au_test.h"
@@ -41,16 +41,17 @@ int main(void){
         #if THIS_CORE_ID == CORE_ID_CPU0
             // execution du code du core 0
             // LED_AU_Test_Update();
+            Com_Interpreter_Update();
 
-            if (Timer_ms1 - imu_print_timer_old > 200) {
-                imu_print_timer_old = Timer_ms1;
-                BNO085_Data *imu_data = BNO085_GetData(&Imu_Ctx.dev);
-                xil_printf("[IMU] gyro (mrad/s) x=%ld y=%ld z=%ld calib=%d\n",
-                    (long)(imu_data->gyro.x * 1000.0f),
-                    (long)(imu_data->gyro.y * 1000.0f),
-                    (long)(imu_data->gyro.z * 1000.0f),
-                    imu_data->calib_status);
-            }
+            // if (Timer_ms1 - imu_print_timer_old > 200) {
+            //     imu_print_timer_old = Timer_ms1;
+            //     BNO085_Data *imu_data = BNO085_GetData(&Imu_Ctx.dev);
+            //     xil_printf("[IMU] gyro (mrad/s) x=%ld y=%ld z=%ld calib=%d\n",
+            //         (long)(imu_data->gyro.x * 1000.0f),
+            //         (long)(imu_data->gyro.y * 1000.0f),
+            //         (long)(imu_data->gyro.z * 1000.0f),
+            //         imu_data->calib_status);
+            // }
         #else
             // execution du code du core 1
         #endif
