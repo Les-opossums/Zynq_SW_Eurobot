@@ -51,4 +51,10 @@
 #define MOTOR_POWER_MAX 10000
 #define MOTOR_POWER_MIN -10000
 
+#define ODO_MOTOR_REDUCTION 36.0f   // à ajuster si différent
+#define ODO_MOTOR_1_SIGN  1.0f
+#define ODO_MOTOR_2_SIGN -1.0f      // exemple si ce moteur est monté inversé
+#define ODO_MOTOR_3_SIGN  1.0f
+#define ODO_MOTOR_4_SIGN -1.0f
+
 #endif // _LIB_ASSERV_DEFAULT_H_
