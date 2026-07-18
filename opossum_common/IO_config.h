@@ -16,6 +16,7 @@
 #include "IO_MANAGER/DRIVER_BNO085/driver_bno085_io.h"
 #include "IO_MANAGER/DRIVER_UART_PS/driver_uart_ps.h"
 #include "IO_MANAGER/DRIVER_CAN/driver_can_io.h"
+#include "IO_MANAGER/DRIVER_ETH/driver_eth_io.h"
 #include "APP_MOTORS/c610_feedback.h"
 
 /* ================================================================= *
@@ -103,6 +104,11 @@ extern uart_ps_context_t UartComm_Ctx;
 
 extern can_io_context_t Can0_Ctx;
 
+/* ================================================================= *
+ * Configuration Ethernet (communication avec le Raspberry Pi)
+ * ================================================================= */
+extern eth_io_context_t Eth_Ctx;
+
 
 /* ================================================================= *
  * Table de l'io manager
@@ -156,7 +162,17 @@ extern can_io_context_t Can0_Ctx;
         .init = CAN_IO_Init, \
         .update = CAN_IO_Update, \
         .deinit = CAN_IO_Deinit \
-    } \
+    }, \
+    { \
+        .type = DEV_TYPE_ETHERNET, \
+        .owner = CORE_CPU0, \
+        .driver_instance = &Eth_Ctx, \
+        .irq_id = 0, \
+        .irq_handler = NULL, \
+        .init = ETH_IO_Init, \
+        .update = ETH_IO_Update, \
+        .deinit = NULL \
+    }
 }
 
 #endif /* IO_CONFIG_H */

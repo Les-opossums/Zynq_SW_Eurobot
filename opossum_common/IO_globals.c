@@ -80,3 +80,13 @@ can_io_context_t Can0_Ctx = {
     .subscriber_table = Can0_SubscriberTable,
     .num_subscribers  = sizeof(Can0_SubscriberTable) / sizeof(can_subscriber_t)
 };
+
+eth_io_context_t Eth_Ctx = {
+    .config = {
+        .mac_addr   = {0x00, 0x0a, 0x35, 0x00, 0x01, 0x12},
+        .local_ip   = (192u<<24) | (168u<<16) | (1u<<8) | 10u,
+        .netmask    = (255u<<24) | (255u<<16) | (255u<<8) | 0u,
+        .gateway_ip = (192u<<24) | (168u<<16) | (1u<<8) | 1u,
+        .peer_ip    = (192u<<24) | (168u<<16) | (1u<<8) | 20u
+    }
+};
