@@ -47,9 +47,11 @@ void odometry_update_from_motor_rpm(const int motor_rpm[4])
     speed_robot_odom.vx = INV_SQRT2 * (-w1 + w2 + w3 - w4) * 0.5f;
     speed_robot_odom.vy = INV_SQRT2 * (w1 + w2 - w3 - w4) * 0.5f;
     speed_robot_odom.vt = -(w1 + w2 + w3 + w4) / (4.0f * robot_wheel_distance);
+
     speed_robot_asserv = speed_robot_odom;
-    for (int i = 0; i < 4; ++i)
+    for (int i = 0; i < 4; ++i) {
         accumulated_wheel_speed[i] += wheel_speed[i];
+    }
     accumulated_robot_speed.vx += speed_robot_odom.vx;
     accumulated_robot_speed.vy += speed_robot_odom.vy;
     accumulated_robot_speed.vt += speed_robot_odom.vt;
