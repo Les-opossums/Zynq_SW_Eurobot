@@ -21,7 +21,8 @@ typedef enum {
     DEV_TYPE_I2C,
     DEV_TYPE_SPI,
     DEV_TYPE_WS2812B,
-    DEV_TYPE_IMU_BNO085
+    DEV_TYPE_IMU_BNO085,
+    DEV_TYPE_CAN_MOTORS
 } dev_type_t;
 
 // ---structure universelle d'un périphérique ---

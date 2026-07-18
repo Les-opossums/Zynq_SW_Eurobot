@@ -15,6 +15,8 @@
 #include "IO_MANAGER/DRIVER_WS2812B/driver_ws2812b.h"
 #include "IO_MANAGER/DRIVER_BNO085/driver_bno085_io.h"
 #include "IO_MANAGER/DRIVER_UART_PS/driver_uart_ps.h"
+#include "IO_MANAGER/DRIVER_CAN/driver_can_io.h"
+#include "APP_MOTORS/c610_feedback.h"
 
 /* ================================================================= *
  * Variables globales des états
@@ -82,6 +84,27 @@ extern bno085_io_context_t Imu_Ctx;
 extern uart_ps_context_t UartComm_Ctx;
 
 /* ================================================================= *
+ * CAN0 — bus moteurs (ESC C610), actif sur CORE1
+ * ================================================================= */
+#define CAN0_DEVICE_ID       XPAR_XCANPS_0_DEVICE_ID
+#define CAN0_INTR_ID         XPAR_XCANPS_0_INTR
+
+#define CAN0_BAUD_PRESCALER  9
+#define CAN0_BTR_SJW         0
+#define CAN0_BTR_TS2         0
+#define CAN0_BTR_TS1         7
+
+#define CAN0_SUBSCRIBERS { \
+    { CAN_MOTOR_1_ID, C610_Motor1_Callback, NULL }, \
+    { CAN_MOTOR_2_ID, C610_Motor2_Callback, NULL }, \
+    { CAN_MOTOR_3_ID, C610_Motor3_Callback, NULL }, \
+    { CAN_MOTOR_4_ID, C610_Motor4_Callback, NULL }, \
+}
+
+extern can_io_context_t Can0_Ctx;
+
+
+/* ================================================================= *
  * Table de l'io manager
  * ================================================================= */
 #define IO_DEVICE_TABLE { \
@@ -123,6 +146,16 @@ extern uart_ps_context_t UartComm_Ctx;
         .init = UART_PS_Init, \
         .update = UART_PS_Update, \
         .deinit = NULL \
+    }, \
+    { \
+        .type = DEV_TYPE_CAN_MOTORS, \
+        .owner = CORE_CPU1, \
+        .driver_instance = &Can0_Ctx, \
+        .irq_id = CAN0_INTR_ID, \
+        .irq_handler = (Xil_InterruptHandler)XCanPs_IntrHandler, \
+        .init = CAN_IO_Init, \
+        .update = CAN_IO_Update, \
+        .deinit = CAN_IO_Deinit \
     } \
 }
 

@@ -65,3 +65,18 @@ ws2812b_context_t Ws2812b_Ctx = {
     .refresh_period_ms = 10
 };
 
+// ==================================================================
+// Définition du contexte du driver CAN0 (bus moteurs ESC C610)
+// ==================================================================
+static const can_subscriber_t Can0_SubscriberTable[] = CAN0_SUBSCRIBERS;
+
+can_io_context_t Can0_Ctx = {
+    .device_id       = CAN0_DEVICE_ID,
+    .intr_id         = CAN0_INTR_ID,
+    .baud_prescaler  = CAN0_BAUD_PRESCALER,
+    .btr_sjw         = CAN0_BTR_SJW,
+    .btr_ts2         = CAN0_BTR_TS2,
+    .btr_ts1         = CAN0_BTR_TS1,
+    .subscriber_table = Can0_SubscriberTable,
+    .num_subscribers  = sizeof(Can0_SubscriberTable) / sizeof(can_subscriber_t)
+};
