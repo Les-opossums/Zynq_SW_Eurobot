@@ -40,16 +40,26 @@ void Init_CAN_MOTOR_variables(void) {
     }
 }
 
-void CAN_transmit_motor(can_io_context_t *ctx, int16_t motor1, int16_t motor2, int16_t motor3, int16_t motor4) {
-    u8 payload[8];
-    payload[0] = (u8)((motor1 >> 8) & 0xFF);
-    payload[1] = (u8)(motor1 & 0xFF);
-    payload[2] = (u8)((motor2 >> 8) & 0xFF);
-    payload[3] = (u8)(motor2 & 0xFF);
-    payload[4] = (u8)((motor3 >> 8) & 0xFF);
-    payload[5] = (u8)(motor3 & 0xFF);
-    payload[6] = (u8)((motor4 >> 8) & 0xFF);
-    payload[7] = (u8)(motor4 & 0xFF);
+void CAN_transmit_motor(can_io_context_t *ctx, const int16_t *motors, uint16_t nb_motors)
+{
+    u8 payload[CAN_IO_FRAME_DATA_LENGTH];
 
-    CAN_IO_Send(ctx, ESC_TX_MESSAGE_ID, payload, CAN_IO_FRAME_DATA_LENGTH);
+    uint16_t index = 0;
+
+    while (index < nb_motors)
+    {
+        memset(payload, 0, sizeof(payload));
+
+        uint8_t motors_in_frame = (nb_motors - index > 4) ? 4 : (nb_motors - index);
+
+        for (uint8_t i = 0; i < motors_in_frame; i++)
+        {
+            payload[2 * i]     = (u8)((motors[index + i] >> 8) & 0xFF);
+            payload[2 * i + 1] = (u8)(motors[index + i] & 0xFF);
+        }
+
+        CAN_IO_Send(ctx, ESC_TX_MESSAGE_ID, payload, CAN_IO_FRAME_DATA_LENGTH);
+
+        index += motors_in_frame;
+    }
 }
