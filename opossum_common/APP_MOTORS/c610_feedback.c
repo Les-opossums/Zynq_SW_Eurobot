@@ -1,4 +1,6 @@
 #include "c610_feedback.h"
+#include <stddef.h> // Pour NULL
+#include <string.h> // Pour memset
 
 C610_MotorFeedback_t motor_feedback[4];
 
@@ -15,21 +17,16 @@ static void decode_c610(const u32 *frame_words, int *angle, int *speed, int *tor
     *torque = (int16_t)((b2 << 8) | b1);
 }
 
-void C610_Motor1_Callback(void *app_ctx, const u32 *frame_words, u8 dlc) {
-    (void)app_ctx; (void)dlc;
-    decode_c610(frame_words, &motor_feedback[0].angle_motor, &motor_feedback[0].speed_motor, &motor_feedback[0].torque_motor);
-}
-void C610_Motor2_Callback(void *app_ctx, const u32 *frame_words, u8 dlc) {
-    (void)app_ctx; (void)dlc;
-    decode_c610(frame_words, &motor_feedback[1].angle_motor, &motor_feedback[1].speed_motor, &motor_feedback[1].torque_motor);
-}
-void C610_Motor3_Callback(void *app_ctx, const u32 *frame_words, u8 dlc) {
-    (void)app_ctx; (void)dlc;
-    decode_c610(frame_words, &motor_feedback[2].angle_motor, &motor_feedback[2].speed_motor, &motor_feedback[2].torque_motor);
-}
-void C610_Motor4_Callback(void *app_ctx, const u32 *frame_words, u8 dlc) {
-    (void)app_ctx; (void)dlc;
-    decode_c610(frame_words, &motor_feedback[3].angle_motor, &motor_feedback[3].speed_motor, &motor_feedback[3].torque_motor);
+/* Callback unique remplaçant les 4 précédents */
+void C610_Motor_Callback(void *app_ctx, const u32 *frame_words, u8 dlc) {
+    (void)dlc;
+    
+    /* Le pointeur de contexte agit comme 'this' en orienté objet */
+    C610_MotorFeedback_t *motor = (C610_MotorFeedback_t *)app_ctx;
+    
+    if (motor != NULL) {
+        decode_c610(frame_words, &motor->angle_motor, &motor->speed_motor, &motor->torque_motor);
+    }
 }
 
 void Init_CAN_MOTOR_variables(void) {
@@ -43,7 +40,6 @@ void Init_CAN_MOTOR_variables(void) {
 void CAN_transmit_motor(can_io_context_t *ctx, const int16_t *motors, uint16_t nb_motors)
 {
     u8 payload[CAN_IO_FRAME_DATA_LENGTH];
-
     uint16_t index = 0;
 
     while (index < nb_motors)

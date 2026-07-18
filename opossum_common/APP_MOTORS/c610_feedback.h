@@ -15,12 +15,14 @@ typedef struct {
     int torque_motor;
 } C610_MotorFeedback_t;
 
+/* Le tableau d'instances de nos moteurs reste disponible */
 extern C610_MotorFeedback_t motor_feedback[4];
 
-void C610_Motor1_Callback(void *app_ctx, const u32 *frame_words, u8 dlc);
-void C610_Motor2_Callback(void *app_ctx, const u32 *frame_words, u8 dlc);
-void C610_Motor3_Callback(void *app_ctx, const u32 *frame_words, u8 dlc);
-void C610_Motor4_Callback(void *app_ctx, const u32 *frame_words, u8 dlc);
+/* 
+ * Callback unique orienté objet. 
+ * 'app_ctx' doit pointer vers l'instance C610_MotorFeedback_t correspondante.
+ */
+void C610_Motor_Callback(void *app_ctx, const u32 *frame_words, u8 dlc);
 
 void Init_CAN_MOTOR_variables(void);
 

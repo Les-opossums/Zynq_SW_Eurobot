@@ -95,10 +95,10 @@ extern uart_ps_context_t UartComm_Ctx;
 #define CAN0_BTR_TS1         7
 
 #define CAN0_SUBSCRIBERS { \
-    { CAN_MOTOR_1_ID, C610_Motor1_Callback, NULL }, \
-    { CAN_MOTOR_2_ID, C610_Motor2_Callback, NULL }, \
-    { CAN_MOTOR_3_ID, C610_Motor3_Callback, NULL }, \
-    { CAN_MOTOR_4_ID, C610_Motor4_Callback, NULL }, \
+    { CAN_MOTOR_1_ID, C610_Motor_Callback, &motor_feedback[0] }, \
+    { CAN_MOTOR_2_ID, C610_Motor_Callback, &motor_feedback[1] }, \
+    { CAN_MOTOR_3_ID, C610_Motor_Callback, &motor_feedback[2] }, \
+    { CAN_MOTOR_4_ID, C610_Motor_Callback, &motor_feedback[3] }, \
 }
 
 extern can_io_context_t Can0_Ctx;
