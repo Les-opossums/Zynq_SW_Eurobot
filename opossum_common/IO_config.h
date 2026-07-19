@@ -137,6 +137,17 @@ extern eth_io_context_t Eth_Ctx;
         .update = WS2812B_Update, \
         .deinit = NULL \
     }, \
+    {  \
+        .name = "IMU_BNO085", \
+        .type = DEV_TYPE_IMU_BNO085, \
+        .owner = CORE_CPU0, \
+        .driver_instance = &Imu_Ctx, \
+        .irq_id = 0, \
+        .irq_handler = NULL, \
+        .init = BNO085_IO_Init, \
+        .update = BNO085_IO_Update, \
+        .deinit = NULL \
+    }, \
     { \
         .name = "UART_COMM", \
         .type = DEV_TYPE_UART_PS, \
@@ -161,17 +172,7 @@ extern eth_io_context_t Eth_Ctx;
     }\
 }
 
-    // {  \
-    //     .name = "IMU_BNO085", \
-    //     .type = DEV_TYPE_IMU_BNO085, \
-    //     .owner = CORE_CPU0, \
-    //     .driver_instance = &Imu_Ctx, \
-    //     .irq_id = 0, \
-    //     .irq_handler = NULL, \
-    //     .init = BNO085_IO_Init, \
-    //     .update = BNO085_IO_Update, \
-    //     .deinit = NULL \
-    // }, \
+    
 
     //}, \
     // { \
