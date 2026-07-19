@@ -49,5 +49,9 @@ typedef struct {
 int IO_Manager_Init(void);
 void IO_Manager_Update(void);
 
+// Impression des temps d'execution par peripherique (min/max/avg/last).
+// Toujours declaree/appelable : no-op si TIMING_MEASURE n'est pas active
+// (cf opossum_common/TIMER_MANAGER/timing_stats.h).
+void IO_Manager_PrintTiming(void);
 
 #endif /* IO_MANAGER_H */

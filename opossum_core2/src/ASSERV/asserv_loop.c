@@ -8,15 +8,11 @@
  */
 
 #include "asserv.h"
+#include "../../../opossum_common/TIMER_MANAGER/timing_stats.h"
 
-/* Decommenter pour activer le monitoring des temps d'execution de l'asserv
- * (marge par rapport au budget temps-reel de chaque etape). Impressions
- * xil_printf periodiques sur la boucle lente. */
-#define TIMING_MEASURE
-
-#if defined(TIMING_MEASURE)
-#include "xil_printf.h"
-#endif
+/* Activation/desactivation du monitoring : cf TIMING_MEASURE dans
+ * opossum_common/TIMER_MANAGER/timing_stats.h (interrupteur unique,
+ * commun aux 2 cœurs). */
 
 /* ================================================================== *
  * Macros et Constantes de Temps
@@ -48,54 +44,20 @@ static uint8_t          fast_ticks_since_slow;
  * Monitoring des Temps d'Execution (TIMING_MEASURE)
  * ================================================================== *
  * Port de l'instrumentation de l'ancien firmware (TimingStats/T_START/
- * T_STOP), adapte a la structure actuelle fast_loop()/slow_loop().
+ * T_STOP, cf opossum_common/TIMER_MANAGER/timing_stats.h), adapte a la
+ * structure actuelle fast_loop()/slow_loop().
  * Budget fast : ODO_PERIOD_MS * 1000 us | Budget slow : ASSERV_PERIOD_MS * 1000 us
  */
 #if defined(TIMING_MEASURE)
 
-typedef struct {
-    uint32_t min_us;
-    uint32_t max_us;
-    uint32_t last_us;
-    uint64_t sum_us;
-    uint32_t count;
-} TimingStats;
-
-#define T_START(id)       uint32_t _t_##id = Timer_us1
-#define T_STOP(id, stats) ts_update(&(stats), Timer_us1 - _t_##id)
-
-static void ts_update(TimingStats *ts, uint32_t dt_us)
-{
-    if (ts->count == 0U || dt_us < ts->min_us) { ts->min_us = dt_us; }
-    if (dt_us > ts->max_us)                    { ts->max_us = dt_us; }
-    ts->last_us = dt_us;
-    ts->sum_us += dt_us;
-    ts->count++;
-}
-
-static void ts_print_one(const char *name, TimingStats *ts)
-{
-    if (ts->count == 0U) { return; }
-    xil_printf("  %-11s min=%4u max=%4u avg=%4u last=%4u us (n=%u)\r\n",
-               name, (unsigned)ts->min_us, (unsigned)ts->max_us,
-               (unsigned)(ts->sum_us / ts->count), (unsigned)ts->last_us,
-               (unsigned)ts->count);
-    ts->min_us = 0xFFFFFFFFU;
-    ts->max_us = 0U;
-    ts->sum_us = 0U;
-    ts->count  = 0U;
-}
-
 static TimingStats ts_fast_odo, ts_fast_kalman, ts_fast_imu, ts_fast_fifo, ts_fast_total;
 static TimingStats ts_slow_motion, ts_slow_constrain, ts_slow_pid_can, ts_slow_ipc, ts_slow_total;
-static uint32_t    slow_print_counter;
-
-#define TIMING_PRINT_EVERY_N_SLOW  100U /* ~1s pour ASSERV_PERIOD_MS = 10ms */
+static uint32_t    last_timing_print_ms;
 
 static void timing_print_all(void)
 {
-    xil_printf("--- Timing asserv (budget fast=%u us, slow=%u us) ---\r\n",
-               (unsigned)(ODO_PERIOD_MS * 1000U), (unsigned)(ASSERV_PERIOD_MS * 1000U));
+    xil_printf("--- Timing asserv (CPU%d) (budget fast=%u us, slow=%u us) ---\r\n",
+               THIS_CORE_ID, (unsigned)(ODO_PERIOD_MS * 1000U), (unsigned)(ASSERV_PERIOD_MS * 1000U));
     ts_print_one("fast_odo",    &ts_fast_odo);
     ts_print_one("fast_kalman", &ts_fast_kalman);
     ts_print_one("fast_imu",    &ts_fast_imu);
@@ -492,9 +454,11 @@ void asserv_loop_update(void)
         slow_loop();
 
 #if defined(TIMING_MEASURE)
-        if (++slow_print_counter >= TIMING_PRINT_EVERY_N_SLOW) {
-            slow_print_counter = 0;
+        // Marge temps-reel CPU1 : etapes de l'asserv + peripheriques
+        // IO_Manager (dont CAN_MOTORS, la "com" moteurs de ce cœur).
+        if (ts_trigger_ms(1000U, &last_timing_print_ms)) {
             timing_print_all();
+            IO_Manager_PrintTiming();
         }
 #endif
     }

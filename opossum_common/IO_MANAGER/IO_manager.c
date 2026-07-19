@@ -1,9 +1,18 @@
 #include "IO_manager.h"
 #include "../IO_config.h"
 #include "xil_printf.h"
+#include "../TIMER_MANAGER/timing_stats.h"
 
 static io_device_t DeviceTable[] = IO_DEVICE_TABLE;
 static const int NumDevices = sizeof(DeviceTable) / sizeof(io_device_t);
+
+#if defined(TIMING_MEASURE)
+/* Un TimingStats par peripherique de la table : generique, couvre donc
+ * automatiquement tout nouveau driver ajoute a IO_DEVICE_TABLE (ex: futurs
+ * actionneurs), sans instrumentation manuelle supplementaire. */
+static TimingStats DevTiming[sizeof(DeviceTable) / sizeof(io_device_t)];
+static TimingStats IoUpdateTotal;
+#endif
 
 int IO_Manager_Init(void) {
     int Status;
@@ -85,6 +94,10 @@ void IO_Manager_SetDeviceState(dev_type_t type, u8 active) {
 }
 
 void IO_Manager_Update(void) {
+#if defined(TIMING_MEASURE)
+    T_START(io_update_total);
+#endif
+
     for(int i = 0; i < NumDevices; i++){
         io_device_t *dev = &DeviceTable[i];
 
@@ -100,7 +113,28 @@ void IO_Manager_Update(void) {
 
         // Mise à jour du peripherique si la fonction est definie
         if(dev->update != NULL){
+#if defined(TIMING_MEASURE)
+            uint32_t _t_dev = Timer_us1;
             dev->update(dev->driver_instance);
+            ts_update(&DevTiming[i], Timer_us1 - _t_dev);
+#else
+            dev->update(dev->driver_instance);
+#endif
         }
     }
+
+#if defined(TIMING_MEASURE)
+    T_STOP(io_update_total, IoUpdateTotal);
+#endif
+}
+
+void IO_Manager_PrintTiming(void) {
+#if defined(TIMING_MEASURE)
+    xil_printf("--- Timing IO_Manager (CPU%d) ---\r\n", THIS_CORE_ID);
+    for (int i = 0; i < NumDevices; i++) {
+        const char *dev_name = (DeviceTable[i].name != NULL) ? DeviceTable[i].name : "NON_NOMME";
+        ts_print_one(dev_name, &DevTiming[i]);
+    }
+    ts_print_one("io_total", &IoUpdateTotal);
+#endif
 }
