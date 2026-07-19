@@ -101,3 +101,18 @@ eth_io_context_t Eth_Ctx = {
         .peer_ip    = (192u<<24) | (168u<<16) | (1u<<8) | 20u
     }
 };
+
+// ==================================================================
+// Définition du contexte du bus FEETECH (pinces : servos + pompes)
+// ==================================================================
+uart_ps_context_t UartFeetech_Ctx = {
+    .device_id  = UART_FEETECH_DEVICE_ID,
+    .baudrate   = UART_FEETECH_BAUDRATE,
+    .is_console = 0
+};
+
+feetech_io_context_t Feetech_Ctx = {
+    .uart                = &UartFeetech_Ctx,
+    .dir_gpio_device_id  = FEETECH_DIR_GPIO_DEVICE_ID,
+    .dir_gpio_channel    = FEETECH_DIR_GPIO_CHANNEL
+};

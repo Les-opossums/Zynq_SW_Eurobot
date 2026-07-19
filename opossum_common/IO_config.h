@@ -17,6 +17,7 @@
 #include "IO_MANAGER/DRIVER_UART_PS/driver_uart_ps.h"
 #include "IO_MANAGER/DRIVER_CAN/driver_can_io.h"
 #include "IO_MANAGER/DRIVER_ETH/driver_eth_io.h"
+#include "IO_MANAGER/DRIVER_FEETECH/feetech_io.h"
 #include "APP_MOTORS/c610_feedback.h"
 
 /* ================================================================= *
@@ -118,6 +119,22 @@ extern can_io_context_t Can0_Ctx;
  * ================================================================= */
 extern eth_io_context_t Eth_Ctx;
 
+/* ================================================================= *
+ * Configuration FEETECH — bus servos/pompes des pinces, sur CORE0
+ * ================================================================= *
+ * Transport : UART1 (deja compile en dur dans le BSP standalone), dedie
+ * au bus half-duplex FEETECH, distinct de UART0 utilisee par UART_COMM.
+ * Direction du bus (buffer half-duplex) : AXI GPIO dediee (pas de PS GPIO
+ * libre pour ce role sur ce hardware).
+ */
+#define UART_FEETECH_DEVICE_ID   XPAR_XUARTPS_1_DEVICE_ID
+#define UART_FEETECH_BAUDRATE    1000000 // baud usine des servos STS3215/SCS0009 ; a ajuster si reconfigures
+
+#define FEETECH_DIR_GPIO_DEVICE_ID  XPAR_AXI_GPIO_6_DEVICE_ID
+#define FEETECH_DIR_GPIO_CHANNEL    1
+
+extern uart_ps_context_t UartFeetech_Ctx;
+extern feetech_io_context_t Feetech_Ctx;
 
 /* ================================================================= *
  * Table de l'io manager
@@ -187,6 +204,28 @@ extern eth_io_context_t Eth_Ctx;
         .irq_handler = NULL, \
         .init = BNO085_IO_Init, \
         .update = BNO085_IO_Update, \
+        .deinit = NULL \
+    }, \
+    { \
+        .name = "UART_FEETECH", \
+        .type = DEV_TYPE_UART_PS, \
+        .owner = CORE_CPU0, \
+        .driver_instance = &UartFeetech_Ctx, \
+        .irq_id = XPAR_XUARTPS_1_INTR, \
+        .irq_handler = (Xil_InterruptHandler)XUartPs_InterruptHandler, \
+        .init = UART_PS_Init, \
+        .update = UART_PS_Update, \
+        .deinit = NULL \
+    }, \
+    { \
+        .name = "FEETECH", \
+        .type = DEV_TYPE_FEETECH, \
+        .owner = CORE_CPU0, \
+        .driver_instance = &Feetech_Ctx, \
+        .irq_id = 0, \
+        .irq_handler = NULL, \
+        .init = FEETECH_IO_Init, \
+        .update = FEETECH_IO_Update, \
         .deinit = NULL \
     }\
 }

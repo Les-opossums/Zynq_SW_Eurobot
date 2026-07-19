@@ -23,7 +23,8 @@ typedef enum {
     DEV_TYPE_WS2812B,
     DEV_TYPE_IMU_BNO085,
     DEV_TYPE_CAN_MOTORS,
-    DEV_TYPE_ETHERNET
+    DEV_TYPE_ETHERNET,
+    DEV_TYPE_FEETECH
 } dev_type_t;
 
 // ---structure universelle d'un périphérique ---

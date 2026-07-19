@@ -2,6 +2,20 @@
 #include "interpreteur.h"
 
 #include "../APP_ASSERV_BRIDGE/asserv_commands.h"
+#include "../CORE_ID/core_id.h"
+
+/*
+ * Les commandes actionneurs (pinces FEETECH) ne vivent que sur CPU0
+ * (cf opossum_core1/src/APP_ACTIONNEURS/feetech_Action.c — placees dans le
+ * dossier du projet CPU0 et non dans opossum_common car specifiques a cette
+ * application). command_list.c est compile pour les deux projets (CPU0 et
+ * CPU1) : on garde donc cet include et les entrees de la table sous ce
+ * meme #if, pour que le projet CPU1 ne cherche jamais ce fichier ni ces
+ * symboles.
+ */
+#if THIS_CORE_ID == CORE_ID_CPU0
+#include "../../opossum_core1/src/APP_ACTIONNEURS/feetech_Action.h"
+#endif
 
 /*
  * Table des commandes disponibles.
@@ -39,14 +53,16 @@ const Command Command_List[] = {
     { "ASSERVDONE",   Asserv_Done_Cmd},   /* ajoute */
     { "PDE",          Activate_Position_Sending_Func},
 
-    // --- Actionneurs (à porter) ---
-    // { "STSSEND",      Send_FEETECH_Cmd},
-    // { "STSGET",       Get_FEETECH_Cmd},
-    // { "SCSSEND",      Send_FEETECH_SCS_Cmd},
-    // { "SCSGET",       Get_FEETECH_SCS_Cmd},
-    // { "PINCE",        pince_action_cmd},
-    // { "PINCEDEBUG",   pince_action_debug_cmd},
-    // { "SET_PINCE",    setup_pince_set_pos_cmd},
+    // --- Actionneurs (pinces FEETECH, CPU0 uniquement) ---
+#if THIS_CORE_ID == CORE_ID_CPU0
+    { "STSSEND",      Send_FEETECH_Cmd},
+    { "STSGET",       Get_FEETECH_Cmd},
+    { "SCSSEND",      Send_FEETECH_SCS_Cmd},
+    { "SCSGET",       Get_FEETECH_SCS_Cmd},
+    { "PINCE",        pince_action_cmd},
+    { "PINCEDEBUG",   pince_action_debug_cmd},
+    { "SET_PINCE",    setup_pince_set_pos_cmd},
+#endif
     // { "SERVO",        Servo_cmd},
 
     // --- LED (à porter — driver WS2812B pur, pas de commande directe pour l'instant) ---
