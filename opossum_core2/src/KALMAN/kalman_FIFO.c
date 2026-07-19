@@ -73,7 +73,13 @@ int kalman_fifo_get_delay(KalmanFIFO* fifo, int delay_ms, float dt_ms) {
     }
 
     int index = fifo->head - samples_back - 1;
-    if (index < 0) index += KALMAN_FIFO_LEN;
+    // Repli circulaire complet : au delai maximal autorise (samples_back
+    // proche de KALMAN_FIFO_LEN), un seul += KALMAN_FIFO_LEN ne suffit pas
+    // toujours a revenir dans [0, KALMAN_FIFO_LEN-1] (index peut etre
+    // inferieur a -KALMAN_FIFO_LEN), ce qui renvoyait -1 par erreur et
+    // faisait rejeter silencieusement la mesure. Le modulo complet corrige
+    // ca dans tous les cas.
+    index = ((index % KALMAN_FIFO_LEN) + KALMAN_FIFO_LEN) % KALMAN_FIFO_LEN;
 
     return index;
 }

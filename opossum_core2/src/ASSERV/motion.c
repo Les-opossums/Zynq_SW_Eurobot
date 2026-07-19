@@ -34,10 +34,17 @@ asserv_mode_t   asserv_mode;
 motion_status_t motion_done;
 
 static Position control_pos;   /* position filtree utilisee par le controleur */
-static float     blocked_time; /* reserve pour ASSERV_BLOCK_TIME_LIMIT, pas encore utilise */
 static Position  Wanted_Pos;
 static Speed     Wanted_Speed;
 static int       emergency_break_requested;
+
+/* Etat de la zone d'arret (pos_asserv_step) : sorti au scope fichier pour
+ * pouvoir etre remis a zero par motion_pos() a chaque nouvelle commande de
+ * position (sinon un timer/flag herite d'une commande precedente peut
+ * declencher un MOTION_SUCCESS premature sur la nouvelle cible, en
+ * particulier lors d'un enchainement de waypoints rapproches). */
+static uint8_t in_stop_zone       = 0;
+static int     stop_zone_timer_ms = 0;
 
 /* Structure locale utilisee pour la remontee IPC de motion_done. */
 static struct {
@@ -62,7 +69,6 @@ void motion_init(void)
     asserv_mode = ASSERV_MODE_OFF;
     motion_done = MOTION_SUCCESS;
     update_shared_motion_done(MOTION_SUCCESS);
-    blocked_time = 0;
 
     Wanted_Pos.x = 0; Wanted_Pos.y = 0; Wanted_Pos.t = 0;
     Wanted_Speed.vx = 0; Wanted_Speed.vy = 0; Wanted_Speed.vt = 0;
@@ -119,6 +125,12 @@ static void motion_pos(Position pos)
 
     Wanted_Pos = pos;
     emergency_break_requested = 0;
+
+    // Nouvelle cible : on repart d'une zone d'arret propre (evite qu'un
+    // timer herite de la commande de position precedente ne declenche une
+    // fin de mouvement premature sur celle-ci).
+    in_stop_zone = 0;
+    stop_zone_timer_ms = 0;
 
     asserv_mode = ASSERV_MODE_POS;
     motion_done = MOTION_MOVING;
@@ -259,9 +271,6 @@ static void pos_asserv_step(const Position *current_position)
     speed_order.vt = angular_speed_calculation(dt);
 
     Pid_Speed_En = 1;
-
-    static uint8_t in_stop_zone = 0;
-    static int     stop_zone_timer_ms = 0;
 
     if (d < DEFAULT_STOP_DISTANCE && fabsf(dt) < DEFAULT_STOP_ANGLE) {
         if (!in_stop_zone) {

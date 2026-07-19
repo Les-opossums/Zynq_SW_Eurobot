@@ -5,22 +5,19 @@
 /*                                    Odo                                     */
 /*############################################################################*/
 
-// {tic/m, m/tic, entre roues}
+// Entraxe (distance roue-centre) en metres
 #define DEFAULT_ODO_SPACING 0.131
-#define DEFAULT_SIZE_WHEEL 0.060                    // 6cm
-#define DEFAULT_WHEEL_RADIUS DEFAULT_SIZE_WHEEL / 2 // 3cm
+#define DEFAULT_SIZE_WHEEL 0.060                      // 6cm (diametre)
+#define DEFAULT_WHEEL_RADIUS (DEFAULT_SIZE_WHEEL / 2) // 3cm
 
 /*############################################################################*/
 /*                                  Motion                                    */
 /*############################################################################*/
-#define MAX_PHYSICAL_WHEEL_SPEED 1.8f
 #define DEFAULT_CONSTRAINT_V_MAX 1.5f
 #define DEFAULT_CONSTRAINT_VT_MAX 6.0f
 
 #define DEFAULT_CONSTRAINT_A_MAX 1.5f
 #define DEFAULT_CONSTRAINT_AT_MAX 2.0f
-
-#define ASSERV_BLOCK_TIME_LIMIT 1 // 1s "blocké" avant de tout couper
 
 /*############################################################################*/
 /*                                  Asserv                                    */
@@ -33,7 +30,7 @@
 #define DEFAULT_STOP_ANGLE 0.01745  // +-1deg  // en radian
 
 #define DEFAULT_SPEED_LIN_STOP 0.05 // 5cm/s
-#define DEFAULT_SPEED_ROT_STOP 0.05 // 5rad/s
+#define DEFAULT_SPEED_ROT_STOP 0.05 // 0.05 rad/s (~2.9 deg/s)
 
 /*############################################################################*/
 /*                                   PID                                      */

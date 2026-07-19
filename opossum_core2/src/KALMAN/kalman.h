@@ -7,9 +7,6 @@
 #include "../../../opossum_common/common_type.h"
 
 #define STATE_SIZE 6  // x, y, theta
-#define HISTORY_LEN 500  // pour 200 ms à 1 kHz
-
-#define LIDAR_DELAY 90 // 100 ms
 
 static inline float principal_angle(float angle)
 {
