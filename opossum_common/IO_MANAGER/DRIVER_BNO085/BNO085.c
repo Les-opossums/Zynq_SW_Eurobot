@@ -470,8 +470,9 @@ int BNO085_EnableReport(BNO085_Dev *dev, u8 report_id, u32 interval_us)
         xil_printf("[BNO085] Erreur activation rapport 0x%02X\r\n", report_id);
         return ret;
     }
-
+    xil_printf("AVANT_PRINT\r\n");
     xil_printf("[BNO085] Rapport 0x%02X active @ %lu us\r\n", report_id, interval_us);
+    xil_printf("APRES_PRINT\r\n");
     return BNO085_OK;
 }
 

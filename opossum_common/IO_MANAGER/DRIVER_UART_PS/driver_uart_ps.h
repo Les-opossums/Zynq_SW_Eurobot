@@ -4,7 +4,7 @@
 #include "xuartps.h"
 #include "xil_types.h"
 
-#define UART_PS_RING_BUFFER_SIZE 300
+#define UART_PS_RING_BUFFER_SIZE 1000
 
 // --- Buffer circulaire générique (RX et TX) ---
 typedef struct {

@@ -1,6 +1,7 @@
 #include "driver_uart_ps.h"
 #include "xstatus.h"
 #include "xil_printf.h"
+#include "xuartps_hw.h"  
 
 // --- Un seul port désigné comme "console" pour la redirection printf ---
 static uart_ps_context_t *ConsoleCtx = NULL;
@@ -154,4 +155,15 @@ int write(int handle, void *buffer, unsigned int len) {
         UART_PS_SendBuffer(ConsoleCtx, (const u8 *)buffer, (u16)len);
     }
     return (int)len;
+}
+
+void outbyte(char c) {
+    if (ConsoleCtx != NULL) {
+        UART_PS_SendByte(ConsoleCtx, (u8)c);
+    } else {
+        /* Avant que notre driver ne soit initialise (tout debut du boot,
+         * avant IO_Manager_Init) : on retombe sur le comportement natif
+         * du BSP, pour ne perdre aucun log de tres bas niveau. */
+        XUartPs_SendByte(STDOUT_BASEADDRESS, c);
+    }
 }
