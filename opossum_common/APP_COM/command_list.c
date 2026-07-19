@@ -3,6 +3,7 @@
 
 #include "../APP_ASSERV_BRIDGE/asserv_commands.h"
 #include "../APP_DRIVER_BRIDGE/driver_commands.h"
+#include "../SYSTEM_MANAGER/system_reset.h"
 #include "../CORE_ID/core_id.h"
 
 /*
@@ -60,6 +61,12 @@ const Command Command_List[] = {
     { "DRVEN",        Driver_Enable_Cmd},
     { "DRVDIS",       Driver_Disable_Cmd},
     { "DRVLIST",      Driver_List_Cmd},
+
+    // --- Systeme ---
+    // Reset "chaud" complet du PS (CPU0+CPU1+peripheriques), via SLCR
+    // PSS_RST_CTRL : ne revient jamais, le BootROM/FSBL redemarrent comme
+    // a la mise sous tension.
+    { "REBOOT",       Reboot_Cmd},
 
     // --- Actionneurs (pinces FEETECH, CPU0 uniquement) ---
 #if THIS_CORE_ID == CORE_ID_CPU0
