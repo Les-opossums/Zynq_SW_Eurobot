@@ -5,6 +5,7 @@
 #include "../../opossum_common/IO_config.h" // IO_Manager_PrintTiming
 #include "APP_ASSERV_BRIDGE/asserv_commands.h"
 #include "APP_COM/com_interpreter_loop.h"
+#include "APP_COM/eth_interpreter_bridge.h"
 #include "xil_printf.h"
 // ... autres includes spécifiques ...
 
@@ -14,6 +15,12 @@ static uint32_t last_timing_print_ms;
 
 void App_Init(void) {
     // Initialisations spécifiques au CPU0
+
+    // Enregistre le handler de commandes Ethernet aupres du driver ETH.
+    // A appeler apres IO_Manager_Init() (qui a deja appele ETH_IO_Init()/
+    // eth_driver_init()), mais avant que la boucle principale ne commence
+    // a "poller" les trames entrantes (ETH_IO_Update()).
+    ETH_Interpreter_Bridge_Init();
 }
 
 void App_Loop(void) {
