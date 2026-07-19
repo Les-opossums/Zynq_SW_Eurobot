@@ -4,7 +4,7 @@
 
 C610_MotorFeedback_t motor_feedback[4];
 
-static void decode_c610(const u32 *frame_words, int *angle, int *speed, int *torque) {
+static void decode_c610(const u32 *frame_words, volatile int *angle, volatile int *speed, volatile int *torque) {
     u8 b1 = (frame_words[2] >> 24) & 0xFF;
     u8 b2 = (frame_words[2] >> 16) & 0xFF;
     u8 b3 = (frame_words[2] >> 8) & 0xFF;
