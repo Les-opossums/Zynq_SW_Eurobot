@@ -1,6 +1,8 @@
 #include "command_list.h"
 #include "interpreteur.h"
 
+#include "../APP_ASSERV_BRIDGE/asserv_commands.h"
+
 /*
  * Table des commandes disponibles.
  *
@@ -10,29 +12,32 @@
  */
 
 const Command Command_List[] = {
-    // --- Asserv / Kalman (à porter) ---
-    // { "SETLIDAR",     Set_Lidar_Cmd},
-    // { "SETCAMERA1",   Set_Camera_1_Cmd},
-    // { "SETCAMERA2",   Set_Camera_2_Cmd},
-    // { "SETCAMERA3",   Set_Camera_3_Cmd},
-    // { "ENKALMAN",     Enable_Kalman_Cmd},
-    // { "LIDARNOISE",   Set_Lidar_Noise_Cmd},
-    // { "MOVE",         Move_Cmd},
-    // { "MOVESEX",      Move_Cmd},
-    // { "ODOSPACING",   Set_Odo_Spacing_Cmd},
-    // { "SET",          SET_Cmd},
-    // { "SET0",         SET0_Cmd},
-    // { "VMAX",         VMAX_Cmd},
-    // { "VTMAX",        VTMAX_Cmd},
-    // { "SPEED",        Speed_Cmd},
-    // { "ASPEED",       Absolute_Speed_Cmd},
-    // { "FREE",         FREE_Cmd},
-    // { "BLOCK",        BLOCK_Cmd},
-    // { "PWM",          PWM_Func},
-    // { "SPEEDTEST",    Speed_Timed_Cmd},
-    // { "CALIBFF",      Start_Wheel_FF_Calibration_Cmd},
-    // { "GETPOS",       Get_Pos_Cmd},
-    // { "PDE",          Activate_Position_Sending_Func},
+    // --- Asserv ---
+    { "SETLIDAR",     Set_Lidar_Cmd},
+    { "SETCAMERA1",   Set_Camera_1_Cmd},
+    { "SETCAMERA2",   Set_Camera_2_Cmd},
+    { "SETCAMERA3",   Set_Camera_3_Cmd},
+    { "ENKALMAN",     Enable_Kalman_Cmd},
+    { "LIDARNOISE",   Set_Lidar_Noise_Cmd},
+    { "MOVE",         Move_Cmd},
+    { "MOVESEX",      Move_Seq_Cmd},      /* corrige : pointait vers Move_Cmd */
+    { "ODOSPACING",   Set_Odo_Spacing_Cmd},
+    { "SET",          SET_Cmd},
+    { "SET0",         SET0_Cmd},
+    { "VMAX",         VMAX_Cmd},
+    { "VTMAX",        VTMAX_Cmd},
+    { "AMAX",         AMAX_Cmd},          /* ajoute */
+    { "SPEED",        Speed_Cmd},
+    { "ASPEED",       Absolute_Speed_Cmd},
+    { "FREE",         FREE_Cmd},
+    { "BLOCK",        BLOCK_Cmd},
+    { "PWM",          PWM_Func},
+    { "SPEEDTEST",    Speed_Timed_Cmd},
+    { "CALIBFF",      Start_Wheel_FF_Calibration_Cmd},
+    { "GETPOS",       Get_Pos_Cmd},
+    { "GETODO",       Get_Odo_Cmd},       /* ajoute */
+    { "ASSERVDONE",   Asserv_Done_Cmd},   /* ajoute */
+    { "PDE",          Activate_Position_Sending_Func},
 
     // --- Actionneurs (à porter) ---
     // { "STSSEND",      Send_FEETECH_Cmd},
