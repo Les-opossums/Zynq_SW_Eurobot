@@ -10,17 +10,19 @@
 
 void IPC_Init(void) {
     //disable cache on OCM (Strongly Ordered, NONCACHEABLE, shareable)
-    Xil_SetTlbAttributes(IPC_SHARED_MEM_ADDR,0x14de2); 
+    Xil_SetTlbAttributes(IPC_SHARED_MEM_ADDR,0x14de2);
     dmb(); //waits until write has finished
 
+    // Seul CORE0 (le maitre, qui demarre en premier) doit remettre a zero la
+    // zone partagee : il le fait AVANT de reveiller CORE1, donc il n'y a pas
+    // de risque d'ecraser une donnee deja ecrite par l'autre coeur.
+    // CORE1 ne doit surtout pas refaire ce memset : quand il boote (reveille
+    // par CORE0), la structure est deja initialisee par CORE0 et CORE1 est
+    // sur le point d'y ecrire son propre flag "je suis pret".
     #if THIS_CORE_ID == CORE_ID_CPU0
         memset((void *)IPC_DATA, 0, sizeof(ipc_shared_data_t));
         dmb(); //waits until write has finished
     #endif
-
-    if (THIS_CORE_ID == CORE_ID_CPU0) {
-        IPC_DATA->core0_init_done = 0; 
-    }
 }
 
 void IPC_SyncCores(void) {

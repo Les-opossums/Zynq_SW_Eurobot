@@ -17,8 +17,13 @@
 #include "APP_TEST/led_au_test.h"
 
 #define sev() __asm__("sev")
-#define ARM1_BASEADDR 0x10080000 
-#define ARM1_STARTADR 0xFFFFFFF0
+// Adresse de depart (dans la DDR) du binaire CPU1 : doit correspondre a
+// l'ORIGIN de ps7_ddr_0 dans le lscript.ld du projet opossum_core2.
+#define CPU1_ENTRY_ADDR   0x10080000
+// Registre special de "wake-up" lu par la boot ROM du Zynq : le CPU1,
+// tenu en boucle WFE par la boot ROM, relit cette adresse a chaque SEV et
+// branche dessus des qu'elle est non nulle.
+#define CPU1_WAKE_REG     0xFFFFFFF0
 
 // definition du callback quand l'un ou l'autre des cores reçoit une interruption SGI de l'autre core
 void On_IPC_Message_Received(void *callback_ref) {
@@ -50,17 +55,16 @@ int main(void){
         usleep(50000); // Laisse l'UART se vider
 
         // 2. Le CPU 0 réveille le CPU 1 !
-        xil_printf("[CPU0] Reveil du CPU1 a l'adresse 0x%08X...\n", ARM1_BASEADDR);
-        Xil_Out32(ARM1_STARTADR, ARM1_BASEADDR);
+        xil_printf("[CPU0] Reveil du CPU1 a l'adresse 0x%08X...\n", CPU1_ENTRY_ADDR);
+        Xil_Out32(CPU1_WAKE_REG, CPU1_ENTRY_ADDR);
         dmb(); // Barrière mémoire : s'assure que l'écriture est terminée
         sev(); // Send Event : Réveille le CPU 1
 
-        // 3. (Optionnel) On peut utiliser l'IPC pour attendre que le CPU1 dise "Je suis prêt"
-        // On attend que le CPU 1 confirme qu'il est vivant
-        uint32_t sync = 0;
-        while(sync != 0x11111111) {
-            Xil_DCacheInvalidateRange((INTPTR)&IPC_DATA->core0_init_done, sizeof(uint32_t));
-            sync = IPC_DATA->core0_init_done;
+        // 3. On attend que le CPU 1 confirme qu'il a fini sa propre init
+        // (IPC_DATA est en zone OCM non-cacheable, cf IPC_Init(), donc une
+        // simple relecture volatile suffit, pas besoin d'invalider le cache)
+        while (IPC_DATA->core1_init_done != 0x11111111) {
+            // Boucle d'attente active
         }
         xil_printf("[CPU0] CPU1 en ligne !\n");
 
@@ -75,9 +79,10 @@ int main(void){
         usleep(50000);
 
         // 2. Le CPU 1 signale au CPU 0 qu'il a terminé
-        IPC_DATA->core0_init_done = 0x11111111;
-        Xil_DCacheFlushRange((INTPTR)&IPC_DATA->core0_init_done, sizeof(uint32_t));
-        
+        // (IPC_DATA est en zone OCM non-cacheable, cf IPC_Init(), donc une
+        // simple ecriture volatile suffit, pas besoin de flush de cache)
+        IPC_DATA->core1_init_done = 0x11111111;
+
     #endif
 
     // =========================================================
@@ -91,6 +96,17 @@ int main(void){
 
     while(1){
         IO_Manager_Update();
+
+        #if THIS_CORE_ID == CORE_ID_CPU0
+            // Recopie immediate des GPIO de securite lus par CORE0 (IO_Manager_Update
+            // ci-dessus vient de les rafraichir) vers la zone partagee : ce sont des
+            // "variables transparentes" (cf IPC_structure.h), lues en direct par
+            // CORE1 dans asserv_loop.c pour couper les moteurs. Sans cette ligne,
+            // IPC_DATA->AU_state restait a 0 en permanence (valeur du memset initial)
+            // et l'arret d'urgence n'etait donc JAMAIS vu par CORE1.
+            IPC_DATA->AU_state    = (uint32_t)AU_state;
+            IPC_DATA->leash_state = (uint32_t)leash_state;
+        #endif
 
         App_Loop(); // boucle spécifique à l'application du coeur en cours de compilation
     }
