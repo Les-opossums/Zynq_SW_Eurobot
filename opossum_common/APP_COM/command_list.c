@@ -2,6 +2,7 @@
 #include "interpreteur.h"
 
 #include "../APP_ASSERV_BRIDGE/asserv_commands.h"
+#include "../APP_DRIVER_BRIDGE/driver_commands.h"
 #include "../CORE_ID/core_id.h"
 
 /*
@@ -52,6 +53,13 @@ const Command Command_List[] = {
     { "GETODO",       Get_Odo_Cmd},       /* ajoute */
     { "ASSERVDONE",   Asserv_Done_Cmd},   /* ajoute */
     { "PDE",          Activate_Position_Sending_Func},
+
+    // --- Pilotage generique des drivers IO_Manager (les deux cœurs) ---
+    // Nom = champ .name de IO_DEVICE_TABLE (cf IO_config.h), entre
+    // guillemets, insensible a la casse. Ex: DRVDIS "FEETECH", DRVEN "WS2812B".
+    { "DRVEN",        Driver_Enable_Cmd},
+    { "DRVDIS",       Driver_Disable_Cmd},
+    { "DRVLIST",      Driver_List_Cmd},
 
     // --- Actionneurs (pinces FEETECH, CPU0 uniquement) ---
 #if THIS_CORE_ID == CORE_ID_CPU0

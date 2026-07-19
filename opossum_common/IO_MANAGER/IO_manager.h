@@ -50,6 +50,30 @@ typedef struct {
 int IO_Manager_Init(void);
 void IO_Manager_Update(void);
 
+/**
+ * @brief Active/desactive tous les peripheriques d'un dev_type_t donne.
+ * Attention : plusieurs peripheriques peuvent partager le meme type
+ * generique (ex. DEV_TYPE_UART_PS pour UART_COMM ET UART_FEETECH) --
+ * prefere IO_Manager_SetDeviceStateByName() pour cibler un seul
+ * peripherique sans ambiguite.
+ */
+void IO_Manager_SetDeviceState(dev_type_t type, u8 active);
+
+/**
+ * @brief Active/desactive UN peripherique precis par son nom (cf champ
+ * .name de IO_DEVICE_TABLE dans IO_config.h), comparaison insensible a la
+ * casse. Ignore silencieusement (avec message) si le peripherique n'existe
+ * pas ou n'est pas gere par ce cœur.
+ * @return 1 si le peripherique a ete trouve (et gere par ce cœur), 0 sinon.
+ */
+uint8_t IO_Manager_SetDeviceStateByName(const char *name, u8 active);
+
+/**
+ * @brief Imprime l'etat courant (actif/inactif) de tous les peripheriques
+ * geres par CE cœur (owner == THIS_CORE ou CORE_BOTH).
+ */
+void IO_Manager_PrintDeviceList(void);
+
 // Impression des temps d'execution par peripherique (min/max/avg/last).
 // Toujours declaree/appelable : no-op si TIMING_MEASURE n'est pas active
 // (cf opossum_common/TIMER_MANAGER/timing_stats.h).

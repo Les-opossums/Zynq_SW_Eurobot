@@ -107,31 +107,83 @@ void IO_Manager_PrintCombinedInitReport(const IO_Device_Status *other_core_statu
     xil_printf("============================================================\r\n\r\n");
 }
 
+// Applique le changement d'etat a UN device precis (partage par les deux
+// fonctions publiques ci-dessous : par type -- qui peut viser plusieurs
+// devices a la fois, ex. plusieurs CAN -- ou par nom -- qui n'en vise
+// jamais qu'un seul, sans ambiguite meme si plusieurs devices partagent le
+// meme dev_type_t generique, ex. DEV_TYPE_UART_PS pour UART_COMM et
+// UART_FEETECH).
+static void io_manager_apply_device_state(io_device_t *dev, u8 active) {
+    const char* dev_name = (dev->name != NULL) ? dev->name : "NON_NOMME";
+
+    // Demande de désactivation
+    if(!active && dev->is_active) {
+        if(dev->deinit != NULL) {
+            dev->deinit(dev->driver_instance); // Coupe le hardware
+        }
+        dev->is_active = 0; // Coupe la boucle logicielle
+        xil_printf("[IO_Manager] %s desactive\n", dev_name);
+    }
+    // Demande de réactivation
+    else if (active && !dev->is_active) {
+        if(dev->init != NULL) {
+            dev->init(dev->driver_instance); // Relance le hardware
+        }
+        dev->is_active = 1;
+        xil_printf("[IO_Manager] %s reactive\n", dev_name);
+    }
+}
+
 void IO_Manager_SetDeviceState(dev_type_t type, u8 active) {
     for(int i = 0; i < NumDevices; i++){
         io_device_t *dev = &DeviceTable[i];
-        
         if(dev->type == type) {
-            const char* dev_name = (dev->name != NULL) ? dev->name : "NON_NOMME";
-
-            // Demande de désactivation
-            if(!active && dev->is_active) {
-                if(dev->deinit != NULL) {
-                    dev->deinit(dev->driver_instance); // Coupe le hardware
-                }
-                dev->is_active = 0; // Coupe la boucle logicielle
-                xil_printf("[IO_Manager] %s desactive\n", dev_name);
-            }
-            // Demande de réactivation
-            else if (active && !dev->is_active) {
-                if(dev->init != NULL) {
-                    dev->init(dev->driver_instance); // Relance le hardware
-                }
-                dev->is_active = 1;
-                xil_printf("[IO_Manager] %s reactive\n", dev_name);
-            }
+            io_manager_apply_device_state(dev, active);
         }
     }
+}
+
+// Comparaison de chaines insensible a la casse, sans dependance a ctype.h
+// (juste de quoi comparer des noms de devices ASCII simples type "FEETECH").
+static uint8_t io_manager_name_eq_ci(const char *a, const char *b) {
+    while (*a != '\0' && *b != '\0') {
+        char ca = *a, cb = *b;
+        if (ca >= 'a' && ca <= 'z') ca = (char)(ca - 'a' + 'A');
+        if (cb >= 'a' && cb <= 'z') cb = (char)(cb - 'a' + 'A');
+        if (ca != cb) return 0;
+        a++; b++;
+    }
+    return (*a == '\0' && *b == '\0');
+}
+
+uint8_t IO_Manager_SetDeviceStateByName(const char *name, u8 active) {
+    for (int i = 0; i < NumDevices; i++) {
+        io_device_t *dev = &DeviceTable[i];
+        if (dev->name == NULL || !io_manager_name_eq_ci(dev->name, name)) {
+            continue;
+        }
+        if (dev->owner != THIS_CORE && dev->owner != CORE_BOTH) {
+            xil_printf("[IO_Manager] %s n'est pas gere par ce coeur (CPU%d)\r\n", dev->name, THIS_CORE_ID);
+            return 0;
+        }
+        io_manager_apply_device_state(dev, active);
+        return 1;
+    }
+    xil_printf("[IO_Manager] Peripherique inconnu : %s\r\n", name);
+    return 0;
+}
+
+void IO_Manager_PrintDeviceList(void) {
+    xil_printf("\r\n=== Etat des drivers (CPU%d) ===\r\n", THIS_CORE_ID);
+    for (int i = 0; i < NumDevices; i++) {
+        io_device_t *dev = &DeviceTable[i];
+        if (dev->owner != THIS_CORE && dev->owner != CORE_BOTH) {
+            continue; // uniquement les peripheriques geres par ce coeur
+        }
+        const char *dev_name = (dev->name != NULL) ? dev->name : "NON_NOMME";
+        xil_printf("  [%s] %s\r\n", dev->is_active ? " ON " : "OFF ", dev_name);
+    }
+    xil_printf("================================\r\n\r\n");
 }
 
 void IO_Manager_Update(void) {
