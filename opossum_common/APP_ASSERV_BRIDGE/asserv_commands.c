@@ -424,6 +424,7 @@ void Print_Position_loop(void) {
         float speed_linear    = sqrtf(local_data.speed_robot.vx * local_data.speed_robot.vx +
                                        local_data.speed_robot.vy * local_data.speed_robot.vy);
         float speed_direction = atan2f(local_data.speed_robot.vy, local_data.speed_robot.vx);
+        
         printf("ROBOTDATA %0.2f %0.2f %0.2f %0.2f %0.2f %0.2f\n",
                (double)local_data.kalman_out.x, (double)local_data.kalman_out.y, (double)local_data.kalman_out.t,
                (double)speed_linear, (double)speed_direction, (double)local_data.speed_robot.vt);

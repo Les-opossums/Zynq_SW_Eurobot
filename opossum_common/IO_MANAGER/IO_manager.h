@@ -28,6 +28,7 @@ typedef enum {
 
 // ---structure universelle d'un périphérique ---
 typedef struct {
+    const char *name;       // Nom du périphérique (pour debug)
     dev_type_t type;       // Type de périphérique
     core_owner_t owner;    // Propriétaire du périphérique
     void *driver_instance; // Pointeur vers l'instance du driver (ex: XGpio pour GPIO)

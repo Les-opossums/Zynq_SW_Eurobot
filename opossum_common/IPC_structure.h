@@ -30,6 +30,9 @@ typedef struct {
     volatile uint32_t imu_calib_status;
     volatile uint32_t imu_seq; // incrémenté à chaque mise à jour par CORE0
 
+    // --- Donnees d'initialisation ---
+    volatile uint32_t core0_init_done;
+
     // ===========================================================================
     // 2 - BOITE AUX LETTRE (Messages avec Valid/Ack et Interrupt)
     // ===========================================================================

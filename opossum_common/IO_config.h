@@ -115,6 +115,7 @@ extern eth_io_context_t Eth_Ctx;
  * ================================================================= */
 #define IO_DEVICE_TABLE { \
     { \
+        .name = "GPIO_PS", \
         .type = DEV_TYPE_GPIO_PS, \
         .owner = CORE_CPU0, \
         .driver_instance = &PsGpio_Ctx, \
@@ -125,6 +126,7 @@ extern eth_io_context_t Eth_Ctx;
         .deinit = NULL \
     }, \
     { \
+        .name = "WS2812B", \
         .type = DEV_TYPE_WS2812B, \
         .owner = CORE_CPU0, \
         .driver_instance = &Ws2812b_Ctx, \
@@ -134,16 +136,8 @@ extern eth_io_context_t Eth_Ctx;
         .update = WS2812B_Update, \
         .deinit = NULL \
     }, \
-    {   .type = DEV_TYPE_IMU_BNO085, \
-        .owner = CORE_CPU0, \
-        .driver_instance = &Imu_Ctx, \
-        .irq_id = 0, \
-        .irq_handler = NULL, \
-        .init = BNO085_IO_Init, \
-        .update = BNO085_IO_Update, \
-        .deinit = NULL \
-    }, \
     { \
+        .name = "UART_COMM", \
         .type = DEV_TYPE_UART_PS, \
         .owner = CORE_CPU0, \
         .driver_instance = &UartComm_Ctx, \
@@ -154,6 +148,7 @@ extern eth_io_context_t Eth_Ctx;
         .deinit = NULL \
     }, \
     { \
+        .name = "CAN_MOTORS", \
         .type = DEV_TYPE_CAN_MOTORS, \
         .owner = CORE_CPU1, \
         .driver_instance = &Can0_Ctx, \
@@ -164,6 +159,19 @@ extern eth_io_context_t Eth_Ctx;
         .deinit = CAN_IO_Deinit \
     }\
 }
+
+    // {  \
+    //     .name = "IMU_BNO085", \
+    //     .type = DEV_TYPE_IMU_BNO085, \
+    //     .owner = CORE_CPU0, \
+    //     .driver_instance = &Imu_Ctx, \
+    //     .irq_id = 0, \
+    //     .irq_handler = NULL, \
+    //     .init = BNO085_IO_Init, \
+    //     .update = BNO085_IO_Update, \
+    //     .deinit = NULL \
+    // }, \
+    
     //}, \
     // { \
     //     .type = DEV_TYPE_ETHERNET, \

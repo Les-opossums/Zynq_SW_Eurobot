@@ -2,47 +2,58 @@
 #include "../IO_config.h"
 #include "xil_printf.h"
 
-
 static io_device_t DeviceTable[] = IO_DEVICE_TABLE;
 static const int NumDevices = sizeof(DeviceTable) / sizeof(io_device_t);
 
 int IO_Manager_Init(void) {
     int Status;
     int success_count = 0;
+    int core_devices = 0; // Compte les périphériques assignés à ce cœur
 
-    xil_printf("[CPU%d]IO_Manager Initialisation\n", THIS_CORE_ID);
+    xil_printf("\n\n[CPU%d] === Initialisation IO_Manager ===\n", THIS_CORE_ID);
 
-    for(int i = 0; i<NumDevices; i++){
+    for(int i = 0; i < NumDevices; i++){
         io_device_t *dev = &DeviceTable[i];
 
+        // Vérification de la propriété du périphérique
         if(dev->owner != THIS_CORE && dev->owner != CORE_BOTH){
             continue;
         }
 
+        core_devices++;
+        // Récupération du nom (avec sécurité si oublié dans la config)
+        const char* dev_name = (dev->name != NULL) ? dev->name : "NON_NOMME";
+
+        // --- 1. Initialisation du périphérique ---
         if(dev->init != NULL){
             Status = dev->init(dev->driver_instance);
             if (Status != XST_SUCCESS) {
-                dev->is_active = 0; // Marque le périphérique comme inactif en cas d'échec d'initialisation
-                xil_printf("[CPU%d]Erreur d'initialisation du peripherique %d\n", THIS_CORE_ID, i);
+                dev->is_active = 0; 
+                xil_printf("    [CPU%d] [FAIL] %-12s : Erreur init\n", THIS_CORE_ID, dev_name);
             } else {
                 dev->is_active = 1;
                 success_count++;
-                xil_printf("[CPU%d]Peripherique %d initialise avec succes\n", THIS_CORE_ID, i);
+                xil_printf("    [CPU%d] [ OK ] %-12s : Initialise\n", THIS_CORE_ID, dev_name);
             }
         } else {
-            dev->is_active = 1; // pas d'init nécessaire -> actif par défaut
+            // Pas de fonction d'init définie, on considère qu'il est actif
+            dev->is_active = 1; 
+            success_count++;
+            xil_printf("    [CPU%d] [ OK ] %-12s : Actif (pas d'init requise)\n", THIS_CORE_ID, dev_name);
         }
 
+        // --- 2. Connexion de l'interruption ---
         if(dev->irq_id != 0 && dev->irq_handler != NULL){
             Status = IRQ_Manager_Connect(dev->irq_id, dev->irq_handler, dev->driver_instance);
             if (Status != XST_SUCCESS) {
-                xil_printf("[CPU%d]Erreur de connexion de l'interruption pour le peripherique %d\n", THIS_CORE_ID, i);
+                xil_printf("    [CPU%d]   -> [FAIL] Interruption ID %lu\n", THIS_CORE_ID, dev->irq_id);
             } else {
-                xil_printf("[CPU%d]Interruption pour le peripherique %d connectee avec succes\n", THIS_CORE_ID, i);
+                xil_printf("    [CPU%d]   -> [ OK ] Interruption ID %lu connectee\n", THIS_CORE_ID, dev->irq_id);
             }
         }
     }
-    xil_printf("[CPU%d]IO_Manager Initialisation terminee : %d peripheriques initialises avec succes sur %d\n", THIS_CORE_ID, success_count, NumDevices);
+    
+    xil_printf("[CPU%d] === IO_Manager Pret : %d/%d drivers actifs ===\n\n\n", THIS_CORE_ID, success_count, core_devices);
     return XST_SUCCESS;
 }
 
@@ -51,13 +62,15 @@ void IO_Manager_SetDeviceState(dev_type_t type, u8 active) {
         io_device_t *dev = &DeviceTable[i];
         
         if(dev->type == type) {
+            const char* dev_name = (dev->name != NULL) ? dev->name : "NON_NOMME";
+
             // Demande de désactivation
             if(!active && dev->is_active) {
                 if(dev->deinit != NULL) {
                     dev->deinit(dev->driver_instance); // Coupe le hardware
                 }
                 dev->is_active = 0; // Coupe la boucle logicielle
-                xil_printf("[IO_Manager] Peripherique type %d desactive\n", type);
+                xil_printf("[IO_Manager] %s desactive\n", dev_name);
             }
             // Demande de réactivation
             else if (active && !dev->is_active) {
@@ -65,14 +78,14 @@ void IO_Manager_SetDeviceState(dev_type_t type, u8 active) {
                     dev->init(dev->driver_instance); // Relance le hardware
                 }
                 dev->is_active = 1;
-                xil_printf("[IO_Manager] Peripherique type %d reactive\n", type);
+                xil_printf("[IO_Manager] %s reactive\n", dev_name);
             }
         }
     }
 }
 
 void IO_Manager_Update(void) {
-    for(int i = 0; i<NumDevices; i++){
+    for(int i = 0; i < NumDevices; i++){
         io_device_t *dev = &DeviceTable[i];
 
         // Verification de la propriete du peripherique
@@ -80,6 +93,7 @@ void IO_Manager_Update(void) {
             continue;
         }
 
+        // On ignore les périphériques désactivés (ex: lors d'un Arrêt d'Urgence)
         if(!dev->is_active){
             continue;
         }

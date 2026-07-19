@@ -17,6 +17,10 @@ void IPC_Init(void) {
         memset((void *)IPC_DATA, 0, sizeof(ipc_shared_data_t));
         dmb(); //waits until write has finished
     #endif
+
+    if (THIS_CORE_ID == CORE_ID_CPU0) {
+        IPC_DATA->core0_init_done = 0; 
+    }
 }
 
 void IPC_SyncCores(void) {
