@@ -3,7 +3,6 @@
 #include "netif/xadapter.h"
 #include "netif/xemacpsif.h"
 #include "xstatus.h"
-#include "xil_printf.h"
 #include "xemacps.h"
 #include "xparameters.h" // Ajout de l'en-tête pour lire les identifiants matériels (XPAR_...)
 
@@ -33,7 +32,7 @@ int ETH_IO_Init(void *instance) {
     eth_io_context_t *ctx = (eth_io_context_t *)instance;
 
     if (eth_driver_init(&ctx->config) != 0) {
-        xil_printf("[ETH] Echec initialisation\n");
+        ETH_IO_LOG("[ETH] Echec initialisation\n");
         return XST_FAILURE;
     }
 
@@ -45,7 +44,7 @@ int ETH_IO_Init(void *instance) {
                                       (Xil_InterruptHandler)XEmacPs_IntrHandler,
                                       &xemacpsif->emacps);
     if (Status != XST_SUCCESS) {
-        xil_printf("[ETH] Erreur connexion IRQ EMAC\n");
+        ETH_IO_LOG("[ETH] Erreur connexion IRQ EMAC\n");
         return XST_FAILURE;
     }
 

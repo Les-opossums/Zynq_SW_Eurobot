@@ -27,6 +27,21 @@
 #include "sleep.h"
 #include "../DRIVER_PS_GPIO/driver_ps_gpio.h"   /* pour ps_gpio_context_t */
 
+/* ─── Debug ──────────────────────────────────────────────────────────────
+ * Decommenter pour reactiver tous les prints de diagnostic du driver
+ * (init SPI, reset, activation des rapports SH-2, erreurs...). Desactive
+ * par defaut : aucun cout en flash/CPU/UART en fonctionnement normal, et
+ * plus de pollution de la console partagee avec l'autre cœur.
+ */
+// #define BNO085_DEBUG
+
+#if defined(BNO085_DEBUG)
+#include "xil_printf.h"
+#define BNO085_LOG(...) xil_printf(__VA_ARGS__)
+#else
+#define BNO085_LOG(...) do {} while (0)
+#endif
+
 /* ─── SPI ───────────────────────────────────────────────────────────────── */
 
 #define BNO085_SPI_DEVICE_ID     XPAR_XSPIPS_0_DEVICE_ID

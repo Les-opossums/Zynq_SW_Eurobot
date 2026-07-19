@@ -19,7 +19,6 @@
 #include "BNO085.h"
 #include <string.h>
 #include <math.h>
-#include "xil_printf.h"
 #include "xstatus.h"
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -49,19 +48,19 @@ static int spi_init(BNO085_Dev *dev)
 {
     XSpiPs_Config *cfg = XSpiPs_LookupConfig(BNO085_SPI_DEVICE_ID);
     if (!cfg) {
-        xil_printf("[BNO085] Erreur : config SPI introuvable\r\n");
+        BNO085_LOG("[BNO085] Erreur : config SPI introuvable\r\n");
         return BNO085_ERR_SPI;
     }
 
     int ret = XSpiPs_CfgInitialize(&dev->spi, cfg, cfg->BaseAddress);
     if (ret != XST_SUCCESS) {
-        xil_printf("[BNO085] Erreur : CfgInitialize SPI (%d)\r\n", ret);
+        BNO085_LOG("[BNO085] Erreur : CfgInitialize SPI (%d)\r\n", ret);
         return BNO085_ERR_SPI;
     }
 
     ret = XSpiPs_SelfTest(&dev->spi);
     if (ret != XST_SUCCESS) {
-        xil_printf("[BNO085] Erreur : self-test SPI (%d)\r\n", ret);
+        BNO085_LOG("[BNO085] Erreur : self-test SPI (%d)\r\n", ret);
         return BNO085_ERR_SPI;
     }
 
@@ -95,7 +94,7 @@ static int spi_transfer(BNO085_Dev *dev, const u8 *tx, u8 *rx, u16 len)
     static u8 dummy_rx[SHTP_MAX_PACKET_SIZE];
 
     if (len > SHTP_MAX_PACKET_SIZE) {
-        xil_printf("[BNO085] Erreur : transfert trop grand (%d)\r\n", (int)len);
+        BNO085_LOG("[BNO085] Erreur : transfert trop grand (%d)\r\n", (int)len);
         return BNO085_ERR_SPI;
     }
 
@@ -104,7 +103,7 @@ static int spi_transfer(BNO085_Dev *dev, const u8 *tx, u8 *rx, u16 len)
 
     int ret = XSpiPs_PolledTransfer(&dev->spi, (u8 *)tx, rx, len);
     if (ret != XST_SUCCESS) {
-        xil_printf("[BNO085] Erreur : PolledTransfer (%d)\r\n", ret);
+        BNO085_LOG("[BNO085] Erreur : PolledTransfer (%d)\r\n", ret);
         return BNO085_ERR_SPI;
     }
 
@@ -125,7 +124,7 @@ static int shtp_send(BNO085_Dev *dev, u8 channel,
     u16 total = (u16)(SHTP_HEADER_SIZE + payload_len);
 
     if (total > SHTP_MAX_PACKET_SIZE) {
-        xil_printf("[BNO085] shtp_send : payload trop grand (%d)\r\n",
+        BNO085_LOG("[BNO085] shtp_send : payload trop grand (%d)\r\n",
                    (int)payload_len);
         return BNO085_ERR_SPI;
     }
@@ -349,7 +348,7 @@ static void sh2_parse_report(BNO085_Dev *dev, const u8 *buf, u16 len)
 
 int BNO085_Reset(BNO085_Dev *dev)
 {
-    xil_printf("[BNO085] Reset...\r\n");
+    BNO085_LOG("[BNO085] Reset...\r\n");
 
     CS_HIGH(dev);
 
@@ -361,16 +360,16 @@ int BNO085_Reset(BNO085_Dev *dev)
     usleep(300000U);
 
     // Diagnostic : affiche l'état de INT pendant 500ms
-    xil_printf("[BNO085] Attente INT bas (500ms max)...\r\n");
+    BNO085_LOG("[BNO085] Attente INT bas (500ms max)...\r\n");
     int int_went_low = 0;
     for (int ms = 0; ms < 500; ms++) {
         u32 int_state = INT_READ(dev);
         if (ms % 50 == 0) {
             // Log toutes les 50ms pour voir l'évolution
-            xil_printf("[BNO085] t=%dms INT=%lu\r\n", ms, (unsigned long)int_state);
+            BNO085_LOG("[BNO085] t=%dms INT=%lu\r\n", ms, (unsigned long)int_state);
         }
         if (int_state == 0U) {
-            xil_printf("[BNO085] INT bas detecte a t=%dms\r\n", ms);
+            BNO085_LOG("[BNO085] INT bas detecte a t=%dms\r\n", ms);
             int_went_low = 1;
             break;
         }
@@ -378,10 +377,10 @@ int BNO085_Reset(BNO085_Dev *dev)
     }
 
     if (!int_went_low) {
-        xil_printf("[BNO085] ERREUR : INT ne passe jamais bas\r\n");
-        xil_printf("[BNO085]   -> Verifier cablage MISO/MOSI/SCK/CS/INT\r\n");
-        xil_printf("[BNO085]   -> Verifier alimentation 3.3V BNO085\r\n");
-        xil_printf("[BNO085]   -> Verifier PS0=HIGH bien recu par le chip\r\n");
+        BNO085_LOG("[BNO085] ERREUR : INT ne passe jamais bas\r\n");
+        BNO085_LOG("[BNO085]   -> Verifier cablage MISO/MOSI/SCK/CS/INT\r\n");
+        BNO085_LOG("[BNO085]   -> Verifier alimentation 3.3V BNO085\r\n");
+        BNO085_LOG("[BNO085]   -> Verifier PS0=HIGH bien recu par le chip\r\n");
         return BNO085_ERR_TIMEOUT;
     }
 
@@ -390,10 +389,10 @@ int BNO085_Reset(BNO085_Dev *dev)
     u16 len = 0U;
     for (int tries = 0; tries < 10; tries++) {
         int ret = shtp_receive(dev, &ch, &len);
-        xil_printf("[BNO085] shtp_receive try=%d ret=%d ch=%d len=%d\r\n",
+        BNO085_LOG("[BNO085] shtp_receive try=%d ret=%d ch=%d len=%d\r\n",
                    tries, ret, (int)ch, (int)len);
         if (ret == BNO085_OK) {
-            xil_printf("[BNO085] Reset OK\r\n");
+            BNO085_LOG("[BNO085] Reset OK\r\n");
             return BNO085_OK;
         }
         usleep(10000U);
@@ -412,7 +411,7 @@ int BNO085_Init(BNO085_Dev *dev, ps_gpio_context_t *gpio_ctx, u32 pin_cs, u32 pi
     dev->pin_rst  = pin_rst;
     dev->pin_int  = pin_int;
 
-    xil_printf("[BNO085] Initialisation...\r\n");
+    BNO085_LOG("[BNO085] Initialisation...\r\n");
 
     /* Assure des états initiaux sûrs (direction/config des broches déjà
      * faite par PS_GPIO_Init sur le contexte partagé) */
@@ -422,7 +421,7 @@ int BNO085_Init(BNO085_Dev *dev, ps_gpio_context_t *gpio_ctx, u32 pin_cs, u32 pi
     /* 1. SPI PS */
     int ret = spi_init(dev);
     if (ret != BNO085_OK) {
-        xil_printf("[BNO085] Erreur init SPI\r\n");
+        BNO085_LOG("[BNO085] Erreur init SPI\r\n");
         return ret;
     }
 
@@ -430,7 +429,7 @@ int BNO085_Init(BNO085_Dev *dev, ps_gpio_context_t *gpio_ctx, u32 pin_cs, u32 pi
     ret = BNO085_Reset(dev);
     if (ret != BNO085_OK) return ret;
 
-    xil_printf("[BNO085] Pret\r\n");
+    BNO085_LOG("[BNO085] Pret\r\n");
     return BNO085_OK;
 }
 
@@ -459,7 +458,7 @@ int BNO085_EnableReport(BNO085_Dev *dev, u8 report_id, u32 interval_us)
         usleep(100); // Pause de 100 µs
         timeout++;
         if (timeout > 5000) { // Timeout sécurité après 500 ms
-            xil_printf("[BNO085] Timeout INT avant commande 0x%02X\r\n", report_id);
+            BNO085_LOG("[BNO085] Timeout INT avant commande 0x%02X\r\n", report_id);
             return BNO085_ERR_SPI;
         }
     }
@@ -467,10 +466,10 @@ int BNO085_EnableReport(BNO085_Dev *dev, u8 report_id, u32 interval_us)
     // Maintenant que INT est bas, on peut envoyer la commande en toute sécurité
     int ret = shtp_send(dev, 2, cmd, sizeof(cmd));
     if (ret != BNO085_OK) {
-        xil_printf("[BNO085] Erreur activation rapport 0x%02X\r\n", report_id);
+        BNO085_LOG("[BNO085] Erreur activation rapport 0x%02X\r\n", report_id);
         return ret;
     }
-    xil_printf("[BNO085] Rapport 0x%02X active @ %lu us\r\n", report_id, interval_us);
+    BNO085_LOG("[BNO085] Rapport 0x%02X active @ %lu us\r\n", report_id, interval_us);
     return BNO085_OK;
 }
 

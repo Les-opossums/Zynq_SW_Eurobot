@@ -1,7 +1,6 @@
 #include "driver_bno085_io.h"
 #include "../../IPC_MANAGER/IPC_manager.h"
 #include "xstatus.h"
-#include "xil_printf.h"
 
 // Un seul capteur IMU dans ce projet — flag global suffit,
 // posé en ISR (pin 60, EDGE_FALLING) et consommé dans BNO085_IO_Update.
@@ -18,7 +17,7 @@ int BNO085_IO_Init(void *instance) {
 
     int ret = BNO085_Init(&ctx->dev, ctx->gpio_ctx, ctx->pin_cs, ctx->pin_rst, ctx->pin_int);
     if (ret != BNO085_OK) {
-        xil_printf("[IMU] Echec initialisation (%d)\n", ret);
+        BNO085_LOG("[IMU] Echec initialisation (%d)\n", ret);
         return XST_FAILURE;
     }
 
