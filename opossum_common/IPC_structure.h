@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include "common_type.h"
+#include "IO_MANAGER/IO_manager.h"
 
 /**
  * @brief This strcucture describes the organization of the shared memory
@@ -31,6 +32,15 @@ typedef struct {
     volatile uint32_t imu_seq; // incrémenté à chaque mise à jour par CORE0
 
     // --- Donnees d'initialisation ---
+
+    // Rapport d'init des drivers de CORE1 (cf IO_manager.h). Rempli par
+    // CORE1 juste AVANT de lever core1_init_done ci-dessous : CORE0 le lit
+    // juste APRES avoir vu ce flag passer a 0x11111111, donc pas de race
+    // possible (pas besoin de flags valid/ack dedies ici). Sert a imprimer
+    // un rapport unique et complet (CPU0 + CPU1), cf sequence dans main.c.
+    IO_Device_Status core1_driver_status[IO_STATUS_MAX_DEVICES];
+    uint32_t         core1_driver_status_count;
+
     volatile uint32_t core1_init_done; // Mis a 0x11111111 par CORE1 quand son init est terminee ; attendu par CORE0
 
     // ===========================================================================

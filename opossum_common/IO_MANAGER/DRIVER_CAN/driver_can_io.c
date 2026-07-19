@@ -117,20 +117,20 @@ int CAN_IO_Init(void *instance) {
     }
 
     if (ctx->num_subscribers > CAN_IO_MAX_SUBSCRIBERS) {
-        xil_printf("[CAN] Erreur : %lu abonnes demandes, max %d (filtres materiels)\n",
+        CAN_IO_LOG("[CAN] Erreur : %lu abonnes demandes, max %d (filtres materiels)\n",
                    (unsigned long)ctx->num_subscribers, CAN_IO_MAX_SUBSCRIBERS);
         return XST_FAILURE;
     }
 
     XCanPs_Config *Config = XCanPs_LookupConfig(ctx->device_id);
     if (Config == NULL) {
-        xil_printf("[CAN] Erreur : peripherique introuvable (device_id=%lu)\n", (unsigned long)ctx->device_id);
+        CAN_IO_LOG("[CAN] Erreur : peripherique introuvable (device_id=%lu)\n", (unsigned long)ctx->device_id);
         return XST_FAILURE;
     }
 
     XCanPs_CfgInitialize(&ctx->instance, Config, Config->BaseAddr);
     if (XCanPs_SelfTest(&ctx->instance) != XST_SUCCESS) {
-        xil_printf("[CAN] Erreur : self-test echoue\n");
+        CAN_IO_LOG("[CAN] Erreur : self-test echoue\n");
         return XST_FAILURE;
     }
 
@@ -155,7 +155,7 @@ int CAN_IO_Init(void *instance) {
     CAN_IO_ResetErrorStats(ctx);
     ctx->first_init_done = 1;
 
-    xil_printf("[CAN] Initialise (device_id=%lu, %lu abonnes)\n",
+    CAN_IO_LOG("[CAN] Initialise (device_id=%lu, %lu abonnes)\n",
                (unsigned long)ctx->device_id, (unsigned long)ctx->num_subscribers);
     return XST_SUCCESS;
 }
@@ -199,7 +199,7 @@ void CAN_IO_Disable(can_io_context_t *ctx) {
     ctx->bus_enabled = FALSE;
     ctx->error_stats.bus_enabled = FALSE;
 
-    xil_printf("[CAN] Desactive (device_id=%lu)\n", (unsigned long)ctx->device_id);
+    CAN_IO_LOG("[CAN] Desactive (device_id=%lu)\n", (unsigned long)ctx->device_id);
 }
 
 void CAN_IO_Enable(can_io_context_t *ctx) {
@@ -208,11 +208,11 @@ void CAN_IO_Enable(can_io_context_t *ctx) {
     XCanPs_Reset(&ctx->instance);
 
     if (CAN_IO_Config(ctx) != XST_SUCCESS) {
-        xil_printf("[CAN] Erreur : reconfiguration impossible\n");
+        CAN_IO_LOG("[CAN] Erreur : reconfiguration impossible\n");
         return;
     }
     if (CAN_IO_ConfigureFilters(ctx) != XST_SUCCESS) {
-        xil_printf("[CAN] Erreur : reconfiguration des filtres impossible\n");
+        CAN_IO_LOG("[CAN] Erreur : reconfiguration des filtres impossible\n");
         return;
     }
 
@@ -223,7 +223,7 @@ void CAN_IO_Enable(can_io_context_t *ctx) {
     ctx->bus_enabled = TRUE;
     ctx->error_stats.bus_enabled = TRUE;
 
-    xil_printf("[CAN] Reactive (device_id=%lu)\n", (unsigned long)ctx->device_id);
+    CAN_IO_LOG("[CAN] Reactive (device_id=%lu)\n", (unsigned long)ctx->device_id);
 }
 
 uint8_t CAN_IO_IsEnabled(can_io_context_t *ctx) {

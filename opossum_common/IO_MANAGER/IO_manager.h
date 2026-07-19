@@ -54,4 +54,42 @@ void IO_Manager_Update(void);
 // (cf opossum_common/TIMER_MANAGER/timing_stats.h).
 void IO_Manager_PrintTiming(void);
 
+/* ================================================================= *
+ * Rapport d'initialisation des drivers
+ * ================================================================= *
+ * IO_Manager_Init() n'imprime plus rien directement : chaque cœur stocke
+ * silencieusement l'etat de SES peripheriques (evite les prints entrelaces
+ * entre CPU0 et CPU1 sur l'UART partage). CPU1 exporte son tableau vers
+ * IPC_DATA juste avant de signaler core1_init_done ; CPU0, une fois ce
+ * flag vu, imprime un rapport UNIQUE et complet pour les 2 cœurs
+ * (cf sequence dans main.c).
+ */
+#define IO_STATUS_NAME_LEN    16
+#define IO_STATUS_MAX_DEVICES 16 /* marge pour les futurs drivers/actionneurs */
+
+typedef struct __attribute__((packed)) {
+    char name[IO_STATUS_NAME_LEN];
+    u8   used;     /* 1 si ce slot a ete rempli par le cœur qui le possede */
+    u8   success;  /* 1 = init OK, 0 = echec */
+    u8   has_irq;  /* 1 si une interruption etait a connecter */
+    u8   irq_ok;   /* 1 = connexion IRQ OK (valide seulement si has_irq) */
+} IO_Device_Status;
+
+/**
+ * @brief Copie l'etat d'init des peripheriques de CE cœur dans out[].
+ * @param out       Tableau destination (ex: IPC_DATA->core1_driver_status).
+ * @param max_count Taille de out[] (typiquement IO_STATUS_MAX_DEVICES).
+ * @return Nombre d'entrees copiees.
+ */
+int IO_Manager_ExportStatus(IO_Device_Status *out, int max_count);
+
+/**
+ * @brief Imprime un rapport unique et complet (peripheriques CPU0 + CPU1).
+ * A appeler UNIQUEMENT depuis CPU0, une fois core1_init_done vu (cf main.c) :
+ * combine le tableau local de CPU0 avec celui recu de CPU1 via IPC.
+ * @param other_core_status Tableau recu de CPU1 (ex: IPC_DATA->core1_driver_status).
+ * @param other_count       Nombre d'entrees valides dans other_core_status.
+ */
+void IO_Manager_PrintCombinedInitReport(const IO_Device_Status *other_core_status, int other_count);
+
 #endif /* IO_MANAGER_H */

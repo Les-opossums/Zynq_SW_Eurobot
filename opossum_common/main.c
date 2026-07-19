@@ -76,19 +76,31 @@ int main(void){
         }
         xil_printf("[CPU0] CPU1 en ligne !\n");
 
+        // 4. Rapport UNIQUE et complet (CPU0 + CPU1) : plus aucun print par
+        // driver pendant IO_Manager_Init() (cf IO_manager.c), donc plus
+        // d'entrelacement entre les 2 cœurs sur l'UART partage. Le tableau
+        // de CPU1 a ete ecrit dans IPC_DATA AVANT que core1_init_done ne
+        // soit leve ci-dessus : lecture sans race possible.
+        IO_Manager_PrintCombinedInitReport(IPC_DATA->core1_driver_status,
+                                            (int)IPC_DATA->core1_driver_status_count);
+
     #else
         // ---------------------------------------------------------
         // CODE DU CPU 1
         // Quand le CPU 1 arrive ici, c'est que le CPU 0 vient de le réveiller (ou Vitis)
         // ---------------------------------------------------------
-        
+
         // 1. Le CPU 1 s'initialise
         IO_Manager_Init();
         usleep(50000);
 
-        // 2. Le CPU 1 signale au CPU 0 qu'il a terminé
+        // 2. Le CPU 1 exporte son rapport d'init vers IPC_DATA, PUIS signale
+        // au CPU 0 qu'il a terminé (l'ordre est important : CPU0 ne doit
+        // lire le rapport qu'apres avoir vu core1_init_done, cf IPC_structure.h)
         // (IPC_DATA est en zone OCM non-cacheable, cf IPC_Init(), donc une
         // simple ecriture volatile suffit, pas besoin de flush de cache)
+        IPC_DATA->core1_driver_status_count =
+            (uint32_t)IO_Manager_ExportStatus(IPC_DATA->core1_driver_status, IO_STATUS_MAX_DEVICES);
         IPC_DATA->core1_init_done = 0x11111111;
 
     #endif

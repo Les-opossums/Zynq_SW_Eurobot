@@ -4,6 +4,21 @@
 #include "xcanps.h"
 #include "xil_types.h"
 
+/* ─── Debug ──────────────────────────────────────────────────────────────
+ * Decommenter pour reactiver les prints de diagnostic du driver (init,
+ * erreurs, activation/desactivation du bus...). Desactive par defaut :
+ * le rapport d'init unique de IO_Manager (cf main.c) suffit en usage
+ * normal, plus de print isole a l'init qui casse la lisibilite du boot.
+ */
+// #define CAN_IO_DEBUG
+
+#if defined(CAN_IO_DEBUG)
+#include "xil_printf.h"
+#define CAN_IO_LOG(...) xil_printf(__VA_ARGS__)
+#else
+#define CAN_IO_LOG(...) do {} while (0)
+#endif
+
 /* Contrainte matérielle du Zynq-7000 : 4 filtres d'acceptance (UAF1-UAF4). */
 #define CAN_IO_MAX_SUBSCRIBERS   4
 #define CAN_IO_MAX_FRAME_WORDS   (XCANPS_MAX_FRAME_SIZE / sizeof(u32))

@@ -2,9 +2,15 @@
 #include "../IO_config.h"
 #include "xil_printf.h"
 #include "../TIMER_MANAGER/timing_stats.h"
+#include <string.h>
 
 static io_device_t DeviceTable[] = IO_DEVICE_TABLE;
 static const int NumDevices = sizeof(DeviceTable) / sizeof(io_device_t);
+
+// Etat d'init de CE cœur, stocke silencieusement (cf IO_Manager_ExportStatus /
+// IO_Manager_PrintCombinedInitReport, et le rapport unique imprime par CPU0
+// dans main.c une fois les 2 cœurs synchronises).
+static IO_Device_Status LocalStatus[IO_STATUS_MAX_DEVICES];
 
 #if defined(TIMING_MEASURE)
 /* Un TimingStats par peripherique de la table : generique, couvre donc
@@ -16,10 +22,6 @@ static TimingStats IoUpdateTotal;
 
 int IO_Manager_Init(void) {
     int Status;
-    int success_count = 0;
-    int core_devices = 0; // Compte les périphériques assignés à ce cœur
-
-    xil_printf("\n\n[CPU%d] === Initialisation IO_Manager ===\n", THIS_CORE_ID);
 
     for(int i = 0; i < NumDevices; i++){
         io_device_t *dev = &DeviceTable[i];
@@ -29,41 +31,80 @@ int IO_Manager_Init(void) {
             continue;
         }
 
-        core_devices++;
         // Récupération du nom (avec sécurité si oublié dans la config)
         const char* dev_name = (dev->name != NULL) ? dev->name : "NON_NOMME";
+
+        // Slot de rapport (best-effort : silencieusement ignore au-dela de
+        // IO_STATUS_MAX_DEVICES, l'init materielle continue normalement).
+        IO_Device_Status *st = (i < IO_STATUS_MAX_DEVICES) ? &LocalStatus[i] : NULL;
+        if (st) {
+            st->used = 1U;
+            strncpy(st->name, dev_name, IO_STATUS_NAME_LEN - 1);
+            st->name[IO_STATUS_NAME_LEN - 1] = '\0';
+            st->has_irq = (dev->irq_id != 0 && dev->irq_handler != NULL) ? 1U : 0U;
+        }
 
         // --- 1. Initialisation du périphérique ---
         if(dev->init != NULL){
             Status = dev->init(dev->driver_instance);
-            if (Status != XST_SUCCESS) {
-                dev->is_active = 0; 
-                xil_printf("    [CPU%d] [FAIL] %-12s : Erreur init\n", THIS_CORE_ID, dev_name);
-            } else {
-                dev->is_active = 1;
-                success_count++;
-                xil_printf("    [CPU%d] [ OK ] %-12s : Initialise\n", THIS_CORE_ID, dev_name);
-            }
+            dev->is_active = (Status == XST_SUCCESS) ? 1U : 0U;
         } else {
             // Pas de fonction d'init définie, on considère qu'il est actif
-            dev->is_active = 1; 
-            success_count++;
-            xil_printf("    [CPU%d] [ OK ] %-12s : Actif (pas d'init requise)\n", THIS_CORE_ID, dev_name);
+            dev->is_active = 1U;
         }
+        if (st) st->success = dev->is_active;
 
         // --- 2. Connexion de l'interruption ---
         if(dev->irq_id != 0 && dev->irq_handler != NULL){
             Status = IRQ_Manager_Connect(dev->irq_id, dev->irq_handler, dev->driver_instance);
-            if (Status != XST_SUCCESS) {
-                xil_printf("    [CPU%d]   -> [FAIL] Interruption ID %lu\n", THIS_CORE_ID, dev->irq_id);
-            } else {
-                xil_printf("    [CPU%d]   -> [ OK ] Interruption ID %lu connectee\n", THIS_CORE_ID, dev->irq_id);
-            }
+            if (st) st->irq_ok = (Status == XST_SUCCESS) ? 1U : 0U;
         }
     }
-    
-    xil_printf("[CPU%d] === IO_Manager Pret : %d/%d drivers actifs ===\n\n\n", THIS_CORE_ID, success_count, core_devices);
+
     return XST_SUCCESS;
+}
+
+int IO_Manager_ExportStatus(IO_Device_Status *out, int max_count) {
+    int n = (NumDevices < max_count) ? NumDevices : max_count;
+    if (n > IO_STATUS_MAX_DEVICES) n = IO_STATUS_MAX_DEVICES;
+    if (n > 0) memcpy(out, LocalStatus, (size_t)n * sizeof(IO_Device_Status));
+    return n;
+}
+
+void IO_Manager_PrintCombinedInitReport(const IO_Device_Status *other_core_status, int other_count) {
+    int local_ok = 0, local_total = 0, other_ok = 0, other_total = 0;
+
+    xil_printf("\r\n=== Rapport d'initialisation des drivers (CPU0 + CPU1) ===\r\n");
+
+    for (int i = 0; i < NumDevices; i++) {
+        const IO_Device_Status *st = NULL;
+
+        if (i < IO_STATUS_MAX_DEVICES && LocalStatus[i].used) {
+            st = &LocalStatus[i];
+            local_total++;
+            if (st->success) local_ok++;
+        } else if (other_core_status != NULL && i < other_count && other_core_status[i].used) {
+            st = &other_core_status[i];
+            other_total++;
+            if (st->success) other_ok++;
+        }
+
+        if (st == NULL) {
+            const char *dev_name = (DeviceTable[i].name != NULL) ? DeviceTable[i].name : "NON_NOMME";
+            xil_printf("  [ ?? ] %-12s : non traite (owner inconnu)\r\n", dev_name);
+            continue;
+        }
+
+        xil_printf("  [%s] %-12s", st->success ? " OK " : "FAIL", st->name);
+        if (st->has_irq) {
+            xil_printf("  IRQ:%s", st->irq_ok ? "OK" : "FAIL");
+        }
+        xil_printf("\r\n");
+    }
+
+    xil_printf("--- CPU0 : %d/%d actifs | CPU1 : %d/%d actifs ---\r\n",
+               local_ok, local_total, other_ok, other_total);
+    xil_printf("============================================================\r\n\r\n");
 }
 
 void IO_Manager_SetDeviceState(dev_type_t type, u8 active) {
