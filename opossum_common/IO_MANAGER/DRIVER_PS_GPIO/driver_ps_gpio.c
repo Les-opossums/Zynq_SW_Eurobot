@@ -71,6 +71,17 @@ int PS_GPIO_Init(void *instance) {
             XGpioPs_SetOutputEnablePin(&ctx->instance, pin->pin_number, 1);
         }
 
+        // Lecture initiale obligatoire pour les entrées pilotees par IRQ de front :
+        // une interruption EDGE ne se declenche que sur une TRANSITION. Si le
+        // niveau est deja actif avant meme d'armer l'IRQ (ex: AU deja enclenche
+        // au demarrage), aucun front n'arrive et *state_var resterait a sa
+        // valeur initiale (0) indefiniment, tant que personne ne relache/rappuie.
+        // Les entrees en polling (PIN_IRQ_NONE) sont de toute facon rafraichies
+        // en continu par PS_GPIO_Update, donc cette lecture est sans risque ici.
+        if (pin->direction == PS_GPIO_DIR_INPUT && pin->state_var != NULL) {
+            *(pin->state_var) = XGpioPs_ReadPin(&ctx->instance, pin->pin_number);
+        }
+
         //interruption
         if (pin->direction == PS_GPIO_DIR_INPUT && pin->irq_type != PIN_IRQ_NONE) {
             u8 xil_irq_type;

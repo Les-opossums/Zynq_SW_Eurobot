@@ -1,4 +1,5 @@
 #include "IO_config.h"
+#include "IPC_MANAGER/IPC_manager.h"
 
 
 // ==================================================================
@@ -28,7 +29,17 @@ volatile int bno_wake_state = 0;
 // --- Callback appelé sur interruption de la laisse ---
 void leash_Callback(void *callback_ref) {
     (void)callback_ref;
+    IPC_DATA->leash_state = (uint32_t)leash_state;
     // rien pour l'instant, juste pour que le link passe
+}
+
+void AU_Callback(void *callback_ref) {
+    (void)callback_ref;
+    // PS_GPIO_Callback vient de rafraichir AU_state (voir driver_ps_gpio.c)
+    // juste avant d'appeler ce callback : on le recopie tout de suite vers
+    // la zone partagee, lue par CORE1 (asserv_loop.c) pour couper les moteurs.
+    // Ecriture non bloquante en zone OCM non-cacheable : OK depuis un ISR.
+    IPC_DATA->AU_state = (uint32_t)AU_state;
 }
 
 // ==================================================================
