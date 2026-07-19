@@ -89,7 +89,15 @@ extern uart_ps_context_t UartComm_Ctx;
  * CAN0 — bus moteurs (ESC C610), actif sur CORE1
  * ================================================================= */
 #define CAN0_DEVICE_ID       XPAR_XCANPS_0_DEVICE_ID
-#define CAN0_INTR_ID         XPAR_XCANPS_0_INTR
+// ATTENTION : XPAR_XCANPS_0_INTR (alias "canonique" genere par les outils
+// Xilinx) vaut XPS_CAN0_INT_ID (60), l'ID d'interruption du controleur CAN0
+// PHYSIQUE. Mais XPAR_XCANPS_0_BASEADDR pointe en realite vers 0xE0009000,
+// c-a-d le controleur CAN1 physique (le seul instancie dans ce hardware
+// design) -- bug connu de generation des parametres canoniques Xilinx
+// quand seule la 2e instance d'un peripherique est activee. On utilise donc
+// directement XPAR_PS7_CAN_1_INTR (= XPS_CAN1_INT_ID = 83), le vrai ID
+// d'interruption du CAN1, pour que le GIC ecoute la bonne ligne.
+#define CAN0_INTR_ID         XPAR_PS7_CAN_1_INTR
 
 #define CAN0_BAUD_PRESCALER  9
 #define CAN0_BTR_SJW         0

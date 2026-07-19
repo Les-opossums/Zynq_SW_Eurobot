@@ -56,8 +56,8 @@ int main(void){
 
         // 2. Le CPU 0 réveille le CPU 1 !
         xil_printf("[CPU0] Reveil du CPU1 a l'adresse 0x%08X...\n", CPU1_ENTRY_ADDR);
-        Xil_Out32(CPU1_WAKE_REG, CPU1_ENTRY_ADDR);
         dmb(); // Barrière mémoire : s'assure que l'écriture est terminée
+        Xil_Out32(CPU1_WAKE_REG, CPU1_ENTRY_ADDR);
         sev(); // Send Event : Réveille le CPU 1
 
         // 3. On attend que le CPU 1 confirme qu'il a fini sa propre init
@@ -93,6 +93,7 @@ int main(void){
     App_Init(); // init spécifique à l'application du coeur en cours de compilation
 
     xil_printf("[CPU%d] Entree dans la boucle principale\n", THIS_CORE_ID);
+    int old_timer_ms1 = 0;
 
     while(1){
         IO_Manager_Update();
@@ -106,6 +107,8 @@ int main(void){
             // et l'arret d'urgence n'etait donc JAMAIS vu par CORE1.
             IPC_DATA->AU_state    = (uint32_t)AU_state;
             IPC_DATA->leash_state = (uint32_t)leash_state;
+        #else
+
         #endif
 
         App_Loop(); // boucle spécifique à l'application du coeur en cours de compilation
