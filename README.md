@@ -154,18 +154,34 @@ On est good, normalement le repo git est clean et le projet est fonctionnel !
 
 ## 1. Communication Réseau (Ethernet)
 
-La communication entre le Raspberry Pi (ROS 2) et le Zynq 7000 se fait via une liaison Ethernet UDP bare-metal 100MBits/s.
+La communication entre le Raspberry Pi (ROS 2) et le Zynq 7000 se fait via une liaison Ethernet UDP bare-metal 100Mbits/s.
 
-👉 [Voir la documentation détaillée du Driver Ethernet UDP](./opossum_core1/src/ETHERNET/README.md)
+👉 [Voir la documentation détaillée du Driver Ethernet UDP](./opossum_common/IO_MANAGER/DRIVER_ETH/README.md)
 
 ## 2. Communication série (UART)
 
-Alternativement, la communication peut se faire en UART (Legacy 2024/2025).
+Alternativement, la communication peut se faire en UART (console de commandes, cf. [APP_COM](./opossum_common/APP_COM/README.md)).
 
-👉 [Documentation TBD]
+👉 [Voir la documentation détaillée du Driver UART PS](./opossum_common/IO_MANAGER/DRIVER_UART_PS/README.md)
 
 
 # Setup entre hardware et software : 
 
 ## 1. Setup GPIO PS
-👉 [Voir la documentation détaillée du Driver GPIO](./opossum_common/IO_MANAGER/README.md)
+👉 [Voir la documentation détaillée du Driver GPIO](./opossum_common/IO_MANAGER/DRIVER_PS_GPIO/README.md)
+
+## 2. Mise à jour du PHY Ethernet après régénération du BSP
+
+Le fichier BSP Xilinx `xemacpsif_physpeed.c` est écrasé par Vitis à chaque régénération et perd le patch forçant le lien à 100 Mbits (sinon négocié à tort à 10 Mbits sur le PHY RTL8201F). Relancer `patch_phy_speed.sh` (racine du dépôt) après chaque "Re-generate BSP Sources".
+
+---
+
+# Documentation du code (architecture et navigation)
+
+Toute l'architecture logicielle (drivers, applications, découpage CPU0/CPU1) est documentée module par module, avec des liens croisés pour naviguer de proche en proche. Point d'entrée :
+
+👉 **[opossum_common — vue d'ensemble et sommaire complet](./opossum_common/README.md)**
+
+Projets spécifiques à un cœur :
+* [opossum_core1](./opossum_core1/README.md) — projet CPU0 (communication, actionneurs)
+* [opossum_core2](./opossum_core2/README.md) — projet CPU1 (asservissement, odométrie, Kalman)
