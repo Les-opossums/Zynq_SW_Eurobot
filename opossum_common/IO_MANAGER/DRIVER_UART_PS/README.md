@@ -8,11 +8,15 @@ Le sous-dossier **UART PS** contient le pilote permettant la gestion du contrôl
 
 Le driver exploite des tampons circulaires (*ring buffers*) distincts pour isoler la réception (**RX**) et la transmission (**TX**).
 
-La taille de ces tampons est définie statiquement à **300 octets** via la macro :
+La taille de ces tampons est définie statiquement à **1000 octets** via la macro :
 
 ```c
 UART_PS_RING_BUFFER_SIZE
 ```
+
+### Plusieurs instances
+
+Le driver est générique et peut être instancié plusieurs fois : `UART_COMM` (console, `UART0`) et `UART_FEETECH` (transport du bus [FEETECH](../DRIVER_FEETECH/README.md), `UART1`) sont deux `uart_ps_context_t` indépendants dans `IO_DEVICE_TABLE`, chacun avec son propre buffer RX/TX. Un seul des deux doit avoir `is_console = 1`.
 
 ### Réception sous interruption (ISR)
 
@@ -135,3 +139,12 @@ u16 UART_PS_TxFreeSpace(uart_ps_context_t *ctx);
 ```
 
 Retourne le nombre d'emplacements encore disponibles dans le buffer de transmission.
+
+---
+
+## Voir aussi
+
+* [IO_MANAGER](../README.md) — table des périphériques et cycle de vie générique
+* [DRIVER_FEETECH](../DRIVER_FEETECH/README.md) — construit son transport UART1 directement sur ce driver
+* [APP_COM](../../APP_COM/README.md) — consomme `UART_COMM` (console) pour l'interpréteur de commandes
+* [opossum_common](../../README.md) — vue d'ensemble de l'architecture

@@ -26,3 +26,11 @@ L'échange de données repose sur un mécanisme de drapeaux de validation/acquit
 Afin de simplifier drastiquement le code au niveau de l'application, l'en-tête `IPC_manager.h` fournit deux macros puissantes qui abstraient la gestion des drapeaux :
 *   `SEND_FIELD(data_ptr, field_name)` : Envoie automatiquement un champ spécifique de votre structure `data_ptr` vers `IPC_DATA` en gérant implicitement sa taille et ses pointeurs de drapeaux de validation associés (`flag_##field_name##_valid` et `_ack`).
 *   `CHECK_FIELD(data_ptr, field_name)` : Lit une donnée spécifique reçue de l'autre processeur, l'écrit dans la structure pointée par `data_ptr`, et acquitte la transaction.
+
+## Voir aussi
+
+* [CORE_ID](../CORE_ID/README.md) — identification du cœur exécutant (préalable à toute logique IPC)
+* [APP_ASSERV_BRIDGE](../APP_ASSERV_BRIDGE/README.md) — principal utilisateur (commandes de mouvement CPU0 → CPU1, télémétrie CPU1 → CPU0)
+* [ASSERV (CPU1)](../../opossum_core2/src/ASSERV/README.md) — `receive_commands()`, côté réception
+* [IO_MANAGER](../IO_MANAGER/README.md) — rapport d'init combiné des deux cœurs, transmis via la même mémoire partagée (`IPC_DATA`)
+* [opossum_common](../README.md) — vue d'ensemble de l'architecture, séquence de démarrage complète

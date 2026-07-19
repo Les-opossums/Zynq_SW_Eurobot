@@ -31,3 +31,11 @@ Ces fonctions permettent de dessiner sur le tampon depuis le code applicatif :
 ## Dépendances Externes
 
 Pour que la mise à jour périodique non-bloquante fonctionne, ce driver s'appuie sur une variable globale `extern volatile u32 Timer_ms1`. Le système doit garantir que cette variable est bien incrémentée toutes les millisecondes (via un timer matériel de base de temps, par exemple).
+
+## Voir aussi
+
+* [IO_MANAGER](../README.md) — table des périphériques et cycle de vie générique
+* [TIMER_MANAGER](../../TIMER_MANAGER/README.md) — source de `Timer_ms1`
+* [APP_TEST](../../APP_TEST/README.md) — test de bout en bout GPIO PS → LED (`LED_AU_Test_Update`)
+* [APP_DRIVER_BRIDGE](../../APP_DRIVER_BRIDGE/README.md) — commandes `DRVEN "WS2812B"` / `DRVDIS "WS2812B"` / `DRVLIST`
+* [opossum_common](../../README.md) — vue d'ensemble de l'architecture

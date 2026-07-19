@@ -37,3 +37,14 @@ Le cœur du driver est capable de parser dynamiquement différents types de donn
 *   **Magnétomètre :** Champ magnétique en µT.
 *   **Vecteurs de Rotation :** Vecteur AHRS classique (avec référence Nord) et "Game Rotation Vector" (sans magnétomètre pour éviter les perturbations).
 *   **Angles d'Euler :** Les quaternions reçus sont automatiquement convertis en angles ZYX (Yaw, Pitch, Roll) en degrés.
+
+## Debug
+
+Les prints de diagnostic du protocole SHTP/SH-2 (`BNO085_DEBUG`/`BNO085_LOG`, à décommenter dans `BNO085.h`) sont désactivés par défaut — le rapport d'init unique de l'[IO_MANAGER](../README.md) suffit en usage normal.
+
+## Voir aussi
+
+* [IO_MANAGER](../README.md) — table des périphériques et cycle de vie générique
+* [DRIVER_PS_GPIO](../DRIVER_PS_GPIO/README.md) — contexte GPIO partagé (broches CS/RST/INT)
+* [APP_DRIVER_BRIDGE](../../APP_DRIVER_BRIDGE/README.md) — commandes `DRVEN "IMU_BNO085"` / `DRVDIS "IMU_BNO085"` / `DRVLIST`
+* [opossum_common](../../README.md) — vue d'ensemble de l'architecture

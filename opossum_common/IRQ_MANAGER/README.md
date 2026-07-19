@@ -23,3 +23,9 @@ L'`IRQ_Manager` encapsule les appels de bas niveau à la bibliothèque Xilinx `x
 ## Intégration dans l'architecture
 
 L'`IRQ_Manager` est la brique de base exploitée par l'`IO_Manager`. Lorsque ce dernier itère sur la table des périphériques pour les initialiser, il utilise automatiquement `IRQ_Manager_Connect()` pour lier chaque driver ayant déclaré un `irq_id` non nul.
+
+## Voir aussi
+
+* [IO_MANAGER](../IO_MANAGER/README.md) — principal utilisateur (connexion automatique des IRQ déclarées dans `IO_DEVICE_TABLE`)
+* [IPC_MANAGER](../IPC_MANAGER/README.md) — utilise directement `IRQ_Manager_Connect()` pour l'interruption logicielle (SGI) inter-cœurs
+* [opossum_common](../README.md) — vue d'ensemble de l'architecture, séquence de démarrage complète

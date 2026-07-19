@@ -27,3 +27,10 @@ Le pilote s'articule autour de deux structures principales :
 Le driver expose deux fonctions conformes aux attentes de l'`IO_MANAGER` :
 *   `int PS_GPIO_Init(void *instance)` : Initialise le périphérique, configure la direction de chaque broche, active les interruptions si nécessaire, et attache le gestionnaire d'interruptions Xilinx.
 *   `void PS_GPIO_Update(void *instance)` : Fonction de polling ("scrutation") appelée dans la boucle principale pour gérer les broches non configurées en interruption.
+
+## Voir aussi
+
+* [IO_MANAGER](../README.md) — table des périphériques et cycle de vie générique
+* [DRIVER_BNO085](../DRIVER_BNO085/README.md) — utilise ce driver pour ses broches CS/RST/INT (contexte GPIO partagé)
+* [APP_TEST](../../APP_TEST/README.md) — test de bout en bout GPIO PS → LED
+* [opossum_common](../../README.md) — vue d'ensemble de l'architecture

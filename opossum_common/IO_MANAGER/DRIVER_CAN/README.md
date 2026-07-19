@@ -17,6 +17,7 @@ Le pilote implémente le paradigme de "Publication/Abonnement" (Publish/Subscrib
 *   **Envoi Bloquant :** La fonction d'envoi (`CAN_IO_Send`) insère la trame dans la FIFO matérielle. Si celle-ci est pleine, la fonction bloque (attente active) jusqu'à ce qu'une place se libère.
 *   **Désactivation Dynamique (Arrêt d'Urgence) :** En conformité avec l'architecture `IO_MANAGER`, le driver implémente une fonction `Deinit` (`CAN_IO_Disable`). Appelée lors d'un arrêt d'urgence (câble débranché, perte de puissance d'un module), elle masque les interruptions et passe le contrôleur en mode configuration, évitant ainsi un emballement des compteurs d'erreurs d'acquittement (Bus-Off).
 *   **Statistiques et Diagnostics :** Le pilote enregistre en continu tous les types d'erreurs bus (ACK, Stuff, Form, Bit, CRC) ainsi que les débordements de FIFO et les pertes d'arbitrage. Ces compteurs (`CAN_ErrorStats`) sont consultables via `CAN_IO_PrintErrorStats`.
+*   **Debug gérable à part :** Les prints de diagnostic à l'init/activation/désactivation (`CAN_IO_DEBUG`/`CAN_IO_LOG`, à décommenter dans `driver_can_io.h`) sont désactivés par défaut — le rapport d'init unique de l'[IO_MANAGER](../README.md) suffit en usage normal. `CAN_IO_PrintErrorStats` reste lui toujours actif : c'est un diagnostic explicite à la demande, pas du bruit de boot.
 
 ## Structure de Données
 
@@ -37,3 +38,11 @@ L'application doit instancier un `can_io_context_t` pour chaque bus physique uti
 *   `int CAN_IO_Send(ctx, id, payload, len)` : Transmet une trame de données avec l'identifiant 11-bits spécifié.
 *   `void CAN_IO_Disable(ctx)` / `CAN_IO_Enable(ctx)` : Bascule logiciellement l'état de la liaison CAN (désactive/réactive la participation au trafic sur le bus).
 *   `void CAN_IO_PrintErrorStats(ctx)` : Affiche le bilan de santé du bus sur la console série (utile pour détecter un problème de câblage ou de résistance de terminaison).
+
+## Voir aussi
+
+* [IO_MANAGER](../README.md) — table des périphériques et cycle de vie générique
+* [APP_MOTORS](../../APP_MOTORS/README.md) — couche applicative (retour/commande des ESC C610) au-dessus de ce driver
+* [ASSERV (CPU1)](../../../opossum_core2/src/ASSERV/README.md) — seul consommateur de ce bus
+* [APP_DRIVER_BRIDGE](../../APP_DRIVER_BRIDGE/README.md) — commandes `DRVEN "CAN_MOTORS"` / `DRVDIS "CAN_MOTORS"` / `DRVLIST`
+* [opossum_common](../../README.md) — vue d'ensemble de l'architecture
