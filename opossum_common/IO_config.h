@@ -162,17 +162,19 @@ extern eth_io_context_t Eth_Ctx;
         .init = CAN_IO_Init, \
         .update = CAN_IO_Update, \
         .deinit = CAN_IO_Deinit \
-    }, \
-    { \
-        .type = DEV_TYPE_ETHERNET, \
-        .owner = CORE_CPU0, \
-        .driver_instance = &Eth_Ctx, \
-        .irq_id = 0, \
-        .irq_handler = NULL, \
-        .init = ETH_IO_Init, \
-        .update = ETH_IO_Update, \
-        .deinit = NULL \
-    } \
+    }\
+}
+    //}, \
+    // { \
+    //     .type = DEV_TYPE_ETHERNET, \
+    //     .owner = CORE_CPU0, \
+    //     .driver_instance = &Eth_Ctx, \
+    //     .irq_id = 0, \
+    //     .irq_handler = NULL, \
+    //     .init = ETH_IO_Init, \
+    //     .update = ETH_IO_Update, \
+    //     .deinit = NULL \
+    // } \
 }
 
 #endif /* IO_CONFIG_H */
