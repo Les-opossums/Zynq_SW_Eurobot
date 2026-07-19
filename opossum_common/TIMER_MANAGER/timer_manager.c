@@ -2,10 +2,16 @@
 #include "xstatus.h"
 #include "xscutimer.h"
 #include "xparameters.h"
+#include "xtime_l.h"
 #include "../IRQ_MANAGER/IRQ_manager.h"
 
 #define TIMER_1ms_LOAD_VALUE	332999
 #define TIMER_1ms_PRESCALER		0x0
+
+/* Le Global Timer tourne a COUNTS_PER_SECOND (= frequence CPU / 2, cf
+ * xtime_l.h), soit exactement la meme horloge que celle utilisee ci-dessus
+ * pour le XScuTimer 1ms (332999 + 1 = 333000 ticks/ms => 333 MHz). */
+#define TIMER_US_TICKS_PER_US   ((uint32_t)(COUNTS_PER_SECOND / 1000000ULL))
 
 volatile int Timer_ms1 = 0;
 
@@ -57,4 +63,20 @@ int Timer_Manager_Init(void) {
 void Delay_ms(int ms) {
     int old_Timer = Timer_ms1;
     while (Timer_ms1 - old_Timer < ms);
+}
+
+/* ================================================================== *
+ * Timer microseconde (Global Timer, partage CPU0/CPU1)
+ * ================================================================== */
+
+void Timer_us_Init(void) {
+    /* Remet le compteur global a 0. A n'appeler qu'UNE FOIS, cote CPU0,
+     * avant le reveil de CPU1 (cf commentaire dans le .h). */
+    XTime_SetTime(0);
+}
+
+uint32_t Timer_us_Get(void) {
+    XTime now;
+    XTime_GetTime(&now);
+    return (uint32_t)(now / TIMER_US_TICKS_PER_US);
 }

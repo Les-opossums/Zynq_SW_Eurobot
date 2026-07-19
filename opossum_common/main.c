@@ -41,6 +41,14 @@ int main(void){
     IRQ_Manager_Init();
     Timer_Manager_Init();
 
+    #if THIS_CORE_ID == CORE_ID_CPU0
+        // Le Global Timer est partage physiquement par les 2 cœurs : on ne le
+        // (re)demarre qu'une seule fois, ici, AVANT le reveil de CPU1, pour
+        // que les deux cœurs partagent la meme base de temps microseconde
+        // (utilisee par TIMING_MEASURE dans asserv_loop.c).
+        Timer_us_Init();
+    #endif
+
     IRQ_Manager_Connect(IPC_SGI_INT_ID, On_IPC_Message_Received, NULL);
 
     // =========================================================

@@ -9,6 +9,15 @@
 
 #include "asserv.h"
 
+/* Decommenter pour activer le monitoring des temps d'execution de l'asserv
+ * (marge par rapport au budget temps-reel de chaque etape). Impressions
+ * xil_printf periodiques sur la boucle lente. */
+#define TIMING_MEASURE
+
+#if defined(TIMING_MEASURE)
+#include "xil_printf.h"
+#endif
+
 /* ================================================================== *
  * Macros et Constantes de Temps
  * ================================================================== */
@@ -34,6 +43,72 @@ typedef struct {
 static asserv_context_t ctx;
 static uint32_t         last_fast_ms;
 static uint8_t          fast_ticks_since_slow;
+
+/* ================================================================== *
+ * Monitoring des Temps d'Execution (TIMING_MEASURE)
+ * ================================================================== *
+ * Port de l'instrumentation de l'ancien firmware (TimingStats/T_START/
+ * T_STOP), adapte a la structure actuelle fast_loop()/slow_loop().
+ * Budget fast : ODO_PERIOD_MS * 1000 us | Budget slow : ASSERV_PERIOD_MS * 1000 us
+ */
+#if defined(TIMING_MEASURE)
+
+typedef struct {
+    uint32_t min_us;
+    uint32_t max_us;
+    uint32_t last_us;
+    uint64_t sum_us;
+    uint32_t count;
+} TimingStats;
+
+#define T_START(id)       uint32_t _t_##id = Timer_us1
+#define T_STOP(id, stats) ts_update(&(stats), Timer_us1 - _t_##id)
+
+static void ts_update(TimingStats *ts, uint32_t dt_us)
+{
+    if (ts->count == 0U || dt_us < ts->min_us) { ts->min_us = dt_us; }
+    if (dt_us > ts->max_us)                    { ts->max_us = dt_us; }
+    ts->last_us = dt_us;
+    ts->sum_us += dt_us;
+    ts->count++;
+}
+
+static void ts_print_one(const char *name, TimingStats *ts)
+{
+    if (ts->count == 0U) { return; }
+    xil_printf("  %-11s min=%4u max=%4u avg=%4u last=%4u us (n=%u)\r\n",
+               name, (unsigned)ts->min_us, (unsigned)ts->max_us,
+               (unsigned)(ts->sum_us / ts->count), (unsigned)ts->last_us,
+               (unsigned)ts->count);
+    ts->min_us = 0xFFFFFFFFU;
+    ts->max_us = 0U;
+    ts->sum_us = 0U;
+    ts->count  = 0U;
+}
+
+static TimingStats ts_fast_odo, ts_fast_kalman, ts_fast_imu, ts_fast_fifo, ts_fast_total;
+static TimingStats ts_slow_motion, ts_slow_constrain, ts_slow_pid_can, ts_slow_ipc, ts_slow_total;
+static uint32_t    slow_print_counter;
+
+#define TIMING_PRINT_EVERY_N_SLOW  100U /* ~1s pour ASSERV_PERIOD_MS = 10ms */
+
+static void timing_print_all(void)
+{
+    xil_printf("--- Timing asserv (budget fast=%u us, slow=%u us) ---\r\n",
+               (unsigned)(ODO_PERIOD_MS * 1000U), (unsigned)(ASSERV_PERIOD_MS * 1000U));
+    ts_print_one("fast_odo",    &ts_fast_odo);
+    ts_print_one("fast_kalman", &ts_fast_kalman);
+    ts_print_one("fast_imu",    &ts_fast_imu);
+    ts_print_one("fast_fifo",   &ts_fast_fifo);
+    ts_print_one("fast_total",  &ts_fast_total);
+    ts_print_one("slow_motion", &ts_slow_motion);
+    ts_print_one("slow_constr", &ts_slow_constrain);
+    ts_print_one("slow_pidcan", &ts_slow_pid_can);
+    ts_print_one("slow_ipc",    &ts_slow_ipc);
+    ts_print_one("slow_total",  &ts_slow_total);
+}
+
+#endif /* TIMING_MEASURE */
 
 /* ================================================================== *
  * Fonctions Utilitaires
@@ -204,36 +279,61 @@ static void receive_commands(void)
  */
 static void fast_loop(void)
 {
+#if defined(TIMING_MEASURE)
+    T_START(fast_total);
+#endif
+
     // 1. Lecture des retours encodeurs des moteurs
     int motor_rpm[4] = {
-        motor_feedback[0].speed_motor, 
+        motor_feedback[0].speed_motor,
         motor_feedback[1].speed_motor,
-        motor_feedback[2].speed_motor, 
+        motor_feedback[2].speed_motor,
         motor_feedback[3].speed_motor
     };
 
+#if defined(TIMING_MEASURE)
+    T_START(fast_odo);
+#endif
     // 2. Mise à jour et intégration de l'odométrie pure
     odometry_update_from_motor_rpm(motor_rpm);
     odometry_integrate(ODO_PERIOD_MS * 0.001f);
+#if defined(TIMING_MEASURE)
+    T_STOP(fast_odo, ts_fast_odo);
+#endif
 
+#if defined(TIMING_MEASURE)
+    T_START(fast_kalman);
+#endif
     // 3. Prédiction du filtre de Kalman
     kalman_predict(&kalman_current_state, ODO_PERIOD_MS * 0.001f);
     kalman_update_odo(&kalman_current_state, &speed_robot_odom);
+#if defined(TIMING_MEASURE)
+    T_STOP(fast_kalman, ts_fast_kalman);
+#endif
 
     // 4. Vérification et intégration des données IMU
     const uint32_t sequence_before = IPC_DATA->imu_seq;
     const float    gyro_z          = IPC_DATA->imu_gyro_z;
     const uint32_t calibration     = IPC_DATA->imu_calib_status;
-    
+
     const uint8_t imu_available = (sequence_before == IPC_DATA->imu_seq &&
-                                   sequence_before != ctx.last_imu_sequence && 
+                                   sequence_before != ctx.last_imu_sequence &&
                                    calibration >= 1U);
 
+#if defined(TIMING_MEASURE)
+    T_START(fast_imu);
+#endif
     if (imu_available) {
         ctx.last_imu_sequence = sequence_before;
         kalman_update_imu(&kalman_current_state, gyro_z);
     }
+#if defined(TIMING_MEASURE)
+    T_STOP(fast_imu, ts_fast_imu);
+#endif
 
+#if defined(TIMING_MEASURE)
+    T_START(fast_fifo);
+#endif
     // 5. Sauvegarde dans la FIFO (pour gestion du retard des capteurs externes)
     kalman_fifo_push(&kalman_fifo, &kalman_current_state, &speed_robot_odom, imu_available, gyro_z);
 
@@ -241,6 +341,10 @@ static void fast_loop(void)
     if (repropagate_job.active) {
         (void)kalman_fifo_repropagate_tick(&kalman_fifo);
     }
+#if defined(TIMING_MEASURE)
+    T_STOP(fast_fifo, ts_fast_fifo);
+    T_STOP(fast_total, ts_fast_total);
+#endif
 }
 
 /**
@@ -249,21 +353,40 @@ static void fast_loop(void)
  */
 static void slow_loop(void)
 {
+#if defined(TIMING_MEASURE)
+    T_START(slow_total);
+#endif
+
+#if defined(TIMING_MEASURE)
+    T_START(slow_motion);
+#endif
     // 1. Récupération de la position estimée actuelle
     Position current = {
-        kalman_current_state.x[0], 
-        kalman_current_state.x[1], 
+        kalman_current_state.x[0],
+        kalman_current_state.x[1],
         kalman_current_state.x[2]
     };
 
     // 2. Moyennage de l'odométrie lente et calcul des consignes
     odometry_finish_slow(ASSERV_TICKS_PER_SLOW);
     motion_step(&current);
-    
+#if defined(TIMING_MEASURE)
+    T_STOP(slow_motion, ts_slow_motion);
+#endif
+
+#if defined(TIMING_MEASURE)
+    T_START(slow_constrain);
+#endif
     // 3. Application des contraintes physiques (rampement et saturation)
     constrain_speed_order();
     constrain_acceleration_order(ASSERV_PERIOD_MS * 0.001f);
+#if defined(TIMING_MEASURE)
+    T_STOP(slow_constrain, ts_slow_constrain);
+#endif
 
+#if defined(TIMING_MEASURE)
+    T_START(slow_pid_can);
+#endif
     // 4. Calcul des puissances moteurs (Asservissement PID)
     ESC_Command command;
     Asserv_PWM_calculator(&command);
@@ -275,9 +398,9 @@ static void slow_loop(void)
 
     // 6. Saturation finale des commandes
     int16_t motors[4] = {
-        saturate_motor_command(command.command1), 
+        saturate_motor_command(command.command1),
         saturate_motor_command(command.command2),
-        saturate_motor_command(command.command3), 
+        saturate_motor_command(command.command3),
         saturate_motor_command(command.command4)
     };
 
@@ -289,16 +412,26 @@ static void slow_loop(void)
 
     // 8. Transmission au bus CAN
     CAN_transmit_motor(&Can0_Ctx, motors, 4);
+#if defined(TIMING_MEASURE)
+    T_STOP(slow_pid_can, ts_slow_pid_can);
+#endif
 
+#if defined(TIMING_MEASURE)
+    T_START(slow_ipc);
+#endif
     // 9. Remontée de la télémétrie vers l'autre cœur via IPC
-    (void)IPC_SendToOtherCore(&current, sizeof(current), 
+    (void)IPC_SendToOtherCore(&current, sizeof(current),
                               &IPC_DATA->kalman_out, &IPC_DATA->flag_kalman_out_valid, &IPC_DATA->flag_kalman_out_ack);
-                              
-    (void)IPC_SendToOtherCore(&speed_robot_asserv, sizeof(speed_robot_asserv), 
+
+    (void)IPC_SendToOtherCore(&speed_robot_asserv, sizeof(speed_robot_asserv),
                               &IPC_DATA->speed_robot, &IPC_DATA->flag_speed_robot_valid, &IPC_DATA->flag_speed_robot_ack);
-                              
+
     (void)IPC_SendToOtherCore(&speed_order_constrained, sizeof(speed_order_constrained),
                               &IPC_DATA->cmd_speed_constrained, &IPC_DATA->flag_cmd_speed_constrained_valid, &IPC_DATA->flag_cmd_speed_constrained_ack);
+#if defined(TIMING_MEASURE)
+    T_STOP(slow_ipc, ts_slow_ipc);
+    T_STOP(slow_total, ts_slow_total);
+#endif
 }
 
 /* ================================================================== *
@@ -357,5 +490,12 @@ void asserv_loop_update(void)
     if (++fast_ticks_since_slow >= ASSERV_TICKS_PER_SLOW) {
         fast_ticks_since_slow = 0;
         slow_loop();
+
+#if defined(TIMING_MEASURE)
+        if (++slow_print_counter >= TIMING_PRINT_EVERY_N_SLOW) {
+            slow_print_counter = 0;
+            timing_print_all();
+        }
+#endif
     }
 }
