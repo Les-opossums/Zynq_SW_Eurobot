@@ -7,6 +7,7 @@
 #include "APP_COM/com_interpreter_loop.h"
 #include "APP_COM/eth_interpreter_bridge.h"
 #include "APP_ACTIONNEURS/feetech_Action.h"
+#include "APP_LED_INDICATOR/led_au_animation.h"
 #include "xil_printf.h"
 // ... autres includes spécifiques ...
 
@@ -48,6 +49,10 @@ void App_Loop(void) {
         AU_pinces();
     }
     last_au_state = AU_state;
+
+    // Indicateur visuel : fondu rouge + halo tournant tant que l'AU est
+    // actif (bandeau WS2812B), eteint au relachement.
+    LED_AU_Animation_Update();
 
 #if defined(TIMING_MEASURE)
     // Marge temps-reel CPU0 : peripheriques IO_Manager (dont le poll BNO085)
