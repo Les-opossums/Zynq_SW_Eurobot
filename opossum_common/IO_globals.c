@@ -116,3 +116,16 @@ feetech_io_context_t Feetech_Ctx = {
     .dir_gpio_device_id  = FEETECH_DIR_GPIO_DEVICE_ID,
     .dir_gpio_channel    = FEETECH_DIR_GPIO_CHANNEL
 };
+
+// ==================================================================
+// Définition du contexte du driver LIDAR LD19 (lidar_top_for_dma + AXI DMA)
+// ==================================================================
+lidar_ld19_context_t Lidar_Ld19_Ctx = {
+    .dma_device_id = LIDAR_LD19_DMA_DEVICE_ID,
+    .regs_base     = LIDAR_LD19_REGS_BASEADDR,
+    .lidar_id      = 0
+    /* Pour un futur 2e lidar : nouvelle instance lidar_ld19_context_t avec
+     * un .lidar_id different, + une nouvelle entree dans IO_DEVICE_TABLE
+     * (nouveau nom, nouveau device_id DMA / base AXI-Lite) -- aucune
+     * modification necessaire dans lidar_ld19.c/.h. */
+};

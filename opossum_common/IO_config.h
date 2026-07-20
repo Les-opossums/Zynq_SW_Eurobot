@@ -18,6 +18,7 @@
 #include "IO_MANAGER/DRIVER_CAN/driver_can_io.h"
 #include "IO_MANAGER/DRIVER_ETH/driver_eth_io.h"
 #include "IO_MANAGER/DRIVER_FEETECH/feetech_io.h"
+#include "IO_MANAGER/DRIVER_LD19/lidar_ld19.h"
 #include "APP_MOTORS/c610_feedback.h"
 
 /* ================================================================= *
@@ -137,6 +138,29 @@ extern uart_ps_context_t UartFeetech_Ctx;
 extern feetech_io_context_t Feetech_Ctx;
 
 /* ================================================================= *
+ * Configuration LIDAR LD19 — IP maison lidar_top_for_dma + AXI DMA
+ * (S2MM uniquement), sur CORE0.
+ * ================================================================= *
+ * Chaine : UART LD19 -> parseur -> filtre -> clustering (VHDL, PL) ->
+ * AXI-Stream -> AXI DMA -> tampon memoire (cf opossum_hw pour le detail).
+ * Config/statut du filtre/clustering exposes en AXI4-Lite sur
+ * XPAR_LIDAR_TOP_FOR_DMA_0_BASEADDR (cf lidar_ld19.h pour la carte des
+ * registres). Reception DMA en mode Direct Register (pas de Scatter-
+ * Gather), pilotee par interruption (S2MM, cf LIDAR_LD19_IntrHandler).
+ *
+ * XPAR_FABRIC_AXI_DMA_0_S2MM_INTROUT_INTR est cablee directement sur le
+ * GIC (ID 62, distincte de l'IRQ AXI_UARTLITE_0 = ID 61) dans le hardware
+ * actuellement exporte -- pas de xlconcat partage entre les deux a ce
+ * jour, malgre ce qui avait ete mentionne verbalement ; a revisiter si le
+ * block design est modifie en ce sens et re-exporte.
+ */
+#define LIDAR_LD19_DMA_DEVICE_ID  XPAR_AXI_DMA_0_DEVICE_ID
+#define LIDAR_LD19_REGS_BASEADDR  XPAR_LIDAR_TOP_FOR_DMA_0_BASEADDR
+#define LIDAR_LD19_INTR_ID        XPAR_FABRIC_AXI_DMA_0_S2MM_INTROUT_INTR
+
+extern lidar_ld19_context_t Lidar_Ld19_Ctx;
+
+/* ================================================================= *
  * Table de l'io manager
  * ================================================================= */
 #define IO_DEVICE_TABLE { \
@@ -227,6 +251,17 @@ extern feetech_io_context_t Feetech_Ctx;
         .init = FEETECH_IO_Init, \
         .update = FEETECH_IO_Update, \
         .deinit = NULL \
+    }, \
+    { \
+        .name = "LIDAR_LD19", \
+        .type = DEV_TYPE_LIDAR_LD19, \
+        .owner = CORE_CPU0, \
+        .driver_instance = &Lidar_Ld19_Ctx, \
+        .irq_id = LIDAR_LD19_INTR_ID, \
+        .irq_handler = (Xil_InterruptHandler)LIDAR_LD19_IntrHandler, \
+        .init = LIDAR_LD19_Init, \
+        .update = LIDAR_LD19_Update, \
+        .deinit = LIDAR_LD19_Deinit \
     }\
 }
 

@@ -24,7 +24,8 @@ typedef enum {
     DEV_TYPE_IMU_BNO085,
     DEV_TYPE_CAN_MOTORS,
     DEV_TYPE_ETHERNET,
-    DEV_TYPE_FEETECH
+    DEV_TYPE_FEETECH,
+    DEV_TYPE_LIDAR_LD19
 } dev_type_t;
 
 // ---structure universelle d'un périphérique ---

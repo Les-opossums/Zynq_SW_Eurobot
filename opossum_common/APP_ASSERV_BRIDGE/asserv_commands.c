@@ -379,7 +379,7 @@ uint8_t Set_Odo_Spacing_Cmd(void) {
  * Telemetrie automatique (UART + Ethernet)
  * ================================================================== */
 
-static int      auto_printpos_en = 1;
+static int      auto_printpos_en = 0;
 static uint32_t auto_printpos_delay_uart = 100;
 static uint32_t Last_Timer_print_pos_uart = 0;
 static uint32_t auto_printpos_delay_eth = 1;

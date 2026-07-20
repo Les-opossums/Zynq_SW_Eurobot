@@ -48,6 +48,7 @@ L'`IO_Manager` interagit avec les modules suivants :
 * [DRIVER_CAN](DRIVER_CAN/README.md) — bus CAN moteurs (ESC C610)
 * [DRIVER_ETH](DRIVER_ETH/README.md) — liaison Ethernet UDP avec le Raspberry Pi
 * [DRIVER_FEETECH](DRIVER_FEETECH/README.md) — bus servos/pompes des pinces
+* [DRIVER_LD19](DRIVER_LD19/README.md) — lidar LD19/LD06 (IP VHDL maison + AXI DMA, interruption)
 
 ## Voir aussi
 
