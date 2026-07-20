@@ -228,4 +228,15 @@ void LIDAR_LD19_SetEthernetStreaming(lidar_ld19_context_t *ctx, uint8_t enable);
  */
 void LIDAR_LD19_PrintScanUart(lidar_ld19_context_t *ctx);
 
+/**
+ * @brief Print de test/bring-up, variante Teleplot (https://teleplot.fr) :
+ * envoie le nuage de points du dernier scan complet sur la console UART au
+ * format ">lidar:x:y|xy" (meme decimation que l'envoi automatique de
+ * LIDAR_LD19_Update(), cf LIDAR_LD19_SCAN_TELEPLOT_DECIMATION), sans
+ * attendre que le scan_id ait change depuis le dernier appel -- utile pour
+ * un test manuel visuel independant du flux automatique. Ne fait rien si
+ * aucun scan complet n'a encore ete recu.
+ */
+void LIDAR_LD19_PrintScanTeleplot(lidar_ld19_context_t *ctx);
+
 #endif /* DRIVER_LD19_LIDAR_H */

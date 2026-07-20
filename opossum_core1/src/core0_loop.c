@@ -15,10 +15,11 @@
 static uint32_t last_timing_print_ms;
 #endif
 
-// Test/bring-up LIDAR LD19 : print periodique (1 Hz) du dernier scan recu
-// sur la console UART, independant du flux Teleplot/Ethernet (cf
-// LIDAR_LD19_PrintScanUart() dans DRIVER_LD19). A retirer une fois la
-// chaine (IRQ DMA + accumulation de scan) validee en conditions reelles.
+// Test/bring-up LIDAR LD19 : print periodique (1 Hz) du dernier scan recu,
+// au format Teleplot (cf LIDAR_LD19_PrintScanTeleplot() dans DRIVER_LD19).
+// La fonction de print "classique" (texte, LIDAR_LD19_PrintScanUart()) est
+// gardee disponible dans le driver mais n'est plus appelee ici.
+// A retirer une fois la chaine (IRQ DMA + accumulation de scan) validee.
 static uint32_t last_lidar_test_ms;
 
 // Detection de front montant sur AU_state (variable locale CPU0, rafraichie
@@ -61,8 +62,12 @@ void App_Loop(void) {
     LED_AU_Animation_Update();
 
     // Test/bring-up LIDAR LD19 (cf declaration de last_lidar_test_ms plus haut).
-    if (ts_trigger_ms(1000U, &last_lidar_test_ms)) {
-        LIDAR_LD19_PrintScanUart(&Lidar_Ld19_Ctx);
+    // ts_trigger_ms() n'existe que si TIMING_MEASURE est active (cf
+    // TIMER_MANAGER/timing_stats.h) : on refait le meme calcul ici a la main
+    // pour ne pas en dependre.
+    if ((uint32_t)((uint32_t)Timer_ms1 - last_lidar_test_ms) >= 1000U) {
+        last_lidar_test_ms = (uint32_t)Timer_ms1;
+        LIDAR_LD19_PrintScanTeleplot(&Lidar_Ld19_Ctx);
     }
 
 #if defined(TIMING_MEASURE)

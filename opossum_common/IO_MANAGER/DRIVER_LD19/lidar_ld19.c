@@ -265,6 +265,25 @@ static void lidar_ld19_send_scan_ethernet(lidar_ld19_context_t *ctx, const lidar
     }
 }
 
+/* Affichage Teleplot (https://teleplot.fr) d'un scan : chaque point envoye
+ * est ">lidar:x:y|xy" (xil_printf ne supporte pas %f -> conversion mm/rad
+ * faite en float en interne, affichage entier en mm). Decimation dediee
+ * (LIDAR_LD19_SCAN_TELEPLOT_DECIMATION) car tout le scan part en une seule
+ * rafale. Seul le nuage de points est envoye sur l'UART. Factorisee entre
+ * l'envoi automatique (LIDAR_LD19_Update()) et l'appel manuel de test
+ * (LIDAR_LD19_PrintScanTeleplot(), cf lidar_ld19.h). */
+static void lidar_ld19_teleplot_print_scan(const lidar_scan_t *scan)
+{
+    for (uint16_t i = 0; i < scan->count; i += LIDAR_LD19_SCAN_TELEPLOT_DECIMATION) {
+        uint16_t d = scan->points[i].distance_mm;
+        uint16_t a = scan->points[i].angle_cdeg;
+        float angle_rad = (float)a * LIDAR_LD19_CDEG_TO_RAD;
+        int32_t x_mm = (int32_t)((float)d * cosf(angle_rad));
+        int32_t y_mm = (int32_t)((float)d * sinf(angle_rad));
+        xil_printf(">lidar:%d:%d|xy\r\n", (int)x_mm, (int)y_mm);
+    }
+}
+
 /* ==================================================================
  * 3. Mise a jour periodique (appelee par l'IO_Manager, boucle principale)
  *    La reception DMA est desormais pilotee par interruption (cf
@@ -284,19 +303,7 @@ void LIDAR_LD19_Update(void *instance)
     ctx->last_consumed_scan_id = scan->scan_id;
 
 #if LIDAR_LD19_PRINT_POINTS
-    /* Format Teleplot (https://teleplot.fr) : chaque point envoye est
-     * ">lidar:x:y|xy" (xil_printf ne supporte pas %f -> conversion mm/rad
-     * faite en float en interne, affichage entier en mm). Decimation
-     * dediee (LIDAR_LD19_SCAN_TELEPLOT_DECIMATION) car tout le scan part en
-     * une seule rafale. Seul le nuage de points est envoye sur l'UART. */
-    for (uint16_t i = 0; i < scan->count; i += LIDAR_LD19_SCAN_TELEPLOT_DECIMATION) {
-        uint16_t d = scan->points[i].distance_mm;
-        uint16_t a = scan->points[i].angle_cdeg;
-        float angle_rad = (float)a * LIDAR_LD19_CDEG_TO_RAD;
-        int32_t x_mm = (int32_t)((float)d * cosf(angle_rad));
-        int32_t y_mm = (int32_t)((float)d * sinf(angle_rad));
-        xil_printf(">lidar:%d:%d|xy\r\n", (int)x_mm, (int)y_mm);
-    }
+    lidar_ld19_teleplot_print_scan(scan);
 #endif
 
     if (ctx->eth_streaming_enabled) {
@@ -390,4 +397,20 @@ void LIDAR_LD19_PrintScanUart(lidar_ld19_context_t *ctx)
     xil_printf("[LIDAR %u] scan #%lu : %u points, t=%lu ms\r\n",
                (unsigned)ctx->lidar_id, (unsigned long)scan->scan_id,
                (unsigned)scan->count, (unsigned long)scan->timestamp_ms);
+}
+
+/* ==================================================================
+ * 9. Print de test/bring-up, variante Teleplot (cf lidar_ld19.h) --
+ *    reutilise le meme formattage que l'envoi automatique de
+ *    LIDAR_LD19_Update() (cf lidar_ld19_teleplot_print_scan), mais peut
+ *    etre appelee independamment (ex: sans attendre un nouveau scan_id)
+ *    pour un test manuel visuel sur https://teleplot.fr.
+ * ================================================================== */
+void LIDAR_LD19_PrintScanTeleplot(lidar_ld19_context_t *ctx)
+{
+    const lidar_scan_t *scan = LIDAR_LD19_GetLastScan(ctx);
+    if (scan == NULL) {
+        return; /* rien a tracer pour l'instant */
+    }
+    lidar_ld19_teleplot_print_scan(scan);
 }
