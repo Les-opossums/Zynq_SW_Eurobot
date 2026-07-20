@@ -26,6 +26,46 @@ static int lidar_ld19_arm_rx(lidar_ld19_context_t *ctx)
 }
 
 /* ==================================================================
+ * HELPER : accumulation d'un point dans le scan en cours de construction,
+ * avec detection de fin de tour (wraparound d'angle) et bascule du
+ * double-buffer. Appelee pour chaque point recu, valide ou non (un point
+ * filtre a distance=0 ne rentre pas dans le scan, mais participe quand
+ * meme a la detection de tour puisque son angle reste correct).
+ * ================================================================== */
+static void lidar_ld19_accumulate_point(lidar_ld19_context_t *ctx, uint16_t distance_mm, uint16_t angle_cdeg)
+{
+    lidar_scan_t *building = &ctx->scan_buf[ctx->building_idx];
+
+    /* Fin de tour : l'angle vient de sauter fortement en arriere
+     * (35999 -> ~0). On ignore le tout premier point recu depuis le
+     * demarrage (has_last_angle==0) pour ne pas declencher une fausse fin
+     * de tour avant meme d'avoir un historique d'angle. */
+    if (ctx->has_last_angle && angle_cdeg < ctx->last_angle_cdeg &&
+        (uint16_t)(ctx->last_angle_cdeg - angle_cdeg) > LIDAR_LD19_WRAP_THRESHOLD_CDEG) {
+
+        building->timestamp_ms = (uint32_t)Timer_ms1;
+        building->scan_id       = ctx->next_scan_id++;
+
+        /* Le scan qu'on vient de terminer devient le scan "pret" ; on
+         * bascule sur l'autre buffer pour commencer le tour suivant. */
+        ctx->ready_idx    = ctx->building_idx;
+        ctx->building_idx = (uint8_t)(1U - ctx->building_idx);
+
+        building = &ctx->scan_buf[ctx->building_idx];
+        building->count = 0U; /* nouveau tour : on repart de zero */
+    }
+
+    ctx->has_last_angle  = 1U;
+    ctx->last_angle_cdeg = angle_cdeg;
+
+    if (distance_mm != 0U && building->count < LIDAR_LD19_MAX_POINTS_PER_SCAN) {
+        building->points[building->count].distance_mm = distance_mm;
+        building->points[building->count].angle_cdeg  = angle_cdeg;
+        building->count++;
+    }
+}
+
+/* ==================================================================
  * 1. Initialisation du driver
  * ================================================================== */
 int LIDAR_LD19_Init(void *instance)
@@ -63,6 +103,17 @@ int LIDAR_LD19_Init(void *instance)
     Xil_Out32(ctx->regs_base + LIDAR_LD19_REG_CL_CTRL, 0);
 
     ctx->packet_count = 0;
+
+    /* Scan / double-buffer : aucun tour complet encore recu. */
+    ctx->scan_buf[0].count   = 0U;
+    ctx->scan_buf[0].scan_id = 0U;
+    ctx->scan_buf[1].count   = 0U;
+    ctx->scan_buf[1].scan_id = 0U;
+    ctx->building_idx   = 0U;
+    ctx->ready_idx       = 0U;
+    ctx->has_last_angle  = 0U;
+    ctx->last_angle_cdeg = 0U;
+    ctx->next_scan_id    = 1U; /* 0 reserve pour "aucun scan" (cf lidar_ld19.h) */
 
     /* Amorce la reception du premier paquet. */
     status = lidar_ld19_arm_rx(ctx);
@@ -115,35 +166,85 @@ void LIDAR_LD19_Update(void *instance)
 
     for (int i = 0; i < LIDAR_LD19_POINTS_PER_PKT; i++) {
         uint32_t raw = ctx->rx_raw[i];
-        ctx->last_packet[i].distance_mm = (uint16_t)(raw >> 16);
-        ctx->last_packet[i].angle_cdeg  = (uint16_t)(raw & 0xFFFFU);
+        uint16_t d   = (uint16_t)(raw >> 16);
+        uint16_t a   = (uint16_t)(raw & 0xFFFFU);
+        ctx->last_packet[i].distance_mm = d;
+        ctx->last_packet[i].angle_cdeg  = a;
+
+        lidar_ld19_accumulate_point(ctx, d, a);
     }
     ctx->packet_count++;
 
 #if LIDAR_LD19_PRINT_POINTS
-    /* Format Teleplot (https://teleplot.fr) : chaque point est envoye comme
+    /* --- Ancien mode : streaming continu paquet par paquet -------------
+     * Format Teleplot (https://teleplot.fr) : chaque point envoye est
      * ">nom:x:y|xy" (xil_printf ne supporte pas %f -> conversion mm/rad
-     * faite en float en interne, mais l'affichage reste entier, en mm).
-     * Ouvrir la console UART dans Teleplot pour voir le nuage se dessiner
-     * en direct. Un point a distance=0 est filtre/invalide : on ne le
-     * trace pas. */
-    static uint32_t last_print_ms = 0;
-    if ((uint32_t)Timer_ms1 - last_print_ms > LIDAR_LD19_PRINT_PERIOD_MS) {
-        last_print_ms = (uint32_t)Timer_ms1;
-        for (int i = 0; i < LIDAR_LD19_POINTS_PER_PKT; i++) {
-            uint16_t d = ctx->last_packet[i].distance_mm;
-            uint16_t a = ctx->last_packet[i].angle_cdeg;
-            if (d == 0U) {
-                continue;
-            }
+     * faite en float en interne, affichage entier en mm). Decimation
+     * globale et continue (compteur qui ne se remet jamais a zero par
+     * paquet) : evite l'effet "paquet de points puis trou" d'un throttle
+     * temporel, pour un balayage qui avance regulierement a l'ecran.
+     * Un point a distance=0 est filtre/invalide : on ne le trace pas (et
+     * ne compte pas dans la decimation, pour ne pas gaspiller de cran sur
+     * du vide).
+     * Gardee ici en reference/secours : decommenter (et commenter le
+     * nouveau mode juste en dessous) pour revenir a l'ancien comportement.
+     *
+    static uint32_t point_seq = 0;
+    for (int i = 0; i < LIDAR_LD19_POINTS_PER_PKT; i++) {
+        uint16_t d = ctx->last_packet[i].distance_mm;
+        uint16_t a = ctx->last_packet[i].angle_cdeg;
+        if (d == 0U) {
+            continue;
+        }
+        point_seq++;
+        if ((point_seq % LIDAR_LD19_PRINT_DECIMATION) != 0U) {
+            continue;
+        }
+        float angle_rad = (float)a * LIDAR_LD19_CDEG_TO_RAD;
+        int32_t x_mm = (int32_t)((float)d * cosf(angle_rad));
+        int32_t y_mm = (int32_t)((float)d * sinf(angle_rad));
+        xil_printf(">lidar:%d:%d|xy\r\n", (int)x_mm, (int)y_mm);
+    }
+    * --- fin ancien mode --- */
+
+    /* --- Nouveau mode : envoi du scan complet (tour a 360 deg) des qu'il
+     * vient de se terminer, plutot qu'un flux continu paquet par paquet.
+     * scan_id permet de ne declencher l'envoi qu'une seule fois par tour
+     * (et pas a chaque paquet tant que le scan "pret" n'a pas change).
+     * Decimation dediee (LIDAR_LD19_SCAN_TELEPLOT_DECIMATION) car ici tout
+     * part en une seule rafale au lieu d'etre lisse dans le temps.
+     * Seul le nuage de points est envoye sur l'UART (pas de scan_id/
+     * timestamp en traces numeriques Teleplot, pour ne pas polluer la
+     * console) : scan_id/timestamp_ms restent disponibles cote code via
+     * LIDAR_LD19_GetLastScan() pour qui en a besoin. */
+    static uint32_t last_sent_scan_id = 0;
+    const lidar_scan_t *scan = LIDAR_LD19_GetLastScan(ctx);
+    if (scan != NULL && scan->scan_id != last_sent_scan_id) {
+        last_sent_scan_id = scan->scan_id;
+
+        for (uint16_t i = 0; i < scan->count; i += LIDAR_LD19_SCAN_TELEPLOT_DECIMATION) {
+            uint16_t d = scan->points[i].distance_mm;
+            uint16_t a = scan->points[i].angle_cdeg;
             float angle_rad = (float)a * LIDAR_LD19_CDEG_TO_RAD;
             int32_t x_mm = (int32_t)((float)d * cosf(angle_rad));
             int32_t y_mm = (int32_t)((float)d * sinf(angle_rad));
             xil_printf(">lidar:%d:%d|xy\r\n", (int)x_mm, (int)y_mm);
         }
     }
+    /* --- fin nouveau mode --- */
 #endif
 
     /* Reamorce immediatement la reception du paquet suivant. */
     (void)lidar_ld19_arm_rx(ctx);
+}
+
+/* ==================================================================
+ * 3. API de consultation du dernier scan complet (cf lidar_ld19.h)
+ * ================================================================== */
+const lidar_scan_t *LIDAR_LD19_GetLastScan(lidar_ld19_context_t *ctx)
+{
+    if (ctx->scan_buf[ctx->ready_idx].scan_id == 0U) {
+        return NULL; /* aucun tour complet recu depuis le demarrage */
+    }
+    return &ctx->scan_buf[ctx->ready_idx];
 }
