@@ -15,6 +15,12 @@
 static uint32_t last_timing_print_ms;
 #endif
 
+// Test/bring-up LIDAR LD19 : print periodique (1 Hz) du dernier scan recu
+// sur la console UART, independant du flux Teleplot/Ethernet (cf
+// LIDAR_LD19_PrintScanUart() dans DRIVER_LD19). A retirer une fois la
+// chaine (IRQ DMA + accumulation de scan) validee en conditions reelles.
+static uint32_t last_lidar_test_ms;
+
 // Detection de front montant sur AU_state (variable locale CPU0, rafraichie
 // par AU_Callback() dans IO_globals.c) pour mettre les pinces en securite
 // (AU_pinces() : abandon de toute action en cours, retour a l'etat IDLE).
@@ -53,6 +59,11 @@ void App_Loop(void) {
     // Indicateur visuel : fondu rouge + halo tournant tant que l'AU est
     // actif (bandeau WS2812B), eteint au relachement.
     LED_AU_Animation_Update();
+
+    // Test/bring-up LIDAR LD19 (cf declaration de last_lidar_test_ms plus haut).
+    if (ts_trigger_ms(1000U, &last_lidar_test_ms)) {
+        LIDAR_LD19_PrintScanUart(&Lidar_Ld19_Ctx);
+    }
 
 #if defined(TIMING_MEASURE)
     // Marge temps-reel CPU0 : peripheriques IO_Manager (dont le poll BNO085)

@@ -217,4 +217,15 @@ void LIDAR_LD19_GetConfig(lidar_ld19_context_t *ctx, lidar_ld19_config_t *cfg_ou
  */
 void LIDAR_LD19_SetEthernetStreaming(lidar_ld19_context_t *ctx, uint8_t enable);
 
+/**
+ * @brief Print de test/bring-up : imprime sur la console UART (xil_printf)
+ * un resume du dernier scan complet (scan_id, nombre de points,
+ * timestamp), ou un message si aucun scan n'a encore ete recu. A appeler
+ * depuis l'application (ex: App_Loop() de core0_loop.c), throttle par
+ * l'appelant (ex: une fois par seconde) -- ce n'est PAS une fonction de
+ * l'IO_Manager (pas de .update automatique), juste un outil de
+ * verification manuelle independant du flux Teleplot/Ethernet.
+ */
+void LIDAR_LD19_PrintScanUart(lidar_ld19_context_t *ctx);
+
 #endif /* DRIVER_LD19_LIDAR_H */

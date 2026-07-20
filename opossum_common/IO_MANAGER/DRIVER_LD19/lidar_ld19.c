@@ -374,3 +374,20 @@ void LIDAR_LD19_SetEthernetStreaming(lidar_ld19_context_t *ctx, uint8_t enable)
     LIDAR_LD19_LOG("[LD19] Streaming Ethernet (id=%u) : %s\r\n",
                    (unsigned)ctx->lidar_id, ctx->eth_streaming_enabled ? "ON" : "OFF");
 }
+
+/* ==================================================================
+ * 8. Print de test/bring-up (cf lidar_ld19.h) -- inconditionnel
+ *    (pas de LIDAR_LD19_LOG/LIDAR_LD19_DEBUG ici : appele explicitement
+ *    par l'application pour un test manuel, throttle par l'appelant).
+ * ================================================================== */
+void LIDAR_LD19_PrintScanUart(lidar_ld19_context_t *ctx)
+{
+    const lidar_scan_t *scan = LIDAR_LD19_GetLastScan(ctx);
+    if (scan == NULL) {
+        xil_printf("[LIDAR %u] Aucun scan complet recu pour l'instant\r\n", (unsigned)ctx->lidar_id);
+        return;
+    }
+    xil_printf("[LIDAR %u] scan #%lu : %u points, t=%lu ms\r\n",
+               (unsigned)ctx->lidar_id, (unsigned long)scan->scan_id,
+               (unsigned)scan->count, (unsigned long)scan->timestamp_ms);
+}
