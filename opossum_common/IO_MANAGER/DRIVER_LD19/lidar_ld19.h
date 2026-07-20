@@ -6,8 +6,10 @@
 
 /* ─── Debug ──────────────────────────────────────────────────────────────
  * Decommenter pour les messages de diagnostic du driver (erreurs d'init,
- * de (re)armement DMA...). Le print des points recus (test demande) est
- * gere separement par LIDAR_LD19_PRINT_POINTS ci-dessous, toujours actif.
+ * de (re)armement DMA, statut FRAME_COUNT/ERROR_COUNT/SPEED/UART_FERR tant
+ * qu'aucun paquet DMA n'arrive...). Utile en cas de souci de cablage/
+ * reception ; a laisser desactive en usage normal. Le print des points
+ * recus est gere separement par LIDAR_LD19_PRINT_POINTS ci-dessous.
  */
 // #define LIDAR_LD19_DEBUG
 
@@ -22,6 +24,15 @@
  * validee) sans toucher au reste du driver. */
 #define LIDAR_LD19_PRINT_POINTS 1
 #define LIDAR_LD19_PRINT_PERIOD_MS 300U /* limite le flot de prints (LD19 ~ plusieurs 100aines de paquets/s) */
+
+/* Filtre distance applique cote materiel (lidar_filter_regs, cf ci-dessous) :
+ * les points hors [MIN, MAX] arrivent avec distance=0 (invalides), et sont
+ * donc deja ignores par la suite -- pas de traitement supplementaire cote C.
+ * MAX choisi large par rapport a une table Eurobot (3m x 2m, diagonale
+ * ~3.6m) pour couper le bruit lointain (reflets, hors-table) sans rogner
+ * le terrain de jeu. A ajuster si besoin. */
+#define LIDAR_LD19_FILTER_DIST_MIN_MM 30U   /* coupe le bruit tres proche (capot du capteur) */
+#define LIDAR_LD19_FILTER_DIST_MAX_MM 4000U /* coupe les points lointains parasites */
 
 /* Format DMA "nuage complet" (cf lidar_top.vhd / lidar_filter_regs.vhd,
  * CL_CTRL=0, reglage par defaut au reset) : 1 mot 32 bits par point,
