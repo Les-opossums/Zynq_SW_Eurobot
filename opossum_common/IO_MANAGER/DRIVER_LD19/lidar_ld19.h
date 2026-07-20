@@ -6,8 +6,7 @@
 
 /* ─── Debug ──────────────────────────────────────────────────────────────
  * Decommenter pour les messages de diagnostic du driver (erreurs d'init,
- * de (re)armement DMA, statut FRAME_COUNT/ERROR_COUNT/SPEED/UART_FERR tant
- * qu'aucun paquet DMA n'arrive...). Utile en cas de souci de cablage/
+ * de (re)armement DMA, erreurs IRQ...). Utile en cas de souci de cablage/
  * reception ; a laisser desactive en usage normal. Le print des points
  * recus est gere separement par LIDAR_LD19_PRINT_POINTS ci-dessous.
  */
@@ -24,22 +23,13 @@
  * validee) sans toucher au reste du driver. */
 #define LIDAR_LD19_PRINT_POINTS 1
 
-/* Le LD19 sort ~4500 points/s : bien trop pour la console UART (115200
- * bauds ~= 11.5 ko/s, une ligne Teleplot fait ~25 octets -> ~460 lignes/s
- * max). On envoie donc 1 point sur LIDAR_LD19_PRINT_DECIMATION, en continu
- * (pas de pause groupee par paquet) pour un affichage fluide qui balaie
- * l'angle progressivement plutot que par a-coups. Baisser cette valeur
- * pour plus de densite (quitte a augmenter le baud de la console UART,
- * cf UART_COMM_BAUDRATE dans IO_config.h), l'augmenter si ca sature encore. */
-#define LIDAR_LD19_PRINT_DECIMATION 6U
-
-/* Nouveau mode d'affichage : au lieu de streamer en continu paquet par
- * paquet (ancien mode ci-dessus, garde en commentaire dans lidar_ld19.c),
- * on envoie le scan complet (tour a 360 deg, cf lidar_scan_t plus bas)
- * d'un seul bloc des qu'il vient de se terminer. Un scan fait ~450 points :
- * envoyes tous d'un coup, ca depasserait largement le debit de la console
- * UART (cf calcul ci-dessus) -- d'ou une decimation dediee, plus forte que
- * celle du mode continu puisqu'ici tout part en une seule rafale. */
+/* Le LD19 sort ~4500 points/s, et un scan complet (~450 points) part en
+ * une seule rafale des qu'il se termine (cf LIDAR_LD19_Update()) : bien
+ * trop pour la console UART (115200 bauds ~= 11.5 ko/s, une ligne Teleplot
+ * fait ~25 octets) si on les envoyait tous. On n'en envoie donc qu'un sur
+ * LIDAR_LD19_SCAN_TELEPLOT_DECIMATION. Baisser cette valeur pour plus de
+ * densite (quitte a augmenter le baud de la console UART, cf
+ * UART_COMM_BAUDRATE dans IO_config.h), l'augmenter si ca sature encore. */
 #define LIDAR_LD19_SCAN_TELEPLOT_DECIMATION 8U
 
 /* Filtre distance applique cote materiel (lidar_filter_regs, cf ci-dessous) :
@@ -109,22 +99,54 @@ typedef struct {
     uint32_t scan_id;       /* incremente a chaque tour ; 0 = aucun scan recu depuis le demarrage */
 } lidar_scan_t;
 
+/* ─── Configuration reglable a chaud (application) ───────────────────────
+ * Reprend les registres RW de lidar_filter_regs (cf carte des registres
+ * ci-dessus), regroupes dans une structure unique passee a
+ * LIDAR_LD19_SetConfig()/GetConfig() : permet a la partie applicative
+ * d'ajuster les filtres (et, a terme, le mode clustering) d'une instance
+ * donnee sans connaitre le detail des offsets registre.
+ *
+ * ATTENTION cluster_mode : le decodage DMA cote C (LIDAR_LD19_Update()/
+ * l'ISR) ne sait lire QUE le format "nuage complet" (CL_CTRL=0). Passer
+ * cluster_mode=1 change le format des mots envoyes par le PL sans que ce
+ * driver sache les reinterpreter : les points/scans decodes deviendraient
+ * incoherents. A ne pas activer tant que le decodage clusters n'est pas
+ * implemente cote C. */
+typedef struct {
+    uint16_t dist_min_mm;
+    uint16_t dist_max_mm;
+    uint16_t angle_min_cdeg;
+    uint16_t angle_max_cdeg;
+    uint8_t  intensity_min;
+    uint8_t  filter_enabled; /* CTRL bit0 */
+    uint8_t  cluster_mode;   /* CL_CTRL bit0 -- cf avertissement ci-dessus, laisser a 0 */
+} lidar_ld19_config_t;
+
 /* --- Contexte de l'instance (cf IO_config.h / IO_globals.c) ---
- * dma_device_id / regs_base sont a renseigner avant l'appel a
+ * dma_device_id / regs_base / lidar_id sont a renseigner avant l'appel a
  * LIDAR_LD19_Init() (cf IO_config.h). rx_raw est le tampon DMA brut
  * (aligne cache), last_packet le dernier paquet decode (12 points).
  *
+ * lidar_id : identifiant applicatif de l'instance (0, 1, 2...), inclus
+ * dans les trames Ethernet (cf lidar_ld19_eth_chunk_t) pour permettre au
+ * recepteur (Raspberry Pi) de distinguer plusieurs lidars connectes.
+ *
  * scan_buf[2] : double-buffer ping-pong pour les scans complets.
- * building_idx designe le buffer en cours de remplissage (rempli par
- * LIDAR_LD19_Update()) ; ready_idx designe le dernier scan termine, celui
- * que LIDAR_LD19_GetLastScan() renvoie. Comme le remplissage et la lecture
- * se font tous les deux depuis la boucle principale (pas d'IRQ sur ce
- * driver), il n'y a pas de risque de lecture partielle tant que
- * l'appelant ne garde pas le pointeur au-dela d'un appel a
- * LIDAR_LD19_Update(). */
+ * building_idx designe le buffer en cours de remplissage (rempli depuis
+ * l'ISR de fin de transfert DMA) ; ready_idx designe le dernier scan
+ * termine, celui que LIDAR_LD19_GetLastScan() renvoie. La bascule
+ * ready_idx/building_idx est faite en une seule ecriture depuis l'ISR ;
+ * LIDAR_LD19_Update() (boucle principale) ne fait que LIRE ready_idx, donc
+ * pas de risque de lecture partielle tant que l'appelant ne garde pas le
+ * pointeur au-dela d'un appel a LIDAR_LD19_Update().
+ *
+ * last_consumed_scan_id / last_eth_scan_id : etat prive de
+ * LIDAR_LD19_Update(), un par instance (indispensable des qu'il y a
+ * plusieurs lidars geres par les memes fonctions generiques). */
 typedef struct {
     u32     dma_device_id; /* XPAR_AXI_DMA_0_DEVICE_ID */
     UINTPTR regs_base;     /* XPAR_LIDAR_TOP_FOR_DMA_0_BASEADDR (AXI-Lite config/statut) */
+    uint8_t lidar_id;      /* identifiant applicatif (multi-lidar), cf IO_config.h */
 
     XAxiDma axi_dma;
 
@@ -134,16 +156,35 @@ typedef struct {
     uint32_t packet_count;
 
     lidar_scan_t scan_buf[2];
-    uint8_t  building_idx;   /* 0 ou 1 : buffer en cours de remplissage */
-    uint8_t  ready_idx;      /* 0 ou 1 : dernier scan complet disponible */
+    volatile uint8_t building_idx;   /* 0 ou 1 : buffer en cours de remplissage (ISR) */
+    volatile uint8_t ready_idx;      /* 0 ou 1 : dernier scan complet disponible (ISR) */
     uint8_t  has_last_angle; /* 0 tant qu'aucun point n'a encore ete vu (evite une fausse fin de tour au demarrage) */
     uint16_t last_angle_cdeg;
     uint32_t next_scan_id;   /* prochain identifiant a attribuer (demarre a 1) */
+
+    /* Etat prive de LIDAR_LD19_Update() (boucle principale), par instance */
+    uint32_t last_consumed_scan_id; /* dernier scan_id deja traite (print/eth) */
+
+    /* Streaming Ethernet des scans complets, active/desactive a chaud
+     * depuis l'application via LIDAR_LD19_SetEthernetStreaming(). */
+    uint8_t  eth_streaming_enabled;
 } lidar_ld19_context_t;
 
 /* --- Prototypes standards pour l'IO_Manager --- */
 int  LIDAR_LD19_Init(void *instance);
 void LIDAR_LD19_Update(void *instance);
+void LIDAR_LD19_Deinit(void *instance);
+
+/**
+ * @brief Handler d'interruption de fin de transfert DMA (S2MM), a
+ * enregistrer comme .irq_handler dans IO_DEVICE_TABLE (cf IO_config.h).
+ * Se limite au travail "temps reel" : acquittement IRQ, gestion d'erreur
+ * DMA (reset), decodage du paquet recu + accumulation dans le scan en
+ * cours, reamorcage immediat du transfert suivant. N'appelle jamais
+ * xil_printf/eth_send_frame (cf LIDAR_LD19_Update() pour la partie
+ * "boucle principale" qui s'en charge).
+ */
+void LIDAR_LD19_IntrHandler(void *CallBackRef);
 
 /**
  * @brief Renvoie le dernier scan (tour a 360 deg) complet et timestampe.
@@ -154,5 +195,26 @@ void LIDAR_LD19_Update(void *instance);
  * scan_id a chaque appel pour detecter un nouveau tour.
  */
 const lidar_scan_t *LIDAR_LD19_GetLastScan(lidar_ld19_context_t *ctx);
+
+/**
+ * @brief Applique une nouvelle configuration de filtres (et mode
+ * clustering, cf avertissement sur lidar_ld19_config_t) a cette instance.
+ * Ecrit directement les registres AXI4-Lite de lidar_filter_regs : effet
+ * immediat, pas besoin de reinitialiser le driver.
+ */
+void LIDAR_LD19_SetConfig(lidar_ld19_context_t *ctx, const lidar_ld19_config_t *cfg);
+
+/**
+ * @brief Relit la configuration courante (registres RW) de cette instance.
+ */
+void LIDAR_LD19_GetConfig(lidar_ld19_context_t *ctx, lidar_ld19_config_t *cfg_out);
+
+/**
+ * @brief Active/desactive l'envoi des scans complets par Ethernet
+ * (ETH_MSG_LIDAR_SCAN_CHUNK, cf ETH_protocol.h) pour cette instance.
+ * L'envoi effectif se fait depuis LIDAR_LD19_Update() (boucle principale),
+ * jamais depuis l'ISR (eth_send_frame() n'est pas reentrant/ISR-safe).
+ */
+void LIDAR_LD19_SetEthernetStreaming(lidar_ld19_context_t *ctx, uint8_t enable);
 
 #endif /* DRIVER_LD19_LIDAR_H */

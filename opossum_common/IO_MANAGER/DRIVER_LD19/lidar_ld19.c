@@ -3,6 +3,7 @@
 #include "xil_cache.h"
 #include "xstatus.h"
 #include "xil_printf.h"
+#include "../DRIVER_ETH/ETH_driver.h"
 #include <math.h>
 
 /* pi/18000 : conversion angle centiemes de degre -> radians. */
@@ -10,6 +11,13 @@
 
 /* Horloge milliseconde partagee, entretenue par la boucle 1ms (fast loop). */
 extern volatile u32 Timer_ms1;
+
+/* Nombre d'essais bornes en boucle d'attente de fin de reset DMA (utilise
+ * a l'init, en cas d'erreur IRQ, et au deinit) : le reset est cense etre
+ * quasi-immediat (meme ordre de grandeur que la boucle interne de
+ * XAxiDma_CfgInitialize), une borne large evite tout blocage infini en cas
+ * de souci materiel. */
+#define LIDAR_LD19_RESET_MAX_TRIES 10000
 
 /* ==================================================================
  * HELPER : (re)armement d'une reception DMA S2MM d'un paquet complet
@@ -25,12 +33,27 @@ static int lidar_ld19_arm_rx(lidar_ld19_context_t *ctx)
     return status;
 }
 
+/* Reset DMA + attente bornee de fin de reset (cf lidar_ld19_arm_rx pour la
+ * suite, appelee juste apres par l'appelant). Factorise entre l'ISR
+ * (erreur DMA) et LIDAR_LD19_Deinit(). */
+static void lidar_ld19_reset_dma(lidar_ld19_context_t *ctx)
+{
+    XAxiDma_Reset(&ctx->axi_dma);
+    int tries = 0;
+    while (!XAxiDma_ResetIsDone(&ctx->axi_dma) && tries < LIDAR_LD19_RESET_MAX_TRIES) {
+        tries++;
+    }
+}
+
 /* ==================================================================
  * HELPER : accumulation d'un point dans le scan en cours de construction,
  * avec detection de fin de tour (wraparound d'angle) et bascule du
  * double-buffer. Appelee pour chaque point recu, valide ou non (un point
  * filtre a distance=0 ne rentre pas dans le scan, mais participe quand
  * meme a la detection de tour puisque son angle reste correct).
+ *
+ * Appelee depuis l'ISR de fin de transfert DMA (cf LIDAR_LD19_IntrHandler) :
+ * ne fait que des acces memoire simples, pas d'E/S -- ISR-safe.
  * ================================================================== */
 static void lidar_ld19_accumulate_point(lidar_ld19_context_t *ctx, uint16_t distance_mm, uint16_t angle_cdeg)
 {
@@ -65,6 +88,27 @@ static void lidar_ld19_accumulate_point(lidar_ld19_context_t *ctx, uint16_t dist
     }
 }
 
+/* Decodage d'un paquet DMA brut (12 mots) + accumulation dans le scan en
+ * cours. Appelee depuis l'ISR (IOC) : invalidation de cache + acces
+ * memoire uniquement, pas d'E/S -- ISR-safe. */
+static void lidar_ld19_process_packet(lidar_ld19_context_t *ctx)
+{
+    /* Le CPU peut avoir en cache une version perimee de ce que le DMA
+     * vient d'ecrire en DDR : invalidation obligatoire avant lecture. */
+    Xil_DCacheInvalidateRange((INTPTR)ctx->rx_raw, sizeof(ctx->rx_raw));
+
+    for (int i = 0; i < LIDAR_LD19_POINTS_PER_PKT; i++) {
+        uint32_t raw = ctx->rx_raw[i];
+        uint16_t d   = (uint16_t)(raw >> 16);
+        uint16_t a   = (uint16_t)(raw & 0xFFFFU);
+        ctx->last_packet[i].distance_mm = d;
+        ctx->last_packet[i].angle_cdeg  = a;
+
+        lidar_ld19_accumulate_point(ctx, d, a);
+    }
+    ctx->packet_count++;
+}
+
 /* ==================================================================
  * 1. Initialisation du driver
  * ================================================================== */
@@ -96,7 +140,8 @@ int LIDAR_LD19_Init(void *instance)
      * bruit tres proche et les points lointains parasites directement dans
      * le PL (cf LIDAR_LD19_FILTER_DIST_MIN/MAX_MM dans lidar_ld19.h) -- les
      * points hors plage arrivent avec distance=0 et sont donc deja ignores
-     * par la suite. Mode nuage complet (pas de clustering). */
+     * par la suite. Mode nuage complet (pas de clustering). Reglable a
+     * chaud ensuite via LIDAR_LD19_SetConfig(). */
     Xil_Out32(ctx->regs_base + LIDAR_LD19_REG_DIST_MIN, LIDAR_LD19_FILTER_DIST_MIN_MM);
     Xil_Out32(ctx->regs_base + LIDAR_LD19_REG_DIST_MAX, LIDAR_LD19_FILTER_DIST_MAX_MM);
     Xil_Out32(ctx->regs_base + LIDAR_LD19_REG_CTRL, 0x1);
@@ -115,131 +160,165 @@ int LIDAR_LD19_Init(void *instance)
     ctx->last_angle_cdeg = 0U;
     ctx->next_scan_id    = 1U; /* 0 reserve pour "aucun scan" (cf lidar_ld19.h) */
 
+    ctx->last_consumed_scan_id = 0U;
+    /* eth_streaming_enabled n'est PAS remis a 0 ici : un DRVDIS/DRVEN (cf
+     * IO_Manager_SetDeviceStateByName) rappelle Init() et ne doit pas
+     * silencieusement couper un streaming deja active par l'application. */
+
+    /* Interruption de fin de transfert DMA (IOC) + erreurs -- le polling
+     * XAxiDma_Busy() a ete remplace par ce mecanisme (cf
+     * LIDAR_LD19_IntrHandler, branchee via IO_DEVICE_TABLE dans
+     * IO_config.h). */
+    XAxiDma_IntrEnable(&ctx->axi_dma, XAXIDMA_IRQ_ALL_MASK, XAXIDMA_DEVICE_TO_DMA);
+
     /* Amorce la reception du premier paquet. */
     status = lidar_ld19_arm_rx(ctx);
     if (status != XST_SUCCESS) {
         return XST_FAILURE;
     }
 
-    LIDAR_LD19_LOG("[LD19] Init OK (dma_device_id=%lu, regs_base=0x%08lX)\r\n",
-                   (unsigned long)ctx->dma_device_id, (unsigned long)ctx->regs_base);
+    LIDAR_LD19_LOG("[LD19] Init OK (id=%u, dma_device_id=%lu, regs_base=0x%08lX)\r\n",
+                   (unsigned)ctx->lidar_id, (unsigned long)ctx->dma_device_id,
+                   (unsigned long)ctx->regs_base);
 
     return XST_SUCCESS;
 }
 
 /* ==================================================================
- * 2. Mise a jour periodique (appelee par l'IO_Manager)
- *    Paquet complet (12 points) recu par DMA -> decodage -> print
- *    (throttle) -> reamorcage immediat de la reception suivante.
+ * 2. Handler d'interruption (fin de transfert DMA S2MM)
+ *    Travail "temps reel" uniquement : ack IRQ, gestion d'erreur (reset),
+ *    decodage + accumulation, reamorcage. Aucune E/S (xil_printf/
+ *    eth_send_frame) : c'est LIDAR_LD19_Update(), appelee depuis la
+ *    boucle principale, qui s'en charge (cf plus bas).
+ * ================================================================== */
+void LIDAR_LD19_IntrHandler(void *CallBackRef)
+{
+    lidar_ld19_context_t *ctx = (lidar_ld19_context_t *)CallBackRef;
+
+    u32 irq_status = XAxiDma_IntrGetIrq(&ctx->axi_dma, XAXIDMA_DEVICE_TO_DMA);
+    XAxiDma_IntrAckIrq(&ctx->axi_dma, irq_status, XAXIDMA_DEVICE_TO_DMA);
+
+    if (!(irq_status & XAXIDMA_IRQ_ALL_MASK)) {
+        return; /* rien pour nous */
+    }
+
+    if (irq_status & XAXIDMA_IRQ_ERROR_MASK) {
+        LIDAR_LD19_LOG("[LD19] Erreur IRQ DMA (0x%08lX), reset...\r\n", (unsigned long)irq_status);
+        lidar_ld19_reset_dma(ctx);
+        (void)lidar_ld19_arm_rx(ctx);
+        return;
+    }
+
+    if (irq_status & XAXIDMA_IRQ_IOC_MASK) {
+        lidar_ld19_process_packet(ctx);
+        (void)lidar_ld19_arm_rx(ctx);
+    }
+}
+
+/* ==================================================================
+ * HELPER : envoi du scan complet par Ethernet, decoupe en morceaux
+ * (ETH_MAX_PAYLOAD=512 octets, un scan ~450 points en ferait ~1800 -- ne
+ * tient pas en un seul datagramme). Appelee UNIQUEMENT depuis la boucle
+ * principale (LIDAR_LD19_Update()), jamais depuis l'ISR : eth_send_frame()
+ * s'appuie sur un tampon interne non reentrant (meme contrainte que
+ * eth_printf(), cf ETH_driver.h).
+ * ================================================================== */
+#define LIDAR_LD19_ETH_POINTS_PER_CHUNK 100U
+
+typedef struct __attribute__((packed)) {
+    uint8_t  lidar_id;
+    uint32_t scan_id;
+    uint32_t timestamp_ms;
+    uint16_t chunk_index;
+    uint16_t chunk_count;
+    uint16_t point_count;
+    lidar_point_t points[LIDAR_LD19_ETH_POINTS_PER_CHUNK];
+} lidar_ld19_eth_chunk_t;
+
+static void lidar_ld19_send_scan_ethernet(lidar_ld19_context_t *ctx, const lidar_scan_t *scan)
+{
+    lidar_ld19_eth_chunk_t chunk;
+    uint16_t chunk_count = (uint16_t)((scan->count + LIDAR_LD19_ETH_POINTS_PER_CHUNK - 1U) / LIDAR_LD19_ETH_POINTS_PER_CHUNK);
+    if (chunk_count == 0U) {
+        chunk_count = 1U; /* scan vide : on envoie quand meme un chunk 0 point (horodatage) */
+    }
+
+    for (uint16_t c = 0; c < chunk_count; c++) {
+        uint16_t start = (uint16_t)(c * LIDAR_LD19_ETH_POINTS_PER_CHUNK);
+        uint16_t n = (uint16_t)(scan->count - start);
+        if (n > LIDAR_LD19_ETH_POINTS_PER_CHUNK) {
+            n = LIDAR_LD19_ETH_POINTS_PER_CHUNK;
+        }
+
+        chunk.lidar_id     = ctx->lidar_id;
+        chunk.scan_id      = scan->scan_id;
+        chunk.timestamp_ms = scan->timestamp_ms;
+        chunk.chunk_index  = c;
+        chunk.chunk_count  = chunk_count;
+        chunk.point_count  = n;
+        for (uint16_t i = 0; i < n; i++) {
+            chunk.points[i] = scan->points[start + i];
+        }
+
+        uint16_t payload_len = (uint16_t)(sizeof(chunk) - sizeof(chunk.points) + (size_t)n * sizeof(lidar_point_t));
+        (void)eth_send_frame(ETH_MSG_LIDAR_SCAN_CHUNK, &chunk, payload_len);
+    }
+}
+
+/* ==================================================================
+ * 3. Mise a jour periodique (appelee par l'IO_Manager, boucle principale)
+ *    La reception DMA est desormais pilotee par interruption (cf
+ *    LIDAR_LD19_IntrHandler) : cette fonction ne fait plus que consommer
+ *    le dernier scan complet des qu'il change (print Teleplot + streaming
+ *    Ethernet), c'est-a-dire tout ce qui touche a de l'E/S et ne doit donc
+ *    pas se faire depuis l'ISR.
  * ================================================================== */
 void LIDAR_LD19_Update(void *instance)
 {
     lidar_ld19_context_t *ctx = (lidar_ld19_context_t *)instance;
 
-    if (XAxiDma_Busy(&ctx->axi_dma, XAXIDMA_DEVICE_TO_DMA)) {
-#if defined(LIDAR_LD19_DEBUG)
-        /* Aucun paquet complet depuis le dernier armement : on lit les
-         * compteurs de statut du parseur/UART (registres RO, cf
-         * lidar_filter_regs.vhd) pour distinguer "rien ne sort du LD19/LD06"
-         * (frames=0, uart_ferr=0 : probleme cablage/alimentation/UART) de
-         * "des trames sont bien parsees mais le DMA ne se termine jamais"
-         * (frames>0 mais toujours ce message : probleme cote AXI-Stream/DMA
-         * dans le block design). */
-        static uint32_t last_status_ms = 0;
-        if ((uint32_t)Timer_ms1 - last_status_ms > 1000U) {
-            last_status_ms = (uint32_t)Timer_ms1;
-            uint32_t frame_count = Xil_In32(ctx->regs_base + LIDAR_LD19_REG_FRAME_COUNT);
-            uint32_t error_count = Xil_In32(ctx->regs_base + LIDAR_LD19_REG_ERROR_COUNT);
-            uint32_t speed       = Xil_In32(ctx->regs_base + LIDAR_LD19_REG_SPEED);
-            uint32_t uart_ferr   = Xil_In32(ctx->regs_base + LIDAR_LD19_REG_UART_FERR);
-            LIDAR_LD19_LOG("[LD19] DMA en attente... frames=%lu err=%lu speed=%lu deg/s uart_ferr=%lu\r\n",
-                           (unsigned long)frame_count, (unsigned long)error_count,
-                           (unsigned long)speed, (unsigned long)uart_ferr);
-        }
-#endif
-        return; /* paquet pas encore complet */
+    const lidar_scan_t *scan = LIDAR_LD19_GetLastScan(ctx);
+    if (scan == NULL || scan->scan_id == ctx->last_consumed_scan_id) {
+        return; /* rien de nouveau depuis le dernier appel */
     }
-
-    /* Le CPU peut avoir en cache une version perimee de ce que le DMA
-     * vient d'ecrire en DDR : invalidation obligatoire avant lecture. */
-    Xil_DCacheInvalidateRange((INTPTR)ctx->rx_raw, sizeof(ctx->rx_raw));
-
-    for (int i = 0; i < LIDAR_LD19_POINTS_PER_PKT; i++) {
-        uint32_t raw = ctx->rx_raw[i];
-        uint16_t d   = (uint16_t)(raw >> 16);
-        uint16_t a   = (uint16_t)(raw & 0xFFFFU);
-        ctx->last_packet[i].distance_mm = d;
-        ctx->last_packet[i].angle_cdeg  = a;
-
-        lidar_ld19_accumulate_point(ctx, d, a);
-    }
-    ctx->packet_count++;
+    ctx->last_consumed_scan_id = scan->scan_id;
 
 #if LIDAR_LD19_PRINT_POINTS
-    /* --- Ancien mode : streaming continu paquet par paquet -------------
-     * Format Teleplot (https://teleplot.fr) : chaque point envoye est
-     * ">nom:x:y|xy" (xil_printf ne supporte pas %f -> conversion mm/rad
+    /* Format Teleplot (https://teleplot.fr) : chaque point envoye est
+     * ">lidar:x:y|xy" (xil_printf ne supporte pas %f -> conversion mm/rad
      * faite en float en interne, affichage entier en mm). Decimation
-     * globale et continue (compteur qui ne se remet jamais a zero par
-     * paquet) : evite l'effet "paquet de points puis trou" d'un throttle
-     * temporel, pour un balayage qui avance regulierement a l'ecran.
-     * Un point a distance=0 est filtre/invalide : on ne le trace pas (et
-     * ne compte pas dans la decimation, pour ne pas gaspiller de cran sur
-     * du vide).
-     * Gardee ici en reference/secours : decommenter (et commenter le
-     * nouveau mode juste en dessous) pour revenir a l'ancien comportement.
-     *
-    static uint32_t point_seq = 0;
-    for (int i = 0; i < LIDAR_LD19_POINTS_PER_PKT; i++) {
-        uint16_t d = ctx->last_packet[i].distance_mm;
-        uint16_t a = ctx->last_packet[i].angle_cdeg;
-        if (d == 0U) {
-            continue;
-        }
-        point_seq++;
-        if ((point_seq % LIDAR_LD19_PRINT_DECIMATION) != 0U) {
-            continue;
-        }
+     * dediee (LIDAR_LD19_SCAN_TELEPLOT_DECIMATION) car tout le scan part en
+     * une seule rafale. Seul le nuage de points est envoye sur l'UART. */
+    for (uint16_t i = 0; i < scan->count; i += LIDAR_LD19_SCAN_TELEPLOT_DECIMATION) {
+        uint16_t d = scan->points[i].distance_mm;
+        uint16_t a = scan->points[i].angle_cdeg;
         float angle_rad = (float)a * LIDAR_LD19_CDEG_TO_RAD;
         int32_t x_mm = (int32_t)((float)d * cosf(angle_rad));
         int32_t y_mm = (int32_t)((float)d * sinf(angle_rad));
         xil_printf(">lidar:%d:%d|xy\r\n", (int)x_mm, (int)y_mm);
     }
-    * --- fin ancien mode --- */
-
-    /* --- Nouveau mode : envoi du scan complet (tour a 360 deg) des qu'il
-     * vient de se terminer, plutot qu'un flux continu paquet par paquet.
-     * scan_id permet de ne declencher l'envoi qu'une seule fois par tour
-     * (et pas a chaque paquet tant que le scan "pret" n'a pas change).
-     * Decimation dediee (LIDAR_LD19_SCAN_TELEPLOT_DECIMATION) car ici tout
-     * part en une seule rafale au lieu d'etre lisse dans le temps.
-     * Seul le nuage de points est envoye sur l'UART (pas de scan_id/
-     * timestamp en traces numeriques Teleplot, pour ne pas polluer la
-     * console) : scan_id/timestamp_ms restent disponibles cote code via
-     * LIDAR_LD19_GetLastScan() pour qui en a besoin. */
-    static uint32_t last_sent_scan_id = 0;
-    const lidar_scan_t *scan = LIDAR_LD19_GetLastScan(ctx);
-    if (scan != NULL && scan->scan_id != last_sent_scan_id) {
-        last_sent_scan_id = scan->scan_id;
-
-        for (uint16_t i = 0; i < scan->count; i += LIDAR_LD19_SCAN_TELEPLOT_DECIMATION) {
-            uint16_t d = scan->points[i].distance_mm;
-            uint16_t a = scan->points[i].angle_cdeg;
-            float angle_rad = (float)a * LIDAR_LD19_CDEG_TO_RAD;
-            int32_t x_mm = (int32_t)((float)d * cosf(angle_rad));
-            int32_t y_mm = (int32_t)((float)d * sinf(angle_rad));
-            xil_printf(">lidar:%d:%d|xy\r\n", (int)x_mm, (int)y_mm);
-        }
-    }
-    /* --- fin nouveau mode --- */
 #endif
 
-    /* Reamorce immediatement la reception du paquet suivant. */
-    (void)lidar_ld19_arm_rx(ctx);
+    if (ctx->eth_streaming_enabled) {
+        lidar_ld19_send_scan_ethernet(ctx, scan);
+    }
 }
 
 /* ==================================================================
- * 3. API de consultation du dernier scan complet (cf lidar_ld19.h)
+ * 4. Desinitialisation (DRVDIS / IO_Manager_SetDeviceStateByName)
+ * ================================================================== */
+void LIDAR_LD19_Deinit(void *instance)
+{
+    lidar_ld19_context_t *ctx = (lidar_ld19_context_t *)instance;
+
+    XAxiDma_IntrDisable(&ctx->axi_dma, XAXIDMA_IRQ_ALL_MASK, XAXIDMA_DEVICE_TO_DMA);
+    lidar_ld19_reset_dma(ctx);
+
+    LIDAR_LD19_LOG("[LD19] Deinit (id=%u) : IRQ DMA coupees, DMA reset\r\n", (unsigned)ctx->lidar_id);
+}
+
+/* ==================================================================
+ * 5. API de consultation du dernier scan complet (cf lidar_ld19.h)
  * ================================================================== */
 const lidar_scan_t *LIDAR_LD19_GetLastScan(lidar_ld19_context_t *ctx)
 {
@@ -247,4 +326,51 @@ const lidar_scan_t *LIDAR_LD19_GetLastScan(lidar_ld19_context_t *ctx)
         return NULL; /* aucun tour complet recu depuis le demarrage */
     }
     return &ctx->scan_buf[ctx->ready_idx];
+}
+
+/* ==================================================================
+ * 6. Configuration a chaud des filtres (cf lidar_ld19_config_t)
+ * ================================================================== */
+void LIDAR_LD19_SetConfig(lidar_ld19_context_t *ctx, const lidar_ld19_config_t *cfg)
+{
+    Xil_Out32(ctx->regs_base + LIDAR_LD19_REG_DIST_MIN, cfg->dist_min_mm);
+    Xil_Out32(ctx->regs_base + LIDAR_LD19_REG_DIST_MAX, cfg->dist_max_mm);
+    Xil_Out32(ctx->regs_base + LIDAR_LD19_REG_ANGLE_MIN, cfg->angle_min_cdeg);
+    Xil_Out32(ctx->regs_base + LIDAR_LD19_REG_ANGLE_MAX, cfg->angle_max_cdeg);
+    Xil_Out32(ctx->regs_base + LIDAR_LD19_REG_INTENSITY_MIN, cfg->intensity_min);
+    Xil_Out32(ctx->regs_base + LIDAR_LD19_REG_CTRL, cfg->filter_enabled ? 0x1U : 0x0U);
+
+    /* cf avertissement sur lidar_ld19_config_t.cluster_mode dans le .h :
+     * le decodage cote C ne gere que le nuage complet. On ecrit quand meme
+     * le registre (fonctionnement "materiel" demande explicitement par
+     * l'appelant), mais on previent en debug si on s'ecarte du mode
+     * supporte. */
+    Xil_Out32(ctx->regs_base + LIDAR_LD19_REG_CL_CTRL, cfg->cluster_mode ? 0x1U : 0x0U);
+#if defined(LIDAR_LD19_DEBUG)
+    if (cfg->cluster_mode) {
+        LIDAR_LD19_LOG("[LD19] ATTENTION (id=%u) : cluster_mode active, non decode cote C\r\n",
+                       (unsigned)ctx->lidar_id);
+    }
+#endif
+}
+
+void LIDAR_LD19_GetConfig(lidar_ld19_context_t *ctx, lidar_ld19_config_t *cfg_out)
+{
+    cfg_out->dist_min_mm      = (uint16_t)Xil_In32(ctx->regs_base + LIDAR_LD19_REG_DIST_MIN);
+    cfg_out->dist_max_mm      = (uint16_t)Xil_In32(ctx->regs_base + LIDAR_LD19_REG_DIST_MAX);
+    cfg_out->angle_min_cdeg   = (uint16_t)Xil_In32(ctx->regs_base + LIDAR_LD19_REG_ANGLE_MIN);
+    cfg_out->angle_max_cdeg   = (uint16_t)Xil_In32(ctx->regs_base + LIDAR_LD19_REG_ANGLE_MAX);
+    cfg_out->intensity_min    = (uint8_t)Xil_In32(ctx->regs_base + LIDAR_LD19_REG_INTENSITY_MIN);
+    cfg_out->filter_enabled   = (uint8_t)(Xil_In32(ctx->regs_base + LIDAR_LD19_REG_CTRL) & 0x1U);
+    cfg_out->cluster_mode     = (uint8_t)(Xil_In32(ctx->regs_base + LIDAR_LD19_REG_CL_CTRL) & 0x1U);
+}
+
+/* ==================================================================
+ * 7. Activation/desactivation du streaming Ethernet (cf lidar_ld19.h)
+ * ================================================================== */
+void LIDAR_LD19_SetEthernetStreaming(lidar_ld19_context_t *ctx, uint8_t enable)
+{
+    ctx->eth_streaming_enabled = (enable != 0U) ? 1U : 0U;
+    LIDAR_LD19_LOG("[LD19] Streaming Ethernet (id=%u) : %s\r\n",
+                   (unsigned)ctx->lidar_id, ctx->eth_streaming_enabled ? "ON" : "OFF");
 }
