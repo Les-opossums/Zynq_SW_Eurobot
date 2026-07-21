@@ -21,7 +21,7 @@ Ce dossier contient le "pont" entre l'[interpréteur de commandes](../APP_COM/RE
 | `ENKALMAN` | Active/désactive les corrections lidar/caméra du Kalman |
 | `ODOSPACING` | Entraxe des roues (calibration odométrie) |
 | `GETPOS`, `GETODO`, `ASSERVDONE` | Lecture d'état (position estimée, odométrie brute, mouvement terminé) |
-| `PDE` | Active l'envoi périodique de la position (télémétrie) |
+| `PDE <etat> [delay_uart_ms] [delay_eth_ms]` | Active/desactive l'envoi periodique de la position (telemetrie). `delay_eth_ms` regle le rythme des trames `ROBOT_STATE` (defaut 20ms/50Hz, la boucle Kalman interne tournant a 1kHz il y a largement de la marge pour descendre plus bas si besoin) |
 | `PWM` | Commande manuelle directe des ESC (dérogation, debug) |
 | `CALIBFF`, `SPEEDTEST` | Calibration feed-forward roues / test de vitesse minuté |
 
