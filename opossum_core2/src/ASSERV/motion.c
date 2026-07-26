@@ -46,6 +46,19 @@ static int       emergency_break_requested;
 static uint8_t in_stop_zone       = 0;
 static int     stop_zone_timer_ms = 0;
 
+/* Watchdog d'immobilisation (repli anti-blocage, cf pos_asserv_step et
+ * asserv_default.h) : compte les cycles consecutifs pendant lesquels le robot
+ * est reste quasi immobile dans la tolerance LARGE. Remis a zero a chaque
+ * nouvelle commande de position (motion_pos). */
+static int     settle_timer_ticks = 0;
+
+/* motion_step() (donc pos_asserv_step) tourne dans la boucle lente : une
+ * iteration = ASSERV_EVERY * ODO_EVERY_MS ms. Conversion des durees (ms) en
+ * nombre de cycles pour les watchdogs d'arret. */
+#define ASSERV_STEP_MS            ((int)(ASSERV_EVERY * ODO_EVERY_MS))
+#define SETTLE_TIMEOUT_TICKS      ((int)(DEFAULT_SETTLE_TIME_MS   / ASSERV_STEP_MS))
+#define FINE_STOP_TIMEOUT_TICKS   ((int)(DEFAULT_FINE_STOP_TIME_MS / ASSERV_STEP_MS))
+
 /* Structure locale utilisee pour la remontee IPC de motion_done. */
 static struct {
     uint32_t motion_done;
@@ -131,6 +144,7 @@ static void motion_pos(Position pos)
     // fin de mouvement premature sur celle-ci).
     in_stop_zone = 0;
     stop_zone_timer_ms = 0;
+    settle_timer_ticks = 0;
 
     asserv_mode = ASSERV_MODE_POS;
     motion_done = MOTION_MOVING;
@@ -272,6 +286,15 @@ static void pos_asserv_step(const Position *current_position)
 
     Pid_Speed_En = 1;
 
+    /* Vitesses mesurees (repere robot) : servent a juger de l'immobilisation
+     * reelle du robot, independamment des consignes. */
+    const float v_lin_now = sqrtf(speed_robot_asserv.vx * speed_robot_asserv.vx +
+                                  speed_robot_asserv.vy * speed_robot_asserv.vy);
+    const float v_rot_now = fabsf(speed_robot_asserv.vt);
+    const uint8_t nearly_stopped = (v_lin_now < DEFAULT_SETTLE_SPEED_LIN) &&
+                                   (v_rot_now < DEFAULT_SETTLE_SPEED_ROT);
+
+    /* ---- (1) Arrivee FINE : tolerance serree (comportement d'origine) ---- */
     if (d < DEFAULT_STOP_DISTANCE && fabsf(dt) < DEFAULT_STOP_ANGLE) {
         if (!in_stop_zone) {
             in_stop_zone = 1;
@@ -284,9 +307,33 @@ static void pos_asserv_step(const Position *current_position)
     }
 
     if (in_stop_zone) {
-        float v_now = sqrtf(speed_robot_asserv.vx * speed_robot_asserv.vx +
-                             speed_robot_asserv.vy * speed_robot_asserv.vy);
-        if (v_now < DEFAULT_SPEED_LIN_STOP || stop_zone_timer_ms > 20) {
+        if (v_lin_now < DEFAULT_SPEED_LIN_STOP ||
+            stop_zone_timer_ms > FINE_STOP_TIMEOUT_TICKS) {
+            in_stop_zone = 0;
+            settle_timer_ticks = 0;
+
+            motion_done = MOTION_SUCCESS;
+            update_shared_motion_done(MOTION_SUCCESS);
+
+            motion_free();
+            xil_printf("Pos,done\n");
+            return;
+        }
+    }
+
+    /* ---- (2) Repli anti-blocage (watchdog d'immobilisation) --------------
+     * Le robot s'est cale un peu trop loin (deadband moteur / frottements /
+     * derive odo) sans atteindre la tolerance FINE. S'il reste quasi immobile
+     * DANS LA TOLERANCE LARGE pendant DEFAULT_SETTLE_TIME_MS, on valide quand
+     * meme l'arrivee : evite de laisser la strategie en timeout. Au-dela de la
+     * tolerance large, on ne valide pas (vrai blocage / obstacle : c'est a la
+     * strategie de gerer). */
+    if (nearly_stopped &&
+        d < DEFAULT_STOP_DISTANCE_LOOSE &&
+        fabsf(dt) < DEFAULT_STOP_ANGLE_LOOSE) {
+        settle_timer_ticks++;
+        if (settle_timer_ticks > SETTLE_TIMEOUT_TICKS) {
+            settle_timer_ticks = 0;
             in_stop_zone = 0;
 
             motion_done = MOTION_SUCCESS;
@@ -294,7 +341,10 @@ static void pos_asserv_step(const Position *current_position)
 
             motion_free();
             xil_printf("Pos,done\n");
+            return;
         }
+    } else {
+        settle_timer_ticks = 0;
     }
 }
 

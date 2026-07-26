@@ -26,11 +26,26 @@
 #define ODO_EVERY_MS 1U
 #define ASSERV_EVERY 10U
 
-#define DEFAULT_STOP_DISTANCE 0.005 // +-5mm
+#define DEFAULT_STOP_DISTANCE 0.005 // +-5mm  (tolerance FINE, arrivee precise)
 #define DEFAULT_STOP_ANGLE 0.01745  // +-1deg  // en radian
 
 #define DEFAULT_SPEED_LIN_STOP 0.05 // 5cm/s
 #define DEFAULT_SPEED_ROT_STOP 0.05 // 0.05 rad/s (~2.9 deg/s)
+
+// --- Repli anti-blocage (watchdog d'immobilisation) -------------------------
+// Le robot se cale parfois un peu trop loin (deadband moteur / frottements /
+// derive odo) sans jamais entrer dans la tolerance FINE ci-dessus : il ne
+// renvoie alors jamais MOTION_SUCCESS et la strategie part en timeout. Pour
+// eviter ca, si le robot reste quasi immobile DANS LA TOLERANCE LARGE pendant
+// DEFAULT_SETTLE_TIME_MS, on valide quand meme l'arrivee.
+//   -> Ajuster DEFAULT_STOP_DISTANCE_LOOSE selon la precision reellement
+//      atteignable (l'augmenter si le robot cale encore plus loin).
+#define DEFAULT_STOP_DISTANCE_LOOSE 0.020   // +-2cm  (tolerance LARGE de repli)
+#define DEFAULT_STOP_ANGLE_LOOSE    0.05236 // +-3deg (en radian)
+#define DEFAULT_SETTLE_SPEED_LIN    0.02    // 2cm/s : sous ce seuil le robot est "immobile"
+#define DEFAULT_SETTLE_SPEED_ROT    0.05    // rad/s : idem en rotation
+#define DEFAULT_SETTLE_TIME_MS      300U    // duree d'immobilite requise avant validation large
+#define DEFAULT_FINE_STOP_TIME_MS   200U    // timeout de securite dans la zone FINE (ex "20 ticks")
 
 /*############################################################################*/
 /*                                   PID                                      */
