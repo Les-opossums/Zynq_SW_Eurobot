@@ -44,7 +44,7 @@ extern void AU_Callback(void *callback_ref);
 #define PS_GPIO_PINS { \
     /* PIN,     DIRECTION,      INTERRUPTION,           VARIABLE LIEE,      CALLBACK SPECIFIQUE */\
     { 55,       PS_GPIO_DIR_INPUT,   PIN_IRQ_EDGE_BOTH,      &AU_state,          AU_Callback}, \
-    { 54,       PS_GPIO_DIR_INPUT,   PIN_IRQ_EDGE_RISING,    &leash_state,       leash_Callback}, \
+    { 54,       PS_GPIO_DIR_INPUT,   PIN_IRQ_EDGE_BOTH,      &leash_state,       leash_Callback}, \
     { 56,       PS_GPIO_DIR_INPUT,   PIN_IRQ_NONE,           &team_state,        NULL}, \
     { 57,       PS_GPIO_DIR_INPUT,   PIN_IRQ_NONE,           &IO_1_state,        NULL}, \
     { 58,       PS_GPIO_DIR_INPUT,   PIN_IRQ_NONE,           &IO_2_state,        NULL}, \

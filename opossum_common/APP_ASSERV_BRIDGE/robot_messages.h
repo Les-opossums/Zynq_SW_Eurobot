@@ -37,17 +37,23 @@ typedef struct __attribute__((packed)) {
 } eth_payload_robot_state_t;
 
 /* Etat de l'arret d'urgence (ETH_MSG_AU, 0x14). Emis sur chaque changement
- * d'etat (cf core0_loop.c). */
+ * d'etat (cf core0_loop.c).
+ * ATTENTION : `state` DOIT rester le 1er octet du payload. Le node ROS2
+ * (opossum_comm/comm_node.cpp) lit l'etat via payload[0] ("AU " + payload[0]),
+ * il n'interprete pas le timestamp. Ne pas remettre le timestamp devant. */
 typedef struct __attribute__((packed)) {
+    uint8_t  state;        /* payload[0] : 0 = AU relache, 1 = AU appuye */
     uint32_t timestamp_ms;
-    uint8_t  state;   /* 0 = AU relache, 1 = AU appuye */
 } eth_payload_au_t;
 
 /* Etat de la laisse (ETH_MSG_LEASH, 0x15). Emis sur chaque changement d'etat
- * (cf core0_loop.c). */
+ * (cf core0_loop.c).
+ * ATTENTION : `state` DOIT rester le 1er octet du payload. comm_node.cpp lit
+ * payload[0] et ne publie le message ROS "LEASH" (depart du match) que si
+ * payload[0] == 1. */
 typedef struct __attribute__((packed)) {
+    uint8_t  state;        /* payload[0] : 0 = laisse relachee, 1 = laisse attachee/tiree */
     uint32_t timestamp_ms;
-    uint8_t  state;   /* 0 = laisse relachee, 1 = laisse attachee/tiree */
 } eth_payload_leash_t;
 
 
