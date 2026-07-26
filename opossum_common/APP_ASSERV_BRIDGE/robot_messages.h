@@ -36,5 +36,19 @@ typedef struct __attribute__((packed)) {
     uint8_t motion_done;
 } eth_payload_robot_state_t;
 
+/* Etat de l'arret d'urgence (ETH_MSG_AU, 0x14). Emis sur chaque changement
+ * d'etat (cf core0_loop.c). */
+typedef struct __attribute__((packed)) {
+    uint32_t timestamp_ms;
+    uint8_t  state;   /* 0 = AU relache, 1 = AU appuye */
+} eth_payload_au_t;
+
+/* Etat de la laisse (ETH_MSG_LEASH, 0x15). Emis sur chaque changement d'etat
+ * (cf core0_loop.c). */
+typedef struct __attribute__((packed)) {
+    uint32_t timestamp_ms;
+    uint8_t  state;   /* 0 = laisse relachee, 1 = laisse attachee/tiree */
+} eth_payload_leash_t;
+
 
 #endif /* ROBOT_MESSAGES_H */

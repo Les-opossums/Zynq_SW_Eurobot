@@ -8,6 +8,9 @@
 #include "APP_COM/eth_interpreter_bridge.h"
 #include "APP_ACTIONNEURS/feetech_Action.h"
 #include "APP_LED_INDICATOR/led_au_animation.h"
+#include "ETH_protocol.h"
+#include "APP_ASSERV_BRIDGE/robot_messages.h"
+#include "IO_MANAGER/DRIVER_ETH/driver_eth_io.h"
 #include "xil_printf.h"
 // ... autres includes spécifiques ...
 
@@ -26,7 +29,9 @@ static uint32_t last_lidar_test_ms;
 // par AU_Callback() dans IO_globals.c) pour mettre les pinces en securite
 // (AU_pinces() : abandon de toute action en cours, retour a l'etat IDLE).
 extern volatile int AU_state;
+extern volatile int leash_state;
 static int last_au_state = 0;
+static int last_leash_state = 0;
 
 void App_Init(void) {
     // Initialisations spécifiques au CPU0
@@ -55,7 +60,34 @@ void App_Loop(void) {
     if (AU_state && !last_au_state) {
         AU_pinces();
     }
+
+    // Telemetrie Ethernet AU (ETH_MSG_AU) : envoi sur TOUT changement d'etat.
+    // La pin 55 est en EDGE_BOTH, donc les deux fronts (appui + relachement)
+    // sont detectes ; ROS (Raspberry Pi) recoit ainsi chaque transition de
+    // l'arret d'urgence. eth_send_frame est appele depuis la boucle principale
+    // (jamais depuis l'ISR : non reentrant).
+    if (AU_state != last_au_state) {
+        eth_payload_au_t au_msg = {
+            .timestamp_ms = (uint32_t)Timer_ms1,
+            .state        = (uint8_t)(AU_state ? 1u : 0u)
+        };
+        eth_send_frame(ETH_MSG_AU, &au_msg, sizeof(au_msg));
+    }
     last_au_state = AU_state;
+
+    // Telemetrie Ethernet laisse (ETH_MSG_LEASH) : envoi sur changement d'etat.
+    // NOTE : la pin 54 est configuree en EDGE_RISING seul (cf IO_config.h), donc
+    // cote materiel seul le passage 0->1 (laisse tiree) est detecte ; le retour
+    // 1->0 n'actualise pas leash_state. Passer la pin en PIN_IRQ_EDGE_BOTH si
+    // ROS a besoin des deux transitions.
+    if (leash_state != last_leash_state) {
+        eth_payload_leash_t leash_msg = {
+            .timestamp_ms = (uint32_t)Timer_ms1,
+            .state        = (uint8_t)(leash_state ? 1u : 0u)
+        };
+        eth_send_frame(ETH_MSG_LEASH, &leash_msg, sizeof(leash_msg));
+    }
+    last_leash_state = leash_state;
 
     // Indicateur visuel du bandeau WS2812B : AU (rouge), init de localisation
     // (gauge orange clignotante), robot pret (vert), match lance (eteint).
