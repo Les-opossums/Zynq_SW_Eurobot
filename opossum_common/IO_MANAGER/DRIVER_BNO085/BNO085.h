@@ -132,6 +132,7 @@ typedef struct {
     float             roll;          /**< Roulis  [°]                        */
     u8                calib_status;  /**< Statut de calibration (0–3)        */
     u8                new_data;      /**< Flag : nouvelles données dispo      */
+    u8                new_orientation;/**< Flag : nouveau quaternion d'orientation (RV / game RV) */
 } BNO085_Data;
 
 /**

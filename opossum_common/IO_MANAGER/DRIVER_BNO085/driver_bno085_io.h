@@ -4,6 +4,15 @@
 #include "../DRIVER_PS_GPIO/driver_ps_gpio.h"
 #include "BNO085.h"
 
+/* Signe du cap IMU publie vers l'asserv (IPC_DATA->imu_yaw). Le gyro Z et le
+ * theta de l'odometrie tournent dans le meme sens (repere main droite autour
+ * de Z), l'IMU etant montee a plat : +1.0f convient. Passer a -1.0f uniquement
+ * si l'IMU est montee retournee (axe Z inverse) et que le cap absolu tourne a
+ * l'oppose de l'odometrie. */
+#ifndef IMU_YAW_SIGN
+#define IMU_YAW_SIGN (+1.0f)
+#endif
+
 typedef struct {
     u8  report_id;
     u32 interval_us;

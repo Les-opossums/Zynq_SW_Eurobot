@@ -64,6 +64,11 @@ static inline float principal_angle(float angle)
 // Le capteur IMU fournit des mesures d'angle et de vitesse angulaire.
 #define OBS_NOISE_IMU_VTHETA      0.02f    // 0.1 deg/s d'écart-type
 
+// 5. IMU - orientation absolue (cap Rotation Vector / Game Rotation Vector
+// recale sur le repere monde via l'offset lidar). Ecart-type en rad : le BNO085
+// donne un cap tres stable, ~1 deg d'incertitude typique -> ~0.02 rad.
+#define OBS_NOISE_IMU_THETA       0.02f    // ~1.1 deg d'écart-type
+
 #define S_INV_EPS 1e-6f
 
 
@@ -130,5 +135,21 @@ uint8_t kalman_update_odo(KalmanState* state, Speed* measured_speed);
  * @return uint8_t 
  */
 uint8_t kalman_update_imu(KalmanState* state, float measured_vtheta);
+
+
+/**
+ * @brief Update specifique pour l'orientation absolue de l'IMU, qui observe le
+ * cap theta (x[2]).
+ *
+ * La mesure est le cap absolu de l'IMU (Rotation Vector ou Game Rotation Vector)
+ * deja recale sur le repere monde par l'offset moyenne sur les mesures lidar
+ * (cf fusion heading dans asserv_loop.c). L'innovation est ramenee dans
+ * [-pi, pi] (principal_angle) pour gerer le repliement d'angle.
+ *
+ * @param state          Etat courant du Kalman
+ * @param measured_theta Cap absolu mesure (repere monde, rad)
+ * @return uint8_t  0 : ok, 3 : matrice S singuliere
+ */
+uint8_t kalman_update_imu_theta(KalmanState* state, float measured_theta);
 
 #endif // __KALMAN_H_

@@ -57,9 +57,9 @@ void App_Loop(void) {
     }
     last_au_state = AU_state;
 
-    // Indicateur visuel : fondu rouge + halo tournant tant que l'AU est
-    // actif (bandeau WS2812B), eteint au relachement.
-    LED_AU_Animation_Update();
+    // Indicateur visuel du bandeau WS2812B : AU (rouge), init de localisation
+    // (gauge orange clignotante), robot pret (vert), match lance (eteint).
+    LED_Indicator_Update();
 
     // Test/bring-up LIDAR LD19 (cf declaration de last_lidar_test_ms plus haut).
     // ts_trigger_ms() n'existe que si TIMING_MEASURE est active (cf

@@ -2,6 +2,7 @@
 #include "IO_config.h"
 #include "IO_MANAGER/DRIVER_WS2812B/driver_ws2812b.h"
 #include "TIMER_MANAGER/timer_manager.h"
+#include "IPC_MANAGER/IPC_manager.h"   /* IPC_DATA, LOC_INIT_* */
 
 /*
  * Animation d'arret d'urgence : le ruban s'allume rouge LED par LED (une
@@ -86,5 +87,72 @@ void LED_AU_Animation_Update(void) {
             }
             WS2812B_SetPixel(&Ws2812b_Ctx, i, red, 0, 0);
         }
+    }
+}
+
+/*
+ * Indicateur de statut global du bandeau. Priorite :
+ *   1. Arret d'urgence actif       -> animation rouge (LED_AU_Animation_Update).
+ *   2. Init localisation en cours  -> gauge de chargement orange clignotante,
+ *      remplie a hauteur de loc_init_progress (%).
+ *   3. Robot pret (offset fige)    -> vert fixe, jusqu'a ce qu'on tire la laisse.
+ *   4. Match lance / boot          -> bandeau eteint.
+ * L'etat (loc_init_state / loc_init_progress) est calcule par CORE1 (fusion
+ * heading dans asserv_loop.c) et lu ici via la memoire partagee.
+ */
+#define LED_INIT_BLINK_PERIOD_MS  500.0f  /* periode de clignotement de la gauge (~2 Hz) */
+#define LED_ORANGE_R              255      /* teinte orange de la gauge */
+#define LED_ORANGE_G              70
+#define LED_READY_GREEN_G         180      /* intensite du vert "pret" */
+
+void LED_Indicator_Update(void) {
+    /* 1. Arret d'urgence prioritaire : animation rouge existante. */
+    if (AU_state) {
+        LED_AU_Animation_Update();
+        return;
+    }
+
+    /* AU relache : on laisse l'animation AU faire son nettoyage de front
+     * descendant (extinction propre + re-armement), puis on redessine l'etat
+     * courant par-dessus (le push materiel n'a lieu qu'une fois, cf
+     * WS2812B_Update). */
+    LED_AU_Animation_Update();
+
+    switch (IPC_DATA->loc_init_state) {
+
+    case LOC_INIT_RUNNING: {
+        /* Gauge de chargement orange clignotante. */
+        float ph  = (float)((uint32_t)Timer_ms1 % (uint32_t)LED_INIT_BLINK_PERIOD_MS)
+                    / LED_INIT_BLINK_PERIOD_MS;                 /* 0..1 */
+        float tri = (ph < 0.5f) ? (ph * 2.0f) : (2.0f - ph * 2.0f); /* 0..1..0 */
+        float b   = 0.25f + 0.75f * tri;                        /* luminosite 0.25..1.0 */
+
+        uint32_t prog = IPC_DATA->loc_init_progress;            /* 0..100 */
+        int lit = (int)((prog * (uint32_t)NBR_LED) / 100u);
+
+        for (int i = 0; i < NBR_LED; i++) {
+            if (i < lit) {
+                WS2812B_SetPixel(&Ws2812b_Ctx, i,
+                                 clamp_u8((int)((float)LED_ORANGE_R * b)),
+                                 clamp_u8((int)((float)LED_ORANGE_G * b)),
+                                 0);
+            } else {
+                WS2812B_SetPixel(&Ws2812b_Ctx, i, 0, 0, 0);
+            }
+        }
+        break;
+    }
+
+    case LOC_INIT_READY:
+        /* Robot pret : vert fixe jusqu'a ce qu'on tire la laisse. */
+        WS2812B_SetAll(&Ws2812b_Ctx, 0, LED_READY_GREEN_G, 0);
+        break;
+
+    case LOC_INIT_IDLE:
+    case LOC_INIT_DONE:
+    default:
+        /* Boot (IDLE) ou match lance apres laisse tiree (DONE) : bandeau eteint. */
+        WS2812B_Clear(&Ws2812b_Ctx);
+        break;
     }
 }

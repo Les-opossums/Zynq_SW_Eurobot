@@ -71,10 +71,39 @@ extern ws2812b_context_t Ws2812b_Ctx; // Contexte du driver WS2812B
 
 /* ================================================================= *
  * Configuration du driver BNO085
- * ================================================================= 
+ * =================================================================
  */
+
+/* --- Choix de la source d'orientation absolue de l'IMU -----------------
+ * IMU_USE_MAGNETO :
+ *   1 -> SH2_ROTATION_VECTOR      : fusion 9 axes AVEC magnetometre
+ *                                   (cap reference sur le Nord magnetique,
+ *                                    pas de derive long terme mais sensible
+ *                                    aux perturbations magnetiques : moteurs,
+ *                                    structures metalliques de la table...).
+ *   0 -> SH2_GAME_ROTATION_VECTOR : fusion 6 axes SANS magnetometre
+ *                                   (origine de cap arbitraire au demarrage,
+ *                                    immunise aux perturbations magnetiques,
+ *                                    tres faible derive sur la duree d'un match).
+ * Dans les deux cas, la fusion heading de CORE1 recale ce cap sur le repere
+ * monde via un offset moyenne sur les mesures lidar : l'origine arbitraire du
+ * Game Rotation Vector n'est donc pas un probleme. Le Game Rotation Vector est
+ * le choix par defaut (robuste aux moteurs), passer a 1 pour tester le magneto. */
+#ifndef IMU_USE_MAGNETO
+#define IMU_USE_MAGNETO 0
+#endif
+
+#if IMU_USE_MAGNETO
+#define IMU_ORIENTATION_REPORT  SH2_ROTATION_VECTOR
+#else
+#define IMU_ORIENTATION_REPORT  SH2_GAME_ROTATION_VECTOR
+#endif
+
+/* Gyroscope calibre (vitesse angulaire, update Kalman vtheta) a ~500 Hz, plus
+ * le rapport d'orientation absolue (update Kalman theta) a 100 Hz. */
 #define BNO085_REPORTS { \
     { SH2_GYROSCOPE_CALIBRATED, 2000U }, \
+    { IMU_ORIENTATION_REPORT,  10000U }, \
 }
 
 extern bno085_io_context_t Imu_Ctx;

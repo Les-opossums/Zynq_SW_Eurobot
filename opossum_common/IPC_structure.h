@@ -5,6 +5,16 @@
 #include "common_type.h"
 #include "IO_MANAGER/IO_manager.h"
 
+// ===========================================================================
+// Etats de l'init de localisation (fusion orientation absolue IMU <-> lidar),
+// publies par CORE1 dans loc_init_state ci-dessous et consommes par CORE0 pour
+// piloter le bandeau LED (cf led_au_animation.c / LED_Indicator_Update).
+// ===========================================================================
+#define LOC_INIT_IDLE     0u  // rien en cours (boot, avant tout relachement d'AU)
+#define LOC_INIT_RUNNING  1u  // moyennage de l'offset en cours (gauge orange)
+#define LOC_INIT_READY    2u  // offset fige, robot pret (vert), en attente du depart
+#define LOC_INIT_DONE     3u  // laisse tiree, match lance (bandeau eteint)
+
 /**
  * @brief This strcucture describes the organization of the shared memory
  */
@@ -30,6 +40,20 @@ typedef struct {
     volatile float    imu_accel_x, imu_accel_y, imu_accel_z;    // m/s²
     volatile uint32_t imu_calib_status;
     volatile uint32_t imu_seq; // incrémenté à chaque mise à jour par CORE0
+
+    // Orientation absolue de l'IMU (cap autour de Z), publiee par CORE0 depuis le
+    // Rotation Vector (avec magneto) ou le Game Rotation Vector (sans magneto),
+    // cf IMU_USE_MAGNETO dans IO_config.h. Repere IMU (origine arbitraire) : c'est
+    // la fusion heading de CORE1 qui la recale sur le repere monde via un offset
+    // moyenne sur les mesures lidar (cf asserv_loop.c).
+    volatile float    imu_yaw;     // rad, borne [-pi, pi]
+    volatile uint32_t imu_yaw_seq; // incremente a chaque NOUVELLE mesure d'orientation
+
+    // Etat de l'init de localisation (CORE1 -> CORE0), pour le bandeau LED.
+    // loc_init_state : une des constantes LOC_INIT_* ci-dessus.
+    // loc_init_progress : avancement du moyennage de l'offset, 0..100 (%).
+    volatile uint32_t loc_init_state;
+    volatile uint32_t loc_init_progress;
 
     // --- Donnees d'initialisation ---
 

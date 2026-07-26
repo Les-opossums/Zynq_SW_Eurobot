@@ -425,13 +425,13 @@ void Print_Position_loop(void) {
     if ((Timer_ms1 - Last_Timer_print_pos_uart) >= auto_printpos_delay_uart) {
         Last_Timer_print_pos_uart = Timer_ms1;
 
-        float speed_linear    = sqrtf(local_data.speed_robot.vx * local_data.speed_robot.vx +
-                                       local_data.speed_robot.vy * local_data.speed_robot.vy);
-        float speed_direction = atan2f(local_data.speed_robot.vy, local_data.speed_robot.vx);
+        // float speed_linear    = sqrtf(local_data.speed_robot.vx * local_data.speed_robot.vx +
+        //                                local_data.speed_robot.vy * local_data.speed_robot.vy);
+        // float speed_direction = atan2f(local_data.speed_robot.vy, local_data.speed_robot.vx);
         
-        printf("ROBOTDATA %0.2f %0.2f %0.2f %0.2f %0.2f %0.2f\n",
-               (double)local_data.kalman_out.x, (double)local_data.kalman_out.y, (double)local_data.kalman_out.t,
-               (double)speed_linear, (double)speed_direction, (double)local_data.speed_robot.vt);
+        // printf("ROBOTDATA %0.2f %0.2f %0.2f %0.2f %0.2f %0.2f\n",
+        //        (double)local_data.kalman_out.x, (double)local_data.kalman_out.y, (double)local_data.kalman_out.t,
+        //        (double)speed_linear, (double)speed_direction, (double)local_data.speed_robot.vt);
     }
 
     if ((Timer_ms1 - Last_Timer_print_pos_eth) >= auto_printpos_delay_eth) {

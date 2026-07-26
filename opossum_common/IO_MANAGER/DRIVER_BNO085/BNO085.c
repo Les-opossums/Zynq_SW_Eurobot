@@ -275,7 +275,8 @@ static void sh2_parse_report(BNO085_Dev *dev, const u8 *buf, u16 len)
             dev->data.rotation.accuracy = q_to_float((s16)((buf[offset + 13] << 8) | buf[offset + 12]), 12);
             quat_to_euler(&dev->data.rotation,
                           &dev->data.yaw, &dev->data.pitch, &dev->data.roll);
-            dev->data.new_data = 1U;
+            dev->data.new_data        = 1U;
+            dev->data.new_orientation = 1U;
             offset += 14;
             break;
 
@@ -290,7 +291,8 @@ static void sh2_parse_report(BNO085_Dev *dev, const u8 *buf, u16 len)
             quat_to_euler(&dev->data.game_rv, &dev->data.yaw, &dev->data.pitch, &dev->data.roll);
             dev->data.rotation = dev->data.game_rv;
 
-            dev->data.new_data = 1U;
+            dev->data.new_data        = 1U;
+            dev->data.new_orientation = 1U;
             offset += 12;
             break;
 

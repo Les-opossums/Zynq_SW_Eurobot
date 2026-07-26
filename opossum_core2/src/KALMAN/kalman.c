@@ -396,3 +396,56 @@ uint8_t kalman_update_imu(KalmanState* state, float measured_vtheta) {
 
     return 0;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// kalman_update_imu_theta  (observation scalaire du cap theta : H = [0,0,1,0,0,0])
+// Meme forme que kalman_update_imu mais sur la ligne/colonne 2 (theta) au lieu
+// de 5 (vtheta). L'innovation est repliee dans [-pi, pi] via principal_angle
+// pour gerer le passage +pi / -pi.
+// ─────────────────────────────────────────────────────────────────────────────
+float R_imu_theta = OBS_NOISE_IMU_THETA * OBS_NOISE_IMU_THETA;
+
+uint8_t kalman_update_imu_theta(KalmanState* state, float measured_theta) {
+    float y = principal_angle(measured_theta - state->x[2]);
+
+    float S = state->P[2][2] + R_imu_theta;
+    if (S < S_INV_EPS) return 3;
+    float invS = 1.0f / S;
+
+    // K[i] = P[i][2] * invS
+    float K0 = state->P[0][2]*invS;
+    float K1 = state->P[1][2]*invS;
+    float K2 = state->P[2][2]*invS;
+    float K3 = state->P[3][2]*invS;
+    float K4 = state->P[4][2]*invS;
+    float K5 = state->P[5][2]*invS;
+
+    // x += K*y
+    state->x[0] +=                         K0*y;
+    state->x[1] +=                         K1*y;
+    state->x[2] = principal_angle(state->x[2] + K2*y);
+    state->x[3] +=                         K3*y;
+    state->x[4] +=                         K4*y;
+    state->x[5] +=                         K5*y;
+
+    // P_new[i][j] = P[i][j] - K[i]*P[2][j] - P[i][2]*K[j] + K[i]*K[j]*S
+    // (forme de Joseph pour H=[0,0,1,0,0,0], exactement equivalente)
+    float p2j[6] = { state->P[2][0], state->P[2][1], state->P[2][2],
+                     state->P[2][3], state->P[2][4], state->P[2][5] };
+    float pi2[6] = { state->P[0][2], state->P[1][2], state->P[2][2],
+                     state->P[3][2], state->P[4][2], state->P[5][2] };
+    float K[6]   = { K0, K1, K2, K3, K4, K5 };
+
+    for (int i = 0; i < 6; i++) {
+        for (int j = i; j < 6; j++) {
+            float v = state->P[i][j]
+                    - K[i]*p2j[j]
+                    - pi2[i]*K[j]
+                    + K[i]*K[j]*S;
+            state->P[i][j] = v;
+            state->P[j][i] = v;
+        }
+    }
+
+    return 0;
+}

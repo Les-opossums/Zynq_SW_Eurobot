@@ -41,6 +41,131 @@ static uint32_t         last_fast_ms;
 static uint8_t          fast_ticks_since_slow;
 
 /* ================================================================== *
+ * Fusion de l'orientation absolue de l'IMU (recalage sur le repere monde)
+ * ================================================================== *
+ * L'IMU (BNO085) fournit un cap absolu (imu_yaw, cf driver_bno085_io.c) dont
+ * l'origine est arbitraire (Game Rotation Vector) ou liee au Nord magnetique
+ * (Rotation Vector). Pour l'exploiter dans le repere de la table, on mesure un
+ * offset  monde = imu_yaw + offset  par moyenne circulaire sur plusieurs
+ * mesures de cap absolu du lidar (set_lidar.lidar_position_t, calcule par le
+ * Raspberry Pi).
+ *
+ * Sequence :
+ *   - Au relachement de l'arret d'urgence (front descendant de AU_state) et
+ *     tant que des trames lidar arrivent, on accumule les ecarts
+ *     (lidar_theta - imu_yaw) -> etat RUNNING, le bandeau LED affiche une gauge.
+ *   - Une fois HEADING_INIT_SAMPLES echantillons cumules, l'offset est fige
+ *     -> etat READY (bandeau vert).
+ *   - Quand la laisse est tiree (leash_state==1) -> etat DONE (bandeau eteint),
+ *     le match est lance.
+ * En READY et en DONE, chaque nouvelle mesure de cap IMU corrige le Kalman via
+ * kalman_update_imu_theta(). L'init est rejouee a chaque nouveau relachement
+ * d'AU. */
+#define HEADING_INIT_SAMPLES 30u  /* nombre de trames lidar moyennees pour figer l'offset */
+
+static struct {
+    uint32_t state;         /* LOC_INIT_* (cf IPC_structure.h) */
+    uint32_t prev_au;       /* AU_state precedent, pour detecter le front descendant */
+    uint32_t count;         /* echantillons cumules pendant RUNNING */
+    float    sum_sin;       /* somme des sin(lidar_theta - imu_yaw) (moyenne circulaire) */
+    float    sum_cos;       /* somme des cos(lidar_theta - imu_yaw) */
+    float    offset;        /* offset fige (rad) : monde = imu_yaw + offset */
+    uint32_t last_yaw_seq;  /* dernier imu_yaw_seq consomme (evite de rejouer une mesure) */
+} heading;
+
+/* Publie l'etat de l'init vers CORE0 (bandeau LED). */
+static void heading_publish(void)
+{
+    uint32_t prog;
+    if (heading.state == LOC_INIT_READY || heading.state == LOC_INIT_DONE) {
+        prog = 100u;
+    } else if (heading.state == LOC_INIT_RUNNING) {
+        prog = (heading.count * 100u) / HEADING_INIT_SAMPLES;
+        if (prog > 100u) prog = 100u;
+    } else {
+        prog = 0u;
+    }
+    IPC_DATA->loc_init_state    = heading.state;
+    IPC_DATA->loc_init_progress = prog;
+}
+
+static void heading_fusion_init(void)
+{
+    heading.state        = LOC_INIT_IDLE;
+    heading.prev_au      = 1u; /* suppose l'AU appuye au boot : le 1er relachement lancera l'init */
+    heading.count        = 0u;
+    heading.sum_sin      = 0.0f;
+    heading.sum_cos      = 0.0f;
+    heading.offset       = 0.0f;
+    heading.last_yaw_seq = IPC_DATA->imu_yaw_seq;
+    heading_publish();
+}
+
+/* Appelee a chaque trame lidar recue (theta absolu monde, rad). Cumule l'offset
+ * pendant la phase RUNNING. */
+static void heading_fusion_on_lidar(float lidar_theta)
+{
+    if (heading.state != LOC_INIT_RUNNING) return;
+
+    /* Pas d'orientation IMU encore recue : on attend (la gauge ne progresse pas)
+     * pour ne pas moyenner l'offset contre un cap non initialise. */
+    if (IPC_DATA->imu_yaw_seq == 0u) return;
+
+    float d = lidar_theta - IPC_DATA->imu_yaw; /* imu_yaw : ~100 Hz, toujours frais vs le lidar */
+    heading.sum_sin += sinf(d);
+    heading.sum_cos += cosf(d);
+    heading.count++;
+
+    if (heading.count >= HEADING_INIT_SAMPLES) {
+        heading.offset = atan2f(heading.sum_sin, heading.sum_cos);
+        heading.state  = LOC_INIT_READY;
+    }
+    heading_publish();
+}
+
+/* Applique la correction Kalman du cap absolu si une nouvelle mesure IMU est
+ * disponible depuis le dernier appel. */
+static void heading_apply_correction(KalmanState *state)
+{
+    uint32_t seq = IPC_DATA->imu_yaw_seq;
+    if (seq == heading.last_yaw_seq) return;
+    heading.last_yaw_seq = seq;
+
+    float meas = principal_angle(IPC_DATA->imu_yaw + heading.offset);
+    kalman_update_imu_theta(state, meas);
+}
+
+/* Machine a etats, appelee a chaque cycle de la boucle rapide (apres les updates
+ * odo / imu-gyro, avant le push FIFO). */
+static void heading_fusion_update(KalmanState *state)
+{
+    uint32_t au = IPC_DATA->AU_state;
+
+    /* Front descendant de l'AU -> (re)demarrage de l'init. */
+    if (heading.prev_au && !au) {
+        heading.count   = 0u;
+        heading.sum_sin = 0.0f;
+        heading.sum_cos = 0.0f;
+        heading.state   = LOC_INIT_RUNNING;
+    }
+    heading.prev_au = au;
+
+    /* AU appuye : robot desarme, pas de fusion ni de progression. */
+    if (au) { heading_publish(); return; }
+
+    if (heading.state == LOC_INIT_READY) {
+        heading_apply_correction(state);
+        if (IPC_DATA->leash_state == 1u) {
+            heading.state = LOC_INIT_DONE; /* laisse tiree -> match lance */
+        }
+    } else if (heading.state == LOC_INIT_DONE) {
+        heading_apply_correction(state); /* on continue a recaler le cap pendant le match */
+    }
+
+    heading_publish();
+}
+
+/* ================================================================== *
  * Monitoring des Temps d'Execution (TIMING_MEASURE)
  * ================================================================== *
  * Port de l'instrumentation de l'ancien firmware (TimingStats/T_START/
@@ -171,6 +296,13 @@ static void receive_commands(void)
     
     const uint8_t lidar_received = CHECK_FIELD(&rx, set_lidar);
 
+    // Fusion heading : alimente le moyennage de l'offset IMU<->monde pendant la
+    // phase d'init (sans effet hors phase RUNNING). Fait avant le "return" ci-
+    // dessous pour que la gauge progresse meme si le Kalman n'est pas encore init.
+    if (lidar_received) {
+        heading_fusion_on_lidar(rx.set_lidar.lidar_position_t);
+    }
+
     // Si le filtre n'est pas encore initialisé, on force l'initialisation avec la première trame Lidar
     if (!ctx.kalman_initialized) {
         if (lidar_received) {
@@ -292,6 +424,12 @@ static void fast_loop(void)
 #if defined(TIMING_MEASURE)
     T_STOP(fast_imu, ts_fast_imu);
 #endif
+
+    // 4bis. Fusion de l'orientation absolue de l'IMU (cap recale sur le repere
+    // monde via l'offset lidar) + machine a etats de l'init (gauge/LED). La
+    // correction du cap est appliquee sur l'etat courant, avant le push FIFO,
+    // pour que l'etat sauvegarde soit deja corrige.
+    heading_fusion_update(&kalman_current_state);
 
 #if defined(TIMING_MEASURE)
     T_START(fast_fifo);
@@ -424,7 +562,9 @@ void asserv_loop_init(void)
     
     kalman_fifo_init(&kalman_fifo);
     kalman_init(&kalman_current_state);
-    
+
+    heading_fusion_init();
+
     last_fast_ms = (uint32_t)Timer_ms1;
 }
 

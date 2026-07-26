@@ -1,6 +1,11 @@
 #include "driver_bno085_io.h"
 #include "../../IPC_MANAGER/IPC_manager.h"
 #include "xstatus.h"
+#include <math.h>
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 // Un seul capteur IMU dans ce projet — flag global suffit,
 // posé en ISR (pin 60, EDGE_FALLING) et consommé dans BNO085_IO_Update.
@@ -47,4 +52,18 @@ void BNO085_IO_Update(void *instance) {
     IPC_DATA->imu_accel_z = data->accel.z;
     IPC_DATA->imu_calib_status = data->calib_status;
     IPC_DATA->imu_seq++;
+
+    // Orientation absolue : uniquement quand un nouveau quaternion (Rotation
+    // Vector ou Game Rotation Vector) a ete recu, pour ne pas re-signaler une
+    // mesure d'angle deja consommee par la fusion heading de CORE1 (ce qui
+    // rendrait le filtre de Kalman sur-confiant). data->yaw est en degres
+    // [0,360[ ; on publie en radians bornes [-pi, pi].
+    if (data->new_orientation) {
+        data->new_orientation = 0U;
+        float yaw_rad = (float)(data->yaw * (M_PI / 180.0)) * IMU_YAW_SIGN;
+        while (yaw_rad >  (float)M_PI) yaw_rad -= 2.0f * (float)M_PI;
+        while (yaw_rad < -(float)M_PI) yaw_rad += 2.0f * (float)M_PI;
+        IPC_DATA->imu_yaw = yaw_rad;
+        IPC_DATA->imu_yaw_seq++;
+    }
 }
