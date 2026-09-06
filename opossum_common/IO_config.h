@@ -117,7 +117,7 @@ extern bno085_io_context_t Imu_Ctx;
  * Configuration UART PS (communication avec les autres cartes)
  * ================================================================= */
 #define UART_COMM_DEVICE_ID   XPAR_XUARTPS_0_DEVICE_ID
-#define UART_COMM_BAUDRATE    115200 //921600
+#define UART_COMM_BAUDRATE    921600 // etait 115200 ; augmente pour accelerer console + OTA
 
 extern uart_ps_context_t UartComm_Ctx;
 

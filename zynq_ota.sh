@@ -60,7 +60,7 @@ ELF1="${ELF1:-$ROOT/opossum_core2/Debug/opossum_core2.elf}"   # CPU1
 BOOTBIN="${BOOTBIN:-$ROOT/BOOT.bin}"
 
 PORT="${PORT:-auto}"   # "auto" = detection (USB-serie) ; sinon /dev/ttyUSBx, COMx...
-BAUD="${BAUD:-115200}"
+BAUD="${BAUD:-921600}"   # doit correspondre a UART_COMM_BAUDRATE du firmware
 CHUNK="${CHUNK:-4096}"
 DO_REBOOT=1
 
@@ -301,9 +301,11 @@ def wait_prefix(prefixes, t=15):
             sys.exit(f"[send] firmware -> {line}")
     return None
 
-# 1) handshake
+# 1) handshake (le firmware efface la zone QSPI avant de repondre +READY :
+#    ca peut prendre plusieurs dizaines de secondes selon la taille)
 ser.write(f"FWUPDATE {size} {crc}\r".encode())
-line = wait_prefix(["+READY"], 15)
+print("[send] effacement QSPI + attente +READY ...")
+line = wait_prefix(["+READY"], 120)
 if not line:
     sys.exit("[send] pas de +READY (commande FWUPDATE cote firmware ? bon port/baud ?)")
 parts = line.split()

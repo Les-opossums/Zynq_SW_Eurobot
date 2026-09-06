@@ -118,6 +118,7 @@ void App_Loop(void) {
     if ((uint32_t)((uint32_t)Timer_ms1 - last_alive_led_ms) >= 500U) {
         last_alive_led_ms = (uint32_t)Timer_ms1;
         alive_led_state = !alive_led_state;
+        printf("BIN version 4.0\n");
     }
 
     // Test/bring-up LIDAR LD19 (cf declaration de last_lidar_test_ms plus haut).
