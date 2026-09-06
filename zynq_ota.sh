@@ -346,26 +346,63 @@ PYEOF
   c_ok "[send] termine"
 }
 
-# --- jtag (bonus) -----------------------------------------------------------
-do_jtag(){
-  [ -f "$BOOTBIN" ] || die "BOOT.bin introuvable: $BOOTBIN (lance d'abord 'build')"
-  find_vitis || die "program_flash introuvable. Source l'env Vitis ou exporte VITIS_DIR=/chemin/vers/Vitis/<version>"
-  c_info "[jtag] program_flash QSPI @ offset 0"
-  program_flash -f "$BOOTBIN" -offset 0 -flash_type qspi_single \
-    -fsbl "$FSBL" -cable type xilinx_tcf url TCP:127.0.0.1:3121
-  c_ok "[jtag] OK (reset la carte pour booter QSPI)"
+# --- Flash JTAG (program_flash) : image primaire (offset 0) ou golden ---------
+# program_flash sous Windows est un .bat (pas d'exe direct) : on le lance via
+# cmd.exe avec des chemins Windows. Sous Linux/WSL, settings64.sh le met dans
+# le PATH (find_vitis) et on l'appelle directement.
+PROGFLASH="program_flash"
+PROGFLASH_BAT=0
+find_progflash(){
+  command -v "$PROGFLASH" >/dev/null 2>&1 && return 0
+  local roots=(/tools/Xilinx /opt/Xilinx "$HOME/Xilinx" \
+               /c/Xilinx /mnt/c/Xilinx "/c/Program Files/Xilinx" "/mnt/c/Program Files/Xilinx")
+  [ -n "${VITIS_DIR:-}" ] && roots=("$(dirname "$(dirname "$VITIS_DIR")")" "${roots[@]}")
+  local root d
+  if [ "$IS_WIN" = 1 ]; then
+    local vdirs=()
+    [ -n "${VITIS_DIR:-}" ] && vdirs+=("$VITIS_DIR")
+    for root in "${roots[@]}"; do
+      for d in "$root"/Vitis/* "$root"/Vivado/*; do [ -d "$d" ] && vdirs+=("$d"); done
+    done
+    for d in "${vdirs[@]}"; do
+      if [ -f "$d/bin/program_flash.bat" ]; then
+        c_info "[env] program_flash : $d/bin/program_flash.bat"
+        PROGFLASH="$d/bin/program_flash.bat"; PROGFLASH_BAT=1; return 0
+      fi
+    done
+    return 1
+  fi
+  find_vitis >/dev/null 2>&1 || true       # source settings64.sh si besoin
+  command -v program_flash >/dev/null 2>&1
 }
 
-# --- golden : image de secours a GOLDEN_OFFSET (une fois, BOOT.bin connu-bon) --
-do_golden(){
+# do_flash <offset> <label> : flashe $BOOTBIN a l'offset donne par JTAG.
+# Prerequis : carte branchee en JTAG + hw_server accessible (Vitis ouvert, ou
+# hw_server lance ; program_flash en demarre un au besoin).
+do_flash(){
+  local off="$1" label="$2"
   [ -f "$BOOTBIN" ] || die "BOOT.bin introuvable: $BOOTBIN (lance d'abord 'build')"
-  [ "$IS_WIN" = 1 ] && die "sur Windows/Git Bash, lance 'golden' depuis un Vitis Command Prompt (program_flash)."
-  find_vitis || die "program_flash introuvable (source l'env Vitis)"
-  c_info "[golden] program_flash image de secours @ $GOLDEN_OFFSET"
-  program_flash -f "$BOOTBIN" -offset "$GOLDEN_OFFSET" -flash_type qspi_single \
-    -fsbl "$FSBL" -cable type xilinx_tcf url TCP:127.0.0.1:3121
-  c_ok "[golden] OK : image de secours en place. L'OTA (offset 0) ne la touche jamais ;"
-  c_ok "          le BootROM y retombe si l'image primaire est corrompue."
+  find_progflash || die "program_flash introuvable. Indique l'install : VITIS_DIR=/c/Xilinx/Vitis/2020.2 (Windows) ou source .../settings64.sh (Linux/WSL)"
+  c_info "[$label] program_flash QSPI @ $off  (carte en JTAG, hw_server actif)"
+  if [ "$IS_WIN" = 1 ] && [ "$PROGFLASH_BAT" = 1 ]; then
+    local pf bin fsbl
+    pf=$(cygpath -w "$PROGFLASH"); bin=$(cygpath -w "$BOOTBIN"); fsbl=$(cygpath -w "$FSBL")
+    c_info "  (equivalent manuel: \"$pf\" -f \"$bin\" -offset $off -flash_type qspi_single -fsbl \"$fsbl\" -cable type xilinx_tcf url TCP:127.0.0.1:3121)"
+    MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' "${COMSPEC:-cmd.exe}" /c "$pf" -f "$bin" -offset "$off" -flash_type qspi_single -fsbl "$fsbl" -cable type xilinx_tcf url TCP:127.0.0.1:3121
+  else
+    program_flash -f "$BOOTBIN" -offset "$off" -flash_type qspi_single -fsbl "$FSBL" -cable type xilinx_tcf url TCP:127.0.0.1:3121
+  fi
+}
+
+do_jtag(){
+  do_flash 0 jtag
+  c_ok "[jtag] OK (reset/power-cycle la carte pour booter QSPI)"
+}
+
+do_golden(){
+  do_flash "$GOLDEN_OFFSET" golden
+  c_ok "[golden] OK : image de secours en place a $GOLDEN_OFFSET. L'OTA (offset 0) ne la"
+  c_ok "          touche jamais ; le BootROM y retombe si l'image primaire est corrompue."
 }
 
 case "$CMD" in
