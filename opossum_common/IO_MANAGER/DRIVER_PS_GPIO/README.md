@@ -28,6 +28,16 @@ Le driver expose deux fonctions conformes aux attentes de l'`IO_MANAGER` :
 *   `int PS_GPIO_Init(void *instance)` : Initialise le périphérique, configure la direction de chaque broche, active les interruptions si nécessaire, et attache le gestionnaire d'interruptions Xilinx.
 *   `void PS_GPIO_Update(void *instance)` : Fonction de polling ("scrutation") appelée dans la boucle principale pour gérer les broches non configurées en interruption.
 
+## Exemple : LED de vie « alive » (MIO0)
+
+Une LED câblée sur **MIO0** (banque 500) est déclarée comme simple sortie dans `PS_GPIO_PINS` ([`IO_config.h`](../../IO_config.h)), liée à la variable `alive_led_state` :
+
+```c
+{ 0, PS_GPIO_DIR_OUTPUT, PIN_IRQ_NONE, &alive_led_state, NULL }
+```
+
+`core0_loop.c` bascule `alive_led_state` toutes les 500 ms (→ clignotement **1 Hz**) ; `PS_GPIO_Update()` recopie automatiquement l'état sur la broche à chaque tour de boucle. La LED clignote donc tant que la boucle principale de CPU0 tourne : c'est l'indicateur « carte bien flashée et opérationnelle ». Si elle se fige, CPU0 est bloqué. (MIO0 doit être muxé en GPIO dans le `ps7_init` — c'est le cas sur cette carte.)
+
 ## Voir aussi
 
 * [IO_MANAGER](../README.md) — table des périphériques et cycle de vie générique

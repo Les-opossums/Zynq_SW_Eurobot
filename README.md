@@ -160,7 +160,7 @@ La communication entre le Raspberry Pi (ROS 2) et le Zynq 7000 se fait via une l
 
 ## 2. Communication série (UART)
 
-Alternativement, la communication peut se faire en UART (console de commandes, cf. [APP_COM](./opossum_common/APP_COM/README.md)).
+Alternativement, la communication peut se faire en UART (console de commandes, cf. [APP_COM](./opossum_common/APP_COM/README.md)). Débit **921600 bauds** (`UART_COMM_BAUDRATE` dans [`IO_config.h`](./opossum_common/IO_config.h)) — pense à régler ton terminal série en conséquence.
 
 👉 [Voir la documentation détaillée du Driver UART PS](./opossum_common/IO_MANAGER/DRIVER_UART_PS/README.md)
 
@@ -175,6 +175,66 @@ Alternativement, la communication peut se faire en UART (console de commandes, c
 Le fichier BSP Xilinx `xemacpsif_physpeed.c` est écrasé par Vitis à chaque régénération et perd le patch forçant le lien à 100 Mbits (sinon négocié à tort à 10 Mbits sur le PHY RTL8201F). Relancer `patch_phy_speed.sh` (racine du dépôt) après chaque "Re-generate BSP Sources".
 
 ---
+
+# Mise à jour du firmware par liaison série (OTA)
+
+Le firmware peut être reflashé **à distance**, par la liaison série (UART, ou le pont USB-série de la carte / du Raspberry), **sans JTAG ni ouverture du robot**. Le host envoie un `BOOT.bin`, le Zynq l'écrit en QSPI, le vérifie (CRC32) puis reboote dessus.
+
+* Côté firmware : [APP_FWUPDATE](./opossum_common/APP_FWUPDATE/README.md) (commande `FWUPDATE` + driver QSPI).
+* Côté host : le script [`zynq_ota.sh`](./zynq_ota.sh) (racine du dépôt).
+
+### Prérequis : boot QSPI
+
+La carte doit être **strappée QSPI** (mode de boot échantillonné au POR sur Zynq-7000 ; un reset logiciel ne le rechange pas). Une fois strappée QSPI, elle démarre seule sur la flash au power-up — plus de JTAG à chaque démarrage du robot.
+
+### Rôles de `zynq_ota.sh`
+
+| Commande | Rôle | Machine |
+|---|---|---|
+| `build` | génère `BOOT.bin` (bootgen : FSBL + bitstream + core1 + core2) | PC avec Vitis |
+| `send`  | envoie le `BOOT.bin` par série + `REBOOT` (auto-détection du port) | PC ou **Raspberry** |
+| `all`   | `build` puis `send` | PC avec Vitis |
+| `jtag`  | flash QSPI de l'image primaire par JTAG (`program_flash`, offset 0) | PC avec Vitis |
+| `golden`| flash de l'image de **secours** par JTAG (offset `0x400000`), **à faire une fois** | PC avec Vitis |
+
+`build`/`jtag`/`golden` ont besoin des outils Xilinx (le script auto-détecte Vitis/Vivado, y compris sous Git Bash Windows) ; `send` n'a besoin que de `python3` + `pyserial` — c'est ce rôle que le Raspberry jouera à terme.
+
+### Mise en place (une fois) puis usage
+
+```bash
+./zynq_ota.sh build     # génère BOOT.bin
+./zynq_ota.sh golden    # installe le filet de secours (JTAG, BOOT.bin connu-bon)
+./zynq_ota.sh jtag      # image primaire initiale (ou 'send' si déjà en QSPI)
+
+# ensuite, mises à jour à distance :
+./zynq_ota.sh send      # ou 'all'
+```
+
+### Sécurité anti-brick (image golden)
+
+Un update interrompu ne peut **pas** briquer la carte : une image **golden** (secours) vit à `0x400000` (cf. [`board_config.h`](./opossum_common/board_config.h)), jamais touchée par l'OTA. Si l'image primaire (offset 0) est corrompue, le BootROM fait sa *Golden Image Search* (recherche d'un en-tête valide tous les 32 Ko) et boote la golden. En prime, l'OTA écrit **l'en-tête de boot en dernier**, donc l'offset 0 reste invalide tant que l'update n'est pas complet et vérifié. Détails : [APP_FWUPDATE](./opossum_common/APP_FWUPDATE/README.md).
+
+> ⚠️ Si après `REBOOT` la carte ne repart que par un vrai power-cycle, voir la note « boot mode et soft reset » de [SYSTEM_MANAGER](./opossum_common/SYSTEM_MANAGER/README.md).
+
+# Configuration « carte nue » (`board_config.h`)
+
+Pour accélérer l'init quand la carte est seule (pas de LIDAR, moteurs CAN, IMU, servos...), les drivers non utilisés sont désactivés à la compilation via des flags dans [`board_config.h`](./opossum_common/board_config.h) :
+
+```c
+#define USE_ETHERNET   0
+#define USE_WS2812B    1
+#define USE_IMU        0
+#define USE_FEETECH    0
+#define USE_CAN        0
+#define USE_LIDAR      0
+#define USE_ASSERV     0   // boucle d'asserv CPU1 (dépend de CAN + IMU)
+```
+
+Chaque flag pilote **en un seul endroit** l'entrée dans la table `DeviceTable[]` ([`IO_manager.c`](./opossum_common/IO_MANAGER/README.md)) **et** les appels directs correspondants ([`core0_loop.c`](./opossum_core1/README.md), [`core1_loop.c`](./opossum_core2/README.md)). `UART_COMM` et `GPIO_PS` restent toujours actifs. Pour rebrancher un périphérique : repasser son flag à `1` et recompiler.
+
+# LED de vie (« alive »)
+
+Une LED câblée sur **MIO0** (banque 500) clignote à **1 Hz** dès que la boucle principale de CPU0 tourne : elle sert d'indicateur visuel « carte bien flashée et opérationnelle » (pilotée via [DRIVER_PS_GPIO](./opossum_common/IO_MANAGER/DRIVER_PS_GPIO/README.md), toggle dans `core0_loop.c`). Si elle se fige, CPU0 est bloqué.
 
 # Documentation du code (architecture et navigation)
 

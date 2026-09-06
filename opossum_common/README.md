@@ -16,7 +16,8 @@ Ce dossier contient tout le code partagé entre les deux projets Vitis ([opossum
 
 Ces deux fichiers constituent le **point d'entrée unique** pour la configuration matérielle : c'est ici que tous les périphériques (GPIO, UART, capteurs, LEDs, CAN, Ethernet, FEETECH) sont déclarés, configurés, et assignés à un cœur spécifique (`CORE_CPU0`, `CORE_CPU1`, ou `CORE_BOTH`) via la table `IO_DEVICE_TABLE`, consommée par l'[IO_MANAGER](IO_MANAGER/README.md).
 
-* **`IO_config.h`** — includes des drivers, macros de configuration (adresses, baudrates...), déclarations `extern` des contextes, et la macro `IO_DEVICE_TABLE`.
+* **`IO_config.h`** — includes des drivers, macros de configuration (adresses, baudrates...) et déclarations `extern` des contextes. **Note :** la table des périphériques n'est plus une macro `IO_DEVICE_TABLE` ici ; elle est désormais instanciée sous forme de tableau `DeviceTable[]` dans [`IO_manager.c`](IO_MANAGER/README.md), avec des gardes `#if USE_xxx` (impossible dans une macro).
+* **`board_config.h`** — flags de configuration "carte nue" (`USE_ETHERNET`, `USE_WS2812B`, `USE_IMU`, `USE_FEETECH`, `USE_CAN`, `USE_LIDAR`, `USE_ASSERV`) pour activer/désactiver des drivers à la compilation et accélérer l'init, **et** le layout QSPI de l'OTA (`QSPI_GOLDEN_OFFSET`). Un flag pilote à la fois l'entrée dans `DeviceTable[]` et les appels directs correspondants (cf. [APP_FWUPDATE](APP_FWUPDATE/README.md)).
 * **`IO_globals.c`** — instanciation concrète des contextes (`Xxx_Ctx = { ... }`) et des variables d'état globales (`AU_state`, `leash_state`...).
 
 ---
@@ -66,25 +67,31 @@ i2c_sensor_context_t Sensor_Ctx = {
 };
 ```
 
-### Étape 5 : Ajout à la table globale `IO_DEVICE_TABLE`
-Retournez dans `IO_config.h`. La macro `IO_DEVICE_TABLE` est le cœur du système. C'est elle qui est lue par l'`IO_Manager` au démarrage et dans la boucle principale.
+### Étape 5 : Ajout à la table `DeviceTable[]`
+La table des périphériques est le cœur du système : lue par l'`IO_Manager` au démarrage et dans la boucle principale. Elle est déclarée dans [`IO_MANAGER/IO_manager.c`](IO_MANAGER/README.md) (tableau `DeviceTable[]`).
 
-Ajoutez une nouvelle entrée à la fin de la table :
+Ajoutez une entrée, éventuellement gardée par un flag de [`board_config.h`](board_config.h) pour pouvoir l'activer/désactiver facilement :
 
 ```c
-#define IO_DEVICE_TABLE { \
-    // ... [Drivers existants] ... \
-    { \
-        .type = DEV_TYPE_I2C,               /* Le type défini dans io_manager.h */ \
-        .owner = CORE_CPU1,                 /* Le cœur qui gère ce driver (CORE_CPU0, CORE_CPU1 ou CORE_BOTH) */ \
-        .driver_instance = &Sensor_Ctx,     /* Le pointeur vers le contexte défini dans IO_globals.c */ \
-        .irq_id = XPAR_FABRIC_SENSOR_INTR,  /* L'ID de l'interruption (mettre 0 si pas d'interruption) */ \
-        .irq_handler = (Xil_InterruptHandler)Sensor_IntrHandler, /* Fonction de callback IRQ (ou NULL) */ \
-        .init = SENSOR_Init,                /* Pointeur vers la fonction d'initialisation */ \
-        .update = SENSOR_Update             /* Pointeur vers la fonction de mise à jour/polling */ \
-    } \
-}
+static io_device_t DeviceTable[] = {
+    // ... [Drivers existants] ...
+#if USE_MON_CAPTEUR                      /* optionnel : flag board_config.h */
+    {
+        .name = "SENSOR",                /* nom (pour DRVEN/DRVDIS/DRVLIST et le rapport d'init) */
+        .type = DEV_TYPE_I2C,            /* type défini dans io_manager.h */
+        .owner = CORE_CPU1,              /* cœur gérant ce driver (CORE_CPU0 / CORE_CPU1 / CORE_BOTH) */
+        .driver_instance = &Sensor_Ctx,  /* contexte défini dans IO_globals.c */
+        .irq_id = XPAR_FABRIC_SENSOR_INTR, /* ID d'interruption (0 si aucune) */
+        .irq_handler = (Xil_InterruptHandler)Sensor_IntrHandler, /* callback IRQ (ou NULL) */
+        .init = SENSOR_Init,
+        .update = SENSOR_Update,
+        .deinit = NULL
+    },
+#endif
+};
 ```
+
+> Anciennement `IO_DEVICE_TABLE` était une macro dans `IO_config.h`. Elle a été convertie en tableau normal pour permettre les gardes `#if` (une directive préprocesseur ne peut pas vivre dans une macro).
 
 ---
 
@@ -119,6 +126,7 @@ L'état sera automatiquement mis à jour par le gestionnaire GPIO centralisé.
 * [IPC_MANAGER](IPC_MANAGER/README.md) — communication et synchronisation inter-cœurs
 * [TIMER_MANAGER](TIMER_MANAGER/README.md) — bases de temps ms/µs et instrumentation (`TIMING_MEASURE`)
 * [SYSTEM_MANAGER](SYSTEM_MANAGER/README.md) — redémarrage logiciel complet
+* `board_config.h` — flags carte nue (USE_xxx) + layout QSPI de l'OTA
 
 ### Périphériques ([IO_MANAGER](IO_MANAGER/README.md))
 
@@ -131,6 +139,7 @@ L'état sera automatiquement mis à jour par le gestionnaire GPIO centralisé.
 * [APP_DRIVER_BRIDGE](APP_DRIVER_BRIDGE/README.md) — commandes génériques de pilotage des drivers
 * [APP_MOTORS](APP_MOTORS/README.md) — retour et commande des ESC C610
 * [APP_TEST](APP_TEST/README.md) — tests de bout en bout
+* [APP_FWUPDATE](APP_FWUPDATE/README.md) — mise à jour du firmware par liaison série (OTA) : écriture QSPI + sécurité anti-brick (image golden)
 
 ### Projets spécifiques à un cœur
 
