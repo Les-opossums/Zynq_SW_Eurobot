@@ -62,6 +62,7 @@ BOOTBIN="${BOOTBIN:-$ROOT/BOOT.bin}"
 PORT="${PORT:-auto}"   # "auto" = detection (USB-serie) ; sinon /dev/ttyUSBx, COMx...
 BAUD="${BAUD:-921600}"   # doit correspondre a UART_COMM_BAUDRATE du firmware
 CHUNK="${CHUNK:-4096}"
+GOLDEN_OFFSET="${GOLDEN_OFFSET:-0x400000}"   # doit == QSPI_GOLDEN_OFFSET (board_config.h)
 DO_REBOOT=1
 
 # --- Jolis logs -------------------------------------------------------------
@@ -142,7 +143,9 @@ Usage: $(basename "$0") <build|send|all|jtag> [options]
   build            Genere BOOT.bin via bootgen (necessite les outils Xilinx).
   send             Envoie BOOT.bin par serie + reboot (Raspberry Pi : python3 + pyserial).
   all              build puis send.
-  jtag             Flash QSPI par JTAG via program_flash (necessite Vitis).
+  jtag             Flash QSPI (image primaire, offset 0) par JTAG via program_flash.
+  golden           Flash l'image de SECOURS (golden) par JTAG a GOLDEN_OFFSET (a faire
+                   UNE fois, avec un BOOT.bin connu-bon). Filet anti-brick de l'OTA.
 
 Options :
   -p, --port DEV   Port serie (auto|/dev/ttyUSBx|COMx) (defaut: $PORT)
@@ -353,11 +356,24 @@ do_jtag(){
   c_ok "[jtag] OK (reset la carte pour booter QSPI)"
 }
 
+# --- golden : image de secours a GOLDEN_OFFSET (une fois, BOOT.bin connu-bon) --
+do_golden(){
+  [ -f "$BOOTBIN" ] || die "BOOT.bin introuvable: $BOOTBIN (lance d'abord 'build')"
+  [ "$IS_WIN" = 1 ] && die "sur Windows/Git Bash, lance 'golden' depuis un Vitis Command Prompt (program_flash)."
+  find_vitis || die "program_flash introuvable (source l'env Vitis)"
+  c_info "[golden] program_flash image de secours @ $GOLDEN_OFFSET"
+  program_flash -f "$BOOTBIN" -offset "$GOLDEN_OFFSET" -flash_type qspi_single \
+    -fsbl "$FSBL" -cable type xilinx_tcf url TCP:127.0.0.1:3121
+  c_ok "[golden] OK : image de secours en place. L'OTA (offset 0) ne la touche jamais ;"
+  c_ok "          le BootROM y retombe si l'image primaire est corrompue."
+}
+
 case "$CMD" in
   build) do_build;;
   send)  do_send;;
   all)   do_build; do_send;;
   jtag)  do_jtag;;
+  golden) do_golden;;
   -h|--help|help) usage;;
   *) die "commande inconnue: $CMD (build|send|all|jtag)";;
 esac

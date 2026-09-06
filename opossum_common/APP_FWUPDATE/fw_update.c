@@ -1,8 +1,8 @@
 #include "fw_update.h"
 #include "qspi_flash.h"
-#include "../IO_config.h"                    /* UartComm_Ctx, UART_PS_*        */
-#include "../APP_COM/interpreteur.h"         /* Get_Param_u32                 */
-#include "../TIMER_MANAGER/timer_manager.h"  /* Timer_ms1                     */
+#include "../IO_config.h"                    /* UartComm_Ctx, UART_PS_*, QSPI_* */
+#include "../APP_COM/interpreteur.h"         /* Get_Param_u32                   */
+#include "../TIMER_MANAGER/timer_manager.h"  /* Timer_ms1                       */
 #include "xstatus.h"
 #include <string.h>
 
@@ -10,18 +10,19 @@
  * continu (ISR RX + drain serre), donc l'occupation reste faible meme si ce
  * bloc depasse la taille du ring buffer. */
 #define FW_CHUNK            8192U
-#define FW_MAX_IMAGE_SIZE   0x1000000U   /* 16 Mo (limite adressage 3 octets) */
+/* Taille max acceptee : l'OTA ecrit a l'offset 0 et ne doit JAMAIS atteindre
+ * l'image golden (cf QSPI_GOLDEN_OFFSET dans board_config.h). */
+#define FW_MAX_IMAGE_SIZE   QSPI_UPDATE_MAX_SIZE
 #define FW_RX_TIMEOUT_MS    3000         /* abandon si plus rien ne vient      */
 
-static u8 s_block[FW_CHUNK];
+static u8 s_block[FW_CHUNK];   /* bloc courant recu                            */
+static u8 s_block0[FW_CHUNK];  /* 1er bloc (en-tete de boot) : ecrit en DERNIER */
 
 /* -------------------------------------------------------------------------
- * TX pendant la commande : ATTENTION, xil_printf/outbyte de ce projet
- * n'ecrit PAS en polled -- il empile dans le ring buffer TX, vide seulement
- * par UART_PS_Update() DANS LA BOUCLE PRINCIPALE. Or ici la boucle est
- * bloquee dans la commande. On empile donc dans le ring PUIS on vide nous-
- * memes (on joue le role de la boucle principale). Sinon les reponses
- * (+READY/+ACK/+DONE) ne partiraient qu'apres la fin de la commande.
+ * TX pendant la commande : xil_printf/outbyte de ce projet n'ecrit PAS en
+ * polled -- il empile dans le ring TX, vide seulement par UART_PS_Update()
+ * DANS LA BOUCLE PRINCIPALE, ici bloquee. On empile donc puis on vide nous-
+ * memes (on joue le role de la boucle principale).
  * ------------------------------------------------------------------------- */
 static void fw_flush(void) {
     while (UART_PS_TxFreeSpace(&UartComm_Ctx) != (UART_PS_RING_BUFFER_SIZE - 1)) {
@@ -34,7 +35,7 @@ static void fw_send(const char *s) {
     fw_flush();
 }
 
-/* Envoie "<prefix><valeur decimale>\n" (ex: "+ACK 4096\n") */
+/* Envoie "<prefix><valeur decimale>\n" (ex: "+ACK 8192\n") */
 static void fw_send_num(const char *prefix, u32 v) {
     UART_PS_SendBuffer(&UartComm_Ctx, (const u8 *)prefix, (u16)strlen(prefix));
     char b[12];
@@ -63,8 +64,7 @@ static u32 crc32_step(u32 crc, const u8 *data, u32 len) {
 }
 
 /* Recoit exactement 'want' octets dans s_block, avec timeout inter-octet.
- * La boucle principale etant bloquee, la reception repose sur l'ISR RX qui
- * remplit le ring buffer ; on le vide ici en boucle serree. */
+ * Reception via l'ISR RX (qui remplit le ring), qu'on vide en boucle serree. */
 static int fw_recv_block(u32 want) {
     u32 got = 0;
     int last_ms = Timer_ms1;
@@ -89,11 +89,12 @@ uint8_t FW_Update_Cmd(void) {
         return 1;
     }
     if (size == 0U || size > FW_MAX_IMAGE_SIZE) {
+        /* protege aussi la zone golden : size ne doit pas atteindre l'offset golden */
         fw_send("-ERR size\n");
         return 1;
     }
 
-    /* 2. Init QSPI + effacement de la zone (lent : fait AVANT +READY) */
+    /* 2. Init QSPI + effacement de la zone primaire (lent : AVANT +READY) */
     if (QspiFlash_Init() != XST_SUCCESS) {
         fw_send("-ERR qspi_init\n");
         return 1;
@@ -103,15 +104,20 @@ uint8_t FW_Update_Cmd(void) {
         return 1;
     }
 
-    /* 3. Purge toute reception residuelle (le host n'envoie le binaire
-     *    qu'apres +READY, donc rien d'utile n'est jete ici). */
+    /* 3. Purge reception residuelle (le host n'envoie qu'apres +READY) */
     { u8 c; while (UART_PS_GetByte(&UartComm_Ctx, &c)) { } }
 
     fw_send_num("+READY ", FW_CHUNK);
 
-    /* 4. Reception + ecriture bloc par bloc, avec ACK (flow-control) */
-    u32 total = 0;
-    u32 crc   = 0xFFFFFFFFU;
+    /* 4. Reception + ecriture bloc par bloc, avec ACK (flow-control).
+     *    SECURITE ANTI-BRICK : le bloc 0 (en-tete de boot + debut FSBL) N'EST
+     *    PAS ecrit tout de suite -- il est garde et ecrit en DERNIER, une fois
+     *    tout le corps en flash et le CRC recu verifie. Ainsi, tant que l'OTA
+     *    n'est pas complet, l'offset 0 reste efface (image invalide) et un
+     *    plantage laisse le BootROM retomber sur l'image golden. */
+    u32 total    = 0;
+    u32 blk0_len = 0;
+    u32 crc      = 0xFFFFFFFFU;
     while (total < size) {
         u32 blk = (size - total < FW_CHUNK) ? (size - total) : FW_CHUNK;
 
@@ -119,23 +125,38 @@ uint8_t FW_Update_Cmd(void) {
             fw_send("-ERR timeout\n");
             return 1;
         }
-        if (QspiFlash_Write(total, s_block, blk) != XST_SUCCESS) {
-            fw_send("-ERR write\n");
-            return 1;
+        crc = crc32_step(crc, s_block, blk);   /* CRC dans l'ordre du fichier */
+
+        if (total == 0U) {
+            memcpy(s_block0, s_block, blk);    /* bloc 0 differe */
+            blk0_len = blk;
+        } else {
+            if (QspiFlash_Write(total, s_block, blk) != XST_SUCCESS) {
+                fw_send("-ERR write\n");
+                return 1;
+            }
         }
-        crc = crc32_step(crc, s_block, blk);
         total += blk;
         fw_send_num("+ACK ", total);
     }
     crc ^= 0xFFFFFFFFU;
 
-    /* 5a. CRC des donnees recues (detecte une corruption de transfert) */
+    /* 5. CRC des donnees recues (detecte une corruption de transfert) AVANT
+     *    de rendre l'image bootable (ecriture du bloc 0). */
     if (crc != expected_crc) {
         fw_send("-ERR crc_rx\n");
+        return 1;   /* offset 0 jamais ecrit -> golden reste le boot de secours */
+    }
+
+    /* 6. Corps complet en flash + CRC OK -> on ecrit enfin le bloc 0 (en-tete),
+     *    ce qui rend l'image primaire bootable. */
+    if (QspiFlash_Write(0, s_block0, blk0_len) != XST_SUCCESS) {
+        fw_send("-ERR write0\n");
         return 1;
     }
 
-    /* 5b. CRC par RELECTURE de la flash (detecte une ecriture QSPI ratee) */
+    /* 7. Verification finale par RELECTURE de toute la flash (detecte une
+     *    ecriture QSPI ratee). */
     u32 rcrc = 0xFFFFFFFFU;
     u32 off  = 0;
     while (off < size) {
@@ -153,8 +174,7 @@ uint8_t FW_Update_Cmd(void) {
         return 1;
     }
 
-    /* 6. Succes : le host peut envoyer REBOOT pour booter la nouvelle image
-     *    (a condition que la carte soit strappee QSPI). */
+    /* 8. Succes : le host peut envoyer REBOOT (la carte est strappee QSPI). */
     fw_send("+DONE\n");
     return 0;
 }

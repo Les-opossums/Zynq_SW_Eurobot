@@ -26,4 +26,24 @@
 
 #define USE_ASSERV     0   /* boucle d'asserv CPU1 (depend de CAN + IMU)      */
 
+
+/* =========================================================================
+ * Layout QSPI + securite OTA (image golden / fallback MultiBoot)
+ * ========================================================================= *
+ * L'OTA reecrit UNIQUEMENT l'image primaire a l'offset 0. Une image "golden"
+ * (secours, connue-bonne, avec la commande FWUPDATE) est flashee UNE FOIS par
+ * JTAG a QSPI_GOLDEN_OFFSET et n'est jamais touchee par l'OTA. Si l'image
+ * primaire est corrompue (OTA interrompu), le BootROM fait sa "Golden Image
+ * Search" (recherche d'un en-tete valide tous les 32 Ko en remontant) et
+ * boote la golden -> la carte n'est jamais bricke.
+ *
+ * QSPI_GOLDEN_OFFSET doit etre aligne sur 32 Ko, > taille max de l'image
+ * primaire, et rentrer dans la flash (verifier la taille de ta puce : 4 Mo
+ * ici convient pour une flash >= 8 Mo et une image < 4 Mo ; monte-le si ton
+ * image grossit et que la flash est plus grande). Cote host, GOLDEN_OFFSET
+ * dans zynq_ota.sh doit valoir la MEME chose.
+ */
+#define QSPI_GOLDEN_OFFSET    0x00400000U        /* 4 Mo : offset de l'image golden */
+#define QSPI_UPDATE_MAX_SIZE  QSPI_GOLDEN_OFFSET /* l'OTA (offset 0) ne doit jamais l'atteindre */
+
 #endif /* BOARD_CONFIG_H */
