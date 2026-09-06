@@ -64,15 +64,27 @@ int main(void){
 
         // 2. Le CPU 0 réveille le CPU 1 !
         xil_printf("[CPU0] Reveil du CPU1 a l'adresse 0x%08X...\n", CPU1_ENTRY_ADDR);
-        dmb(); // Barrière mémoire : s'assure que l'écriture est terminée
+        // Reveille CPU1 : ecrit l'adresse d'entree dans le registre de wake-up
+        // (0xFFFFFFF0) puis SEV. dsb() garantit que l'ecriture est terminee et
+        // ordonnee avant le SEV. (Pas de cache maintenance sur cette adresse :
+        // Xil_DCacheFlushRange y provoquait un data abort sur cette MMU.)
+        dmb();
         Xil_Out32(CPU1_WAKE_REG, CPU1_ENTRY_ADDR);
-        sev(); // Send Event : Réveille le CPU 1
+        dsb();
+        sev(); // Send Event : reveille CPU1
 
-        // 3. On attend que le CPU 1 confirme qu'il a fini sa propre init
-        // (IPC_DATA est en zone OCM non-cacheable, cf IPC_Init(), donc une
-        // simple relecture volatile suffit, pas besoin d'invalider le cache)
-        while (IPC_DATA->core1_init_done != 0x11111111) {
-            // Boucle d'attente active
+        // 3. Attente de l'init de CPU1, avec re-emission periodique du reveil
+        // (adresse + SEV) pour couvrir un evenement rate. IPC_DATA est en OCM
+        // non-cacheable (cf IPC_Init()) : relecture volatile directe.
+        {
+            volatile u32 spins = 0;
+            while (IPC_DATA->core1_init_done != 0x11111111) {
+                if ((++spins & 0x000FFFFFu) == 0u) {
+                    Xil_Out32(CPU1_WAKE_REG, CPU1_ENTRY_ADDR);
+                    dsb();
+                    sev();
+                }
+            }
         }
         xil_printf("[CPU0] CPU1 en ligne !\n");
 

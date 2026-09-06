@@ -63,6 +63,7 @@ PORT="${PORT:-auto}"   # "auto" = detection (USB-serie) ; sinon /dev/ttyUSBx, CO
 BAUD="${BAUD:-921600}"   # doit correspondre a UART_COMM_BAUDRATE du firmware
 CHUNK="${CHUNK:-4096}"
 GOLDEN_OFFSET="${GOLDEN_OFFSET:-0x400000}"   # doit == QSPI_GOLDEN_OFFSET (board_config.h)
+REBOOT_SERIAL=0        # role reboot : 1 = via serie (REBOOT), 0 = via JTAG (rst -por)
 DO_REBOOT=1
 
 # --- Jolis logs -------------------------------------------------------------
@@ -146,6 +147,9 @@ Usage: $(basename "$0") <build|send|all|jtag> [options]
   jtag             Flash QSPI (image primaire, offset 0) par JTAG via program_flash.
   golden           Flash l'image de SECOURS (golden) par JTAG a GOLDEN_OFFSET (a faire
                    UNE fois, avec un BOOT.bin connu-bon). Filet anti-brick de l'OTA.
+  reboot           Redemarre la carte. Defaut : POR par JTAG (xsct rst -por), utile apres
+                   un flash via Vitis. Avec -s/--serial : envoie REBOOT sur la serie
+                   (si le firmware tourne deja).
 
 Options :
   -p, --port DEV   Port serie (auto|/dev/ttyUSBx|COMx) (defaut: $PORT)
@@ -156,7 +160,8 @@ Options :
       --elf0 FILE  ELF CPU0 (opossum_core1)
       --elf1 FILE  ELF CPU1 (opossum_core2)
       --chunk N    Taille de bloc serie          (defaut: $CHUNK)
-      --no-reboot  Ne pas envoyer REBOOT apres l'ecriture
+      --no-reboot  Ne pas envoyer REBOOT apres l'ecriture (role send)
+  -s, --serial     (role reboot) redemarre via la commande serie au lieu du JTAG
   -h, --help       Cette aide
 
 Exemples :
@@ -180,6 +185,7 @@ while [ $# -gt 0 ]; do
     --elf1)     ELF1="$2"; shift 2;;
     --chunk)    CHUNK="$2"; shift 2;;
     --no-reboot) DO_REBOOT=0; shift;;
+    -s|--serial) REBOOT_SERIAL=1; shift;;
     -h|--help)  usage; exit 0;;
     *) die "option inconnue: $1";;
   esac
@@ -405,12 +411,87 @@ do_golden(){
   c_ok "          touche jamais ; le BootROM y retombe si l'image primaire est corrompue."
 }
 
+# --- reboot : redemarre la carte -------------------------------------------
+# JTAG (defaut) : POR via xsct (rst -por). Utile APRES un flash via Vitis, ou
+#   le firmware ne tourne pas -> pas de REBOOT serie possible. Un POR rejoue
+#   proprement le boot QSPI (contrairement au soft reset).
+# serie (-s)    : envoie la commande REBOOT au firmware en cours (System_Reboot).
+XSCT="xsct"
+XSCT_BAT=0
+find_xsct(){
+  command -v "$XSCT" >/dev/null 2>&1 && return 0
+  local roots=(/tools/Xilinx /opt/Xilinx "$HOME/Xilinx" \
+               /c/Xilinx /mnt/c/Xilinx "/c/Program Files/Xilinx" "/mnt/c/Program Files/Xilinx")
+  [ -n "${VITIS_DIR:-}" ] && roots=("$(dirname "$(dirname "$VITIS_DIR")")" "${roots[@]}")
+  local root d
+  if [ "$IS_WIN" = 1 ]; then
+    local vdirs=()
+    [ -n "${VITIS_DIR:-}" ] && vdirs+=("$VITIS_DIR")
+    for root in "${roots[@]}"; do
+      for d in "$root"/Vitis/* "$root"/Vivado/*; do [ -d "$d" ] && vdirs+=("$d"); done
+    done
+    for d in "${vdirs[@]}"; do
+      if [ -f "$d/bin/xsct.bat" ]; then
+        c_info "[env] xsct : $d/bin/xsct.bat"
+        XSCT="$d/bin/xsct.bat"; XSCT_BAT=1; return 0
+      fi
+    done
+    return 1
+  fi
+  find_vitis >/dev/null 2>&1 || true
+  command -v xsct >/dev/null 2>&1
+}
+
+do_reboot(){
+  if [ "$REBOOT_SERIAL" = 1 ]; then
+    local PY; PY=$(command -v python3 || command -v python) || die "python introuvable"
+    c_info "[reboot] REBOOT via serie (port=$PORT @ $BAUD)"
+    "$PY" - "$PORT" "$BAUD" <<'PYEOF'
+import sys, time
+try:
+    import serial
+    from serial.tools import list_ports
+except ImportError:
+    sys.exit("pyserial manquant -> pip install pyserial")
+req, baud = sys.argv[1], int(sys.argv[2])
+port = req
+if not req or req.lower() == "auto":
+    cands = [p for p in list_ports.comports() if getattr(p, "vid", None) is not None] or list(list_ports.comports())
+    if len(cands) != 1:
+        sys.exit("[reboot] port auto ambigu, precise -p <port>")
+    port = cands[0].device
+    print(f"[reboot] port : {port}")
+s = serial.Serial(port, baud, timeout=2)
+time.sleep(0.2)
+s.write(b"REBOOT\r")
+time.sleep(0.3)
+s.close()
+print("[reboot] commande REBOOT envoyee")
+PYEOF
+    c_ok "[reboot] envoye (le firmware doit etre en cours d'execution)"
+    return
+  fi
+
+  find_xsct || die "xsct introuvable. Indique l'install : VITIS_DIR=/c/Xilinx/Vitis/2020.2 ou source .../settings64.sh"
+  c_info "[reboot] POR par JTAG (xsct rst -por) -- carte en JTAG, hw_server actif"
+  local cmds="connect; rst -por; after 300; disconnect"
+  if [ "$IS_WIN" = 1 ] && [ "$XSCT_BAT" = 1 ]; then
+    local xw; xw=$(cygpath -w "$XSCT")
+    c_info "  (equivalent manuel: \"$xw\" -eval \"$cmds\")"
+    MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' "${COMSPEC:-cmd.exe}" /c "$xw" -eval "$cmds"
+  else
+    xsct -eval "$cmds"
+  fi
+  c_ok "[reboot] POR declenche : la carte reboote sur la QSPI"
+}
+
 case "$CMD" in
   build) do_build;;
   send)  do_send;;
   all)   do_build; do_send;;
   jtag)  do_jtag;;
   golden) do_golden;;
+  reboot) do_reboot;;
   -h|--help|help) usage;;
   *) die "commande inconnue: $CMD (build|send|all|jtag)";;
 esac
