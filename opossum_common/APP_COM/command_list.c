@@ -19,6 +19,12 @@
 #include "../../opossum_core1/src/APP_ACTIONNEURS/feetech_Action.h"
 #endif
 
+/* Mise a jour firmware par QSPI (reception BOOT.bin sur UART_COMM) :
+ * console + QSPI cote CPU0 uniquement. cf zynq_ota.sh (role send). */
+#if THIS_CORE_ID == CORE_ID_CPU0
+#include "../APP_FWUPDATE/fw_update.h"
+#endif
+
 /*
  * Table des commandes disponibles.
  *
@@ -67,6 +73,10 @@ const Command Command_List[] = {
     // PSS_RST_CTRL : ne revient jamais, le BootROM/FSBL redemarrent comme
     // a la mise sous tension.
     { "REBOOT",       Reboot_Cmd},
+#if THIS_CORE_ID == CORE_ID_CPU0
+    // Reflash QSPI : "FWUPDATE <taille> <crc32>" puis flux binaire, cf zynq_ota.sh
+    { "FWUPDATE",     FW_Update_Cmd},
+#endif
 
     // --- Actionneurs (pinces FEETECH, CPU0 uniquement) ---
 #if THIS_CORE_ID == CORE_ID_CPU0
