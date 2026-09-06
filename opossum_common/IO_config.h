@@ -34,6 +34,7 @@ extern volatile int bno_cs_state;
 extern volatile int bno_rst_state;
 extern volatile int bno_int_state;
 extern volatile int bno_wake_state;
+extern volatile int alive_led_state; // LED de vie (heartbeat 1 Hz) sur MIO0
 
 /* ================================================================= *
  * Fonctions de callback pour les interruptions (Optionnel)
@@ -52,7 +53,10 @@ extern void AU_Callback(void *callback_ref);
     { 61,       PS_GPIO_DIR_OUTPUT,  PIN_IRQ_NONE,           NULL,     NULL}, /* bno_rst — piloté directement par le driver */ \
     { 62,       PS_GPIO_DIR_OUTPUT,  PIN_IRQ_NONE,           &bno_wake_state,    NULL}, /* bno_cs  — piloté directement par le driver */ \
     { 63,       PS_GPIO_DIR_OUTPUT,  PIN_IRQ_NONE,           NULL,      NULL}, \
-    { 60,       PS_GPIO_DIR_INPUT ,  PIN_IRQ_EDGE_FALLING,   &bno_int_state,     BNO085_INT_Callback} \
+    { 60,       PS_GPIO_DIR_INPUT ,  PIN_IRQ_EDGE_FALLING,   &bno_int_state,     BNO085_INT_Callback}, \
+    /* LED de vie (heartbeat 1 Hz) cablee sur MIO0, banque 500 : pilotee en
+     * sortie, l'etat suit alive_led_state (toggle a 500 ms dans core0_loop.c). */\
+    { 0,        PS_GPIO_DIR_OUTPUT,  PIN_IRQ_NONE,           &alive_led_state,   NULL} \
 }
 
 /* ================================================================= *

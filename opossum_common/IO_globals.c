@@ -25,6 +25,7 @@ volatile int bno_cs_state   = 0;
 volatile int bno_rst_state  = 0;
 volatile int bno_int_state  = 0;
 volatile int bno_wake_state = 0;
+volatile int alive_led_state = 0; // LED de vie (heartbeat 1 Hz) sur MIO0
 
 // --- Callback appelé sur interruption de la laisse ---
 void leash_Callback(void *callback_ref) {

@@ -25,6 +25,11 @@ static uint32_t last_timing_print_ms;
 // A retirer une fois la chaine (IRQ DMA + accumulation de scan) validee.
 static uint32_t last_lidar_test_ms;
 
+// Cadencement du clignotement "alive" de la LED de vie (MIO0) : toggle
+// toutes les 500 ms => periode 1 s => 1 Hz. Signale que la carte est
+// bien flashee et que la boucle principale de CPU0 tourne.
+static uint32_t last_alive_led_ms;
+
 // Detection de front montant sur AU_state (variable locale CPU0, rafraichie
 // par AU_Callback() dans IO_globals.c) pour mettre les pinces en securite
 // (AU_pinces() : abandon de toute action en cours, retour a l'etat IDLE).
@@ -92,6 +97,14 @@ void App_Loop(void) {
     // Indicateur visuel du bandeau WS2812B : AU (rouge), init de localisation
     // (gauge orange clignotante), robot pret (vert), match lance (eteint).
     LED_Indicator_Update();
+
+    // LED de vie "alive" (MIO0, banque 500) : bascule toutes les 500 ms pour
+    // un clignotement a 1 Hz. alive_led_state est recopie sur la broche par
+    // PS_GPIO_Update() (appele via IO_Manager_Update() en tete de boucle).
+    if ((uint32_t)((uint32_t)Timer_ms1 - last_alive_led_ms) >= 500U) {
+        last_alive_led_ms = (uint32_t)Timer_ms1;
+        alive_led_state = !alive_led_state;
+    }
 
     // Test/bring-up LIDAR LD19 (cf declaration de last_lidar_test_ms plus haut).
     // ts_trigger_ms() n'existe que si TIMING_MEASURE est active (cf
