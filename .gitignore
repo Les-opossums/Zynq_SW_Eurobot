@@ -35,3 +35,5 @@ Zynq_block_design_wrapper/
 **/opossum_core1/opossum_core1.prj
 
 Opossum_hw/
+
+BOOT.bin

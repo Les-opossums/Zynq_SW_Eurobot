@@ -4,7 +4,123 @@
 #include "../TIMER_MANAGER/timing_stats.h"
 #include <string.h>
 
-static io_device_t DeviceTable[] = IO_DEVICE_TABLE;
+/* Table des peripheriques geree par l'IO_Manager. Chaque entree hors coeur
+ * de base (UART_COMM, GPIO_PS) est conditionnee par un flag USE_xxx de
+ * board_config.h : desactiver un driver le retire de l'init ET du polling,
+ * sans autre modification (cf board_config.h). */
+static io_device_t DeviceTable[] = {
+    {
+        .name = "GPIO_PS",
+        .type = DEV_TYPE_GPIO_PS,
+        .owner = CORE_CPU0,
+        .driver_instance = &PsGpio_Ctx,
+        .irq_id = XPAR_XGPIOPS_0_INTR,
+        .irq_handler = (Xil_InterruptHandler)XGpioPs_IntrHandler,
+        .init = PS_GPIO_Init,
+        .update = PS_GPIO_Update,
+        .deinit = NULL
+    },
+#if USE_WS2812B
+    {
+        .name = "WS2812B",
+        .type = DEV_TYPE_WS2812B,
+        .owner = CORE_CPU0,
+        .driver_instance = &Ws2812b_Ctx,
+        .irq_id = 0,
+        .irq_handler = NULL,
+        .init = WS2812B_Init,
+        .update = WS2812B_Update,
+        .deinit = NULL
+    },
+#endif
+    {
+        .name = "UART_COMM",
+        .type = DEV_TYPE_UART_PS,
+        .owner = CORE_CPU0,
+        .driver_instance = &UartComm_Ctx,
+        .irq_id = XPAR_XUARTPS_0_INTR,
+        .irq_handler = (Xil_InterruptHandler)XUartPs_InterruptHandler,
+        .init = UART_PS_Init,
+        .update = UART_PS_Update,
+        .deinit = NULL
+    },
+#if USE_CAN
+    {
+        .name = "CAN_MOTORS",
+        .type = DEV_TYPE_CAN_MOTORS,
+        .owner = CORE_CPU1,
+        .driver_instance = &Can0_Ctx,
+        .irq_id = CAN0_INTR_ID,
+        .irq_handler = (Xil_InterruptHandler)XCanPs_IntrHandler,
+        .init = CAN_IO_Init,
+        .update = CAN_IO_Update,
+        .deinit = CAN_IO_Deinit
+    },
+#endif
+#if USE_ETHERNET
+    {
+        .name = "ETHERNET",
+        .type = DEV_TYPE_ETHERNET,
+        .owner = CORE_CPU0,
+        .driver_instance = &Eth_Ctx,
+        .irq_id = 0, /* irq EMAC connectee directement par ETH_IO_Init() */
+        .irq_handler = NULL,
+        .init = ETH_IO_Init,
+        .update = ETH_IO_Update,
+        .deinit = NULL
+    },
+#endif
+#if USE_IMU
+    {
+        .name = "IMU_BNO085",
+        .type = DEV_TYPE_IMU_BNO085,
+        .owner = CORE_CPU0,
+        .driver_instance = &Imu_Ctx,
+        .irq_id = 0,
+        .irq_handler = NULL,
+        .init = BNO085_IO_Init,
+        .update = BNO085_IO_Update,
+        .deinit = NULL
+    },
+#endif
+#if USE_FEETECH
+    {
+        .name = "UART_FEETECH",
+        .type = DEV_TYPE_UART_PS,
+        .owner = CORE_CPU0,
+        .driver_instance = &UartFeetech_Ctx,
+        .irq_id = XPAR_XUARTPS_1_INTR,
+        .irq_handler = (Xil_InterruptHandler)XUartPs_InterruptHandler,
+        .init = UART_PS_Init,
+        .update = UART_PS_Update,
+        .deinit = NULL
+    },
+    {
+        .name = "FEETECH",
+        .type = DEV_TYPE_FEETECH,
+        .owner = CORE_CPU0,
+        .driver_instance = &Feetech_Ctx,
+        .irq_id = 0,
+        .irq_handler = NULL,
+        .init = FEETECH_IO_Init,
+        .update = FEETECH_IO_Update,
+        .deinit = NULL
+    },
+#endif
+#if USE_LIDAR
+    {
+        .name = "LIDAR_LD19",
+        .type = DEV_TYPE_LIDAR_LD19,
+        .owner = CORE_CPU0,
+        .driver_instance = &Lidar_Ld19_Ctx,
+        .irq_id = LIDAR_LD19_INTR_ID,
+        .irq_handler = (Xil_InterruptHandler)LIDAR_LD19_IntrHandler,
+        .init = LIDAR_LD19_Init,
+        .update = LIDAR_LD19_Update,
+        .deinit = LIDAR_LD19_Deinit
+    },
+#endif
+};
 static const int NumDevices = sizeof(DeviceTable) / sizeof(io_device_t);
 
 // Etat d'init de CE cœur, stocke silencieusement (cf IO_Manager_ExportStatus /
