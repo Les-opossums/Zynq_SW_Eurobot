@@ -1,6 +1,7 @@
 #include "IPC_manager.h"
 #include "../CORE_ID/core_id.h" 
 #include "../IRQ_MANAGER/IRQ_manager.h"
+#include "../TIMER_MANAGER/timer_manager.h"   // Timer_us_Get (timeout de sync)
 
 #include "xil_mmu.h"
 #include "xpseudo_asm.h"
@@ -25,22 +26,26 @@ void IPC_Init(void) {
     #endif
 }
 
-void IPC_SyncCores(void) {
+uint8_t IPC_SyncCores(void) {
+    uint32_t t_start = Timer_us_Get();
     #if THIS_CORE_ID == CORE_ID_CPU0
         IPC_DATA->core0_ready = 1;
         dmb(); //waits until write has finished
         while (IPC_DATA->core1_ready == 0) {
-            // Boucle d'attente active
+            // Boucle d'attente active, bornee : evite un blocage a vie si CPU1
+            // ne se synchronise jamais.
+            if ((uint32_t)(Timer_us_Get() - t_start) > IPC_SYNC_TIMEOUT_US) return 0;
             dmb(); //waits until write has finished
         }
     #else
         IPC_DATA->core1_ready = 1;
         dmb(); //waits until write has finished
         while (IPC_DATA->core0_ready == 0) {
-            // Boucle d'attente active
+            if ((uint32_t)(Timer_us_Get() - t_start) > IPC_SYNC_TIMEOUT_US) return 0;
             dmb(); //waits until write has finished
         }
     #endif
+    return 1;
 }
 
 static void trigger_other_core_interrupt(void) {

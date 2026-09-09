@@ -6,6 +6,7 @@
 
 static volatile uint32_t wd_timeout_ms;
 static volatile uint8_t  wd_enabled;
+static volatile uint8_t  wd_monitor_peer;        /* surveiller le heartbeat du pair ? (0 en mode degrade) */
 static volatile uint32_t wd_self_last_kick_ms;   /* dernier "kick" de la boucle de ce coeur */
 static volatile uint32_t wd_peer_last_hb;        /* derniere valeur vue du heartbeat pair    */
 static volatile uint32_t wd_peer_last_change_ms; /* date du dernier changement du hb pair     */
@@ -27,11 +28,12 @@ void Watchdog_Init(uint32_t timeout_ms) {
     wd_peer_last_change_ms = (uint32_t)Timer_ms1;
 }
 
-void Watchdog_Enable(void) {
+void Watchdog_Enable(uint8_t monitor_peer) {
     const uint32_t now     = (uint32_t)Timer_ms1;
     wd_self_last_kick_ms   = now;
     wd_peer_last_hb        = wd_peer_hb();
     wd_peer_last_change_ms = now;
+    wd_monitor_peer        = monitor_peer ? 1U : 0U;
     wd_enabled             = 1U;
 }
 
@@ -76,12 +78,15 @@ void Watchdog_Check(uint32_t now_ms) {
     }
 
     /* 2) Heartbeat de l'AUTRE coeur fige ? (couvre un blocage de l'autre coeur
-     *    meme si ses propres interruptions ne tournent plus). */
-    const uint32_t peer = wd_peer_hb();
-    if (peer != wd_peer_last_hb) {
-        wd_peer_last_hb        = peer;
-        wd_peer_last_change_ms = now_ms;
-    } else if ((uint32_t)(now_ms - wd_peer_last_change_ms) > wd_timeout_ms) {
-        System_Reboot(); /* ne revient jamais */
+     *    meme si ses propres interruptions ne tournent plus). Uniquement si le
+     *    pair est cense etre present (desactive en mode degrade). */
+    if (wd_monitor_peer) {
+        const uint32_t peer = wd_peer_hb();
+        if (peer != wd_peer_last_hb) {
+            wd_peer_last_hb        = peer;
+            wd_peer_last_change_ms = now_ms;
+        } else if ((uint32_t)(now_ms - wd_peer_last_change_ms) > wd_timeout_ms) {
+            System_Reboot(); /* ne revient jamais */
+        }
     }
 }
