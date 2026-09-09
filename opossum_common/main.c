@@ -25,6 +25,10 @@
 // tenu en boucle WFE par la boot ROM, relit cette adresse a chaque SEV et
 // branche dessus des qu'elle est non nulle.
 #define CPU1_WAKE_REG     0xFFFFFFF0
+// Timeout d'attente de l'init de CPU1 au demarrage. Base sur le Global Timer
+// (Timer_us_Get), qui tourne meme sans interruptions (pas encore actives ici).
+// Au-dela, CPU0 bascule en MODE DEGRADE (console/comms/OTA seuls, sans asserv).
+#define CPU1_INIT_TIMEOUT_US   5000000u
 
 // definition du callback quand l'un ou l'autre des cores reçoit une interruption SGI de l'autre core
 void On_IPC_Message_Received(void *callback_ref) {
@@ -42,6 +46,10 @@ int main(void){
     IRQ_Manager_Init();
     Timer_Manager_Init();
     Watchdog_Init(WATCHDOG_DEFAULT_TIMEOUT_MS);
+
+    // Presence de CPU1 : reste a 1 sauf si CPU0 constate un timeout de demarrage
+    // ou de synchronisation de CPU1 (-> mode degrade).
+    u8 cpu1_online = 1u;
 
     #if THIS_CORE_ID == CORE_ID_CPU0
         // Le Global Timer est partage physiquement par les 2 cœurs : on ne le
@@ -80,7 +88,14 @@ int main(void){
         // non-cacheable (cf IPC_Init()) : relecture volatile directe.
         {
             volatile u32 spins = 0;
+            u32 t_start = Timer_us_Get();
             while (IPC_DATA->core1_init_done != 0x11111111) {
+                // TIMEOUT borne : si CPU1 ne signale pas son init (plantage,
+                // image CPU1 absente/corrompue...), CPU0 ne bloque plus a vie.
+                if ((u32)(Timer_us_Get() - t_start) > CPU1_INIT_TIMEOUT_US) {
+                    cpu1_online = 0u;
+                    break;
+                }
                 if ((++spins & 0x000FFFFFu) == 0u) {
                     Xil_Out32(CPU1_WAKE_REG, CPU1_ENTRY_ADDR);
                     dsb();
@@ -88,15 +103,20 @@ int main(void){
                 }
             }
         }
-        xil_printf("[CPU0] CPU1 en ligne !\n");
 
-        // 4. Rapport UNIQUE et complet (CPU0 + CPU1) : plus aucun print par
-        // driver pendant IO_Manager_Init() (cf IO_manager.c), donc plus
-        // d'entrelacement entre les 2 cœurs sur l'UART partage. Le tableau
-        // de CPU1 a ete ecrit dans IPC_DATA AVANT que core1_init_done ne
-        // soit leve ci-dessus : lecture sans race possible.
-        IO_Manager_PrintCombinedInitReport(IPC_DATA->core1_driver_status,
-                                            (int)IPC_DATA->core1_driver_status_count);
+        // 4. Rapport d'init. Si CPU1 est present : rapport combine (CPU0 + CPU1),
+        // sans entrelacement UART (cf sequence). Sinon : rapport CPU0 seul +
+        // avertissement clair (mode degrade).
+        if (cpu1_online) {
+            xil_printf("[CPU0] CPU1 en ligne !\n");
+            IO_Manager_PrintCombinedInitReport(IPC_DATA->core1_driver_status,
+                                                (int)IPC_DATA->core1_driver_status_count);
+        } else {
+            xil_printf("\n[CPU0] *** CPU1 ABSENT (timeout %u ms) -> MODE DEGRADE ***\n",
+                       (unsigned)(CPU1_INIT_TIMEOUT_US / 1000u));
+            xil_printf("[CPU0] Console / comms / OTA actifs ; asservissement indisponible.\n");
+            IO_Manager_PrintCombinedInitReport(NULL, 0);
+        }
 
     #else
         // ---------------------------------------------------------
@@ -122,11 +142,29 @@ int main(void){
     // =========================================================
 
     IRQ_Manager_Start();
-    IPC_SyncCores();
 
-    // Les 2 coeurs sont synchronises : on peut armer le watchdog sans risque de
-    // faux declenchement pendant le boot.
-    Watchdog_Enable();
+    // Synchronisation des 2 coeurs, avec timeout (IPC_SyncCores renvoie 0 si le
+    // pair ne repond pas). CPU0 ne se synchronise que s'il attend CPU1 et
+    // bascule en mode degrade si la sync echoue ; CPU1 attend toujours CPU0.
+#if THIS_CORE_ID == CORE_ID_CPU0
+    if (cpu1_online) {
+        if (!IPC_SyncCores()) {
+            xil_printf("[CPU0] Sync CPU1 timeout -> MODE DEGRADE\n");
+            cpu1_online = 0u;
+        }
+    }
+#else
+    (void)IPC_SyncCores();
+#endif
+
+    // Armement du watchdog. On ne surveille le heartbeat du pair que s'il est
+    // effectivement present (sinon, en mode degrade, un pair fige provoquerait
+    // un reboot en boucle). Le CPU1 considere toujours CPU0 (maitre) present.
+#if THIS_CORE_ID == CORE_ID_CPU0
+    Watchdog_Enable(cpu1_online);
+#else
+    Watchdog_Enable(1u);
+#endif
 
     App_Init(); // init spécifique à l'application du coeur en cours de compilation
 

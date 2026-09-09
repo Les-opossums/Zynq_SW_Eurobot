@@ -3,6 +3,7 @@
 
 #include "../IPC_structure.h"
 #include "stddef.h"
+#include <stdint.h>
 
 
 #define IPC_SHARED_MEM_ADDR 0xFFFF0000 // OCM
@@ -47,7 +48,13 @@
  */
 void IPC_Init(void); 
 
-void IPC_SyncCores(void);
+/* Timeout de synchronisation inter-coeurs (us), base sur le Global Timer. */
+#define IPC_SYNC_TIMEOUT_US   2000000u
+
+/* Synchronise les 2 coeurs (rendez-vous core0_ready / core1_ready).
+ * Renvoie 1 si le pair est pret, 0 en cas de timeout : un coeur ne bloque plus
+ * indefiniment si l'autre ne demarre pas. */
+uint8_t IPC_SyncCores(void);
 
 /**
  * @brief This function write data to the shared memory area

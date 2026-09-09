@@ -25,8 +25,11 @@
 void Watchdog_Init(uint32_t timeout_ms);
 
 /* Arme le watchdog. A appeler une fois les 2 coeurs synchronises
- * (apres IPC_SyncCores), pour ne pas se declencher pendant le boot. */
-void Watchdog_Enable(void);
+ * (apres IPC_SyncCores), pour ne pas se declencher pendant le boot.
+ * monitor_peer : 1 pour surveiller aussi le heartbeat de l'autre coeur, 0 pour
+ * ne surveiller que la boucle de CE coeur (mode degrade : pair absent -- sinon
+ * un heartbeat pair fige provoquerait un reboot en boucle). */
+void Watchdog_Enable(uint8_t monitor_peer);
 
 /* A appeler a CHAQUE tour de la boucle principale : signale que ce coeur est
  * vivant et fait progresser son heartbeat vu par l'autre coeur. */
