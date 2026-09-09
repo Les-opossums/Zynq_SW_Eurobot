@@ -19,6 +19,19 @@
         &(IPC_DATA)->flag_##field_name##_valid, \
         &(IPC_DATA)->flag_##field_name##_ack)
 
+// Variante FIABLE de SEND_FIELD pour les commandes one-shot : si le canal est
+// encore occupe (message precedent non consomme), la valeur est memorisee et
+// re-emise automatiquement par IPC_RetryPending() (appele dans la boucle
+// principale) jusqu'a passer -- sans jamais bloquer. A reserver aux commandes
+// (position, mode, consignes) ; la telemetrie periodique reste en SEND_FIELD.
+#define SEND_FIELD_RELIABLE(data_ptr, field_name) \
+    IPC_SendReliable( \
+        &(IPC_DATA)->field_name, \
+        &(IPC_DATA)->flag_##field_name##_valid, \
+        &(IPC_DATA)->flag_##field_name##_ack, \
+        &(data_ptr)->field_name, \
+        sizeof((data_ptr)->field_name))
+
 
 #define CHECK_FIELD(data_ptr, field_name) \
     IPC_CheckFromOtherCore( \
@@ -66,5 +79,27 @@ int IPC_CheckFromOtherCore(void *data_out, size_t size,
                            const volatile void *src,
                            volatile uint32_t *flag_valid,
                            volatile uint32_t *flag_ack);
+
+/* ===================================================================== *
+ * Envoi FIABLE non bloquant (retransmission automatique)
+ * ===================================================================== */
+#define IPC_RELIABLE_MAX_SLOTS  16   /* nb de canaux one-shot suivis         */
+#define IPC_RELIABLE_MAX_SIZE   32   /* >= taille du plus gros payload (o)   */
+
+/**
+ * @brief Envoi FIABLE non bloquant. Memorise la DERNIERE valeur voulue pour le
+ * canal 'dest' et tente de l'emettre. Si le canal est occupe, la valeur reste
+ * en attente et sera re-emise par IPC_RetryPending(). Un canal = un slot (la
+ * derniere valeur ecrase la precedente : c'est bien l'etat voulu qui part).
+ * @return 1 si emis immediatement, 0 si mis en attente, -1 si payload trop gros.
+ */
+int  IPC_SendReliable(volatile void *dest, volatile uint32_t *flag_valid,
+                      volatile uint32_t *flag_ack, const void *data, size_t size);
+
+/**
+ * @brief Re-emet toutes les commandes fiables encore en attente. A appeler a
+ * chaque tour de la boucle principale (les deux coeurs).
+ */
+void IPC_RetryPending(void);
 
 #endif // IPC_MANAGER_H

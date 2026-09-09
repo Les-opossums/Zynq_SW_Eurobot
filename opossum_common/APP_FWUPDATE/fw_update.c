@@ -3,6 +3,7 @@
 #include "../IO_config.h"                    /* UartComm_Ctx, UART_PS_*, QSPI_* */
 #include "../APP_COM/interpreteur.h"         /* Get_Param_u32                   */
 #include "../TIMER_MANAGER/timer_manager.h"  /* Timer_ms1                       */
+#include "../WATCHDOG_MANAGER/watchdog.h"    /* Watchdog_Suspend/Resume         */
 #include "xstatus.h"
 #include <string.h>
 
@@ -80,7 +81,7 @@ static int fw_recv_block(u32 want) {
     return 1;
 }
 
-uint8_t FW_Update_Cmd(void) {
+static uint8_t fw_update_run(void) {
     u32 size = 0, expected_crc = 0;
 
     /* 1. Parametres : taille (decimal) + crc32 (decimal, non signe) */
@@ -177,4 +178,15 @@ uint8_t FW_Update_Cmd(void) {
     /* 8. Succes : le host peut envoyer REBOOT (la carte est strappee QSPI). */
     fw_send("+DONE\n");
     return 0;
+}
+
+/* Point d'entree de la commande FWUPDATE. L'OTA prend la main sur la boucle
+ * principale plusieurs secondes (effacement QSPI + reception + relecture) : on
+ * suspend le watchdog le temps du reflash, puis on le reprend (sur echec ; en
+ * cas de succes le host envoie REBOOT). */
+uint8_t FW_Update_Cmd(void) {
+    Watchdog_Suspend();
+    uint8_t result = fw_update_run();
+    Watchdog_Resume();
+    return result;
 }
