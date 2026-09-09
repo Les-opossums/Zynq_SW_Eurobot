@@ -96,3 +96,72 @@ int IPC_CheckFromOtherCore(void *data_out, size_t size,
     }
     return 0; // Rien à lire
 }
+
+/* ===================================================================== *
+ * Envoi FIABLE non bloquant (retransmission automatique)
+ * ===================================================================== *
+ * Un slot par canal 'dest'. On y garde une copie de la derniere valeur voulue
+ * et un drapeau "en attente". La boucle principale draine les slots via
+ * IPC_RetryPending() : les commandes one-shot ne sont donc plus perdues quand
+ * deux ordres se suivent trop vite, sans jamais bloquer l'emetteur. */
+typedef struct {
+    volatile void     *dest;
+    volatile uint32_t *flag_valid;
+    volatile uint32_t *flag_ack;
+    uint8_t            buf[IPC_RELIABLE_MAX_SIZE];
+    size_t             size;
+    uint8_t            pending;
+} ipc_reliable_slot_t;
+
+static ipc_reliable_slot_t s_reliable_slots[IPC_RELIABLE_MAX_SLOTS];
+
+/* Slot associe a 'dest' (existant ou premier libre), NULL si table pleine. */
+static ipc_reliable_slot_t *reliable_slot_for(volatile void *dest) {
+    ipc_reliable_slot_t *free_slot = NULL;
+    for (int i = 0; i < IPC_RELIABLE_MAX_SLOTS; i++) {
+        if (s_reliable_slots[i].dest == dest) return &s_reliable_slots[i];
+        if (free_slot == NULL && s_reliable_slots[i].dest == NULL) {
+            free_slot = &s_reliable_slots[i];
+        }
+    }
+    return free_slot;
+}
+
+int IPC_SendReliable(volatile void *dest, volatile uint32_t *flag_valid,
+                     volatile uint32_t *flag_ack, const void *data, size_t size) {
+    if (size > IPC_RELIABLE_MAX_SIZE) {
+        /* Payload trop gros pour le retry : envoi best-effort direct. */
+        (void)IPC_SendToOtherCore(data, size, dest, flag_valid, flag_ack);
+        return -1;
+    }
+
+    ipc_reliable_slot_t *s = reliable_slot_for(dest);
+    if (s == NULL) {
+        /* Table pleine (ne devrait pas arriver) : envoi best-effort direct. */
+        return IPC_SendToOtherCore(data, size, dest, flag_valid, flag_ack);
+    }
+
+    s->dest       = dest;
+    s->flag_valid = flag_valid;
+    s->flag_ack   = flag_ack;
+    memcpy(s->buf, data, size);
+    s->size = size;
+
+    if (IPC_SendToOtherCore(s->buf, s->size, s->dest, s->flag_valid, s->flag_ack)) {
+        s->pending = 0;
+        return 1;
+    }
+    s->pending = 1; /* canal occupe : sera re-emis par IPC_RetryPending() */
+    return 0;
+}
+
+void IPC_RetryPending(void) {
+    for (int i = 0; i < IPC_RELIABLE_MAX_SLOTS; i++) {
+        ipc_reliable_slot_t *s = &s_reliable_slots[i];
+        if (s->dest != NULL && s->pending) {
+            if (IPC_SendToOtherCore(s->buf, s->size, s->dest, s->flag_valid, s->flag_ack)) {
+                s->pending = 0;
+            }
+        }
+    }
+}

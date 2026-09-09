@@ -25,6 +25,12 @@ typedef struct {
     volatile uint32_t core0_ready; // 1 if core0 is ready, 0 otherwise
     volatile uint32_t core1_ready; // 1 if core1 is ready, 0 otherwise
 
+    // Watchdog : heartbeats des 2 coeurs (incrementes a chaque tour de boucle,
+    // cf WATCHDOG_MANAGER/watchdog.c) + drapeau de suspension partage (ex: OTA).
+    volatile uint32_t hb_cpu0;
+    volatile uint32_t hb_cpu1;
+    volatile uint32_t wd_suspended;
+
     // etats des gpio gérés par CPU0 lus par CPU1
     volatile uint32_t AU_state;        // Etat de l'AU (0 = relâché, 1 = appuyé)
     volatile uint32_t leash_state;     // Etat de la laisse (0 = relâchée, 1 = attachée)

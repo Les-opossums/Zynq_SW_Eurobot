@@ -93,7 +93,7 @@ uint8_t Move_Cmd(void) {
     local_data.cmd_position.y = temp_val;
     if (Get_Param_Float(&temp_val)) return PARAM_ERROR_CODE;
     local_data.cmd_position.t = temp_val;
-    SEND_FIELD(&local_data, cmd_position);
+    SEND_FIELD_RELIABLE(&local_data, cmd_position);
     return 0;
 }
 
@@ -127,7 +127,7 @@ void Move_Seq_Loop(void) {
         Position pos;
         if (move_seq_pop(&pos)) {
             local_data.cmd_position = pos;
-            SEND_FIELD(&local_data, cmd_position);
+            SEND_FIELD_RELIABLE(&local_data, cmd_position);
             move_seq_active = 1;
         }
     }
@@ -145,7 +145,7 @@ uint8_t Speed_Cmd(void) {
     local_data.cmd_speed.vy = temp_val;
     if (Get_Param_Float(&temp_val)) return PARAM_ERROR_CODE;
     local_data.cmd_speed.vt = temp_val;
-    SEND_FIELD(&local_data, cmd_speed);
+    SEND_FIELD_RELIABLE(&local_data, cmd_speed);
     return 0;
 }
 
@@ -161,13 +161,13 @@ uint8_t Absolute_Speed_Cmd(void) {
     local_data.cmd_abs_speed.vy = temp_val;
     if (Get_Param_Float(&temp_val)) return PARAM_ERROR_CODE;
     local_data.cmd_abs_speed.vt = temp_val;
-    SEND_FIELD(&local_data, cmd_abs_speed);
+    SEND_FIELD_RELIABLE(&local_data, cmd_abs_speed);
     return 0;
 }
 
 uint8_t FREE_Cmd(void) {
     local_data.asserv_mode = 0;
-    SEND_FIELD(&local_data, asserv_mode);
+    SEND_FIELD_RELIABLE(&local_data, asserv_mode);
     return 0;
 }
 
@@ -178,7 +178,7 @@ uint8_t BLOCK_Cmd(void) {
     }
     move_seq_clear();
     local_data.asserv_mode = 4;
-    SEND_FIELD(&local_data, asserv_mode);
+    SEND_FIELD_RELIABLE(&local_data, asserv_mode);
     return 0;
 }
 
@@ -188,7 +188,7 @@ uint8_t Start_Wheel_FF_Calibration_Cmd(void) {
         return 0;
     }
     local_data.asserv_mode = 5;
-    SEND_FIELD(&local_data, asserv_mode);
+    SEND_FIELD_RELIABLE(&local_data, asserv_mode);
     return 0;
 }
 
@@ -241,7 +241,7 @@ uint8_t SET_Cmd(void) {
     local_data.set_pos.y = temp_val;
     if (Get_Param_Float(&temp_val)) return PARAM_ERROR_CODE;
     local_data.set_pos.t = temp_val;
-    SEND_FIELD(&local_data, set_pos);
+    SEND_FIELD_RELIABLE(&local_data, set_pos);
     return 0;
 }
 
@@ -249,7 +249,7 @@ uint8_t SET0_Cmd(void) {
     local_data.set_pos.x = 0.0f;
     local_data.set_pos.y = 0.0f;
     local_data.set_pos.t = 0.0f;
-    SEND_FIELD(&local_data, set_pos);
+    SEND_FIELD_RELIABLE(&local_data, set_pos);
     return 0;
 }
 
@@ -276,7 +276,7 @@ uint8_t Set_Lidar_Noise_Cmd(void) {
     local_data.kalman_noise_lidar.process_noise_lidar_y = temp_val;
     if (Get_Param_Float(&temp_val)) return PARAM_ERROR_CODE;
     local_data.kalman_noise_lidar.process_noise_lidar_t = temp_val;
-    SEND_FIELD(&local_data, kalman_noise_lidar);
+    SEND_FIELD_RELIABLE(&local_data, kalman_noise_lidar);
     return 0;
 }
 
@@ -323,7 +323,7 @@ uint8_t VMAX_Cmd(void) {
     float temp_val;
     if (Get_Param_Float(&temp_val)) return PARAM_ERROR_CODE;
     local_data.vmax = temp_val;
-    SEND_FIELD(&local_data, vmax);
+    SEND_FIELD_RELIABLE(&local_data, vmax);
     return 0;
 }
 
@@ -331,7 +331,7 @@ uint8_t VTMAX_Cmd(void) {
     float temp_val;
     if (Get_Param_Float(&temp_val)) return PARAM_ERROR_CODE;
     local_data.vtmax = temp_val;
-    SEND_FIELD(&local_data, vtmax);
+    SEND_FIELD_RELIABLE(&local_data, vtmax);
     return 0;
 }
 
@@ -339,7 +339,7 @@ uint8_t AMAX_Cmd(void) {
     float temp_val;
     if (Get_Param_Float(&temp_val)) return PARAM_ERROR_CODE;
     local_data.amax = temp_val;
-    SEND_FIELD(&local_data, amax);
+    SEND_FIELD_RELIABLE(&local_data, amax);
     return 0;
 }
 
@@ -353,7 +353,7 @@ uint8_t PWM_Func(void) {
     local_data.cmd_esc.command3 = temp_val;
     if (Get_Param_Float(&temp_val)) return PARAM_ERROR_CODE;
     local_data.cmd_esc.command4 = temp_val;
-    SEND_FIELD(&local_data, cmd_esc);
+    SEND_FIELD_RELIABLE(&local_data, cmd_esc);
     return 0;
 }
 
@@ -363,7 +363,7 @@ uint8_t Enable_Kalman_Cmd(void) {
     local_data.enable_kalman.enable_lidar_kalman = (int)temp_val;
     if (Get_Param_u32(&temp_val)) return PARAM_ERROR_CODE;
     local_data.enable_kalman.enable_camera_kalman = (int)temp_val;
-    SEND_FIELD(&local_data, enable_kalman);
+    SEND_FIELD_RELIABLE(&local_data, enable_kalman);
     return 0;
 }
 
@@ -371,7 +371,7 @@ uint8_t Set_Odo_Spacing_Cmd(void) {
     float temp_val;
     if (Get_Param_Float(&temp_val)) return PARAM_ERROR_CODE;
     local_data.odo_spacing = temp_val;
-    SEND_FIELD(&local_data, odo_spacing);
+    SEND_FIELD_RELIABLE(&local_data, odo_spacing);
     return 0;
 }
 
@@ -473,7 +473,7 @@ uint8_t Speed_Timed_Cmd(void) {
     local_data.cmd_speed.vx = vx;
     local_data.cmd_speed.vy = vy;
     local_data.cmd_speed.vt = vt;
-    SEND_FIELD(&local_data, cmd_speed);
+    SEND_FIELD_RELIABLE(&local_data, cmd_speed);
 
     speed_timed_end_time   = Timer_ms1 + duration_ms;
     speed_timed_print_per  = (print_period_ms > 0) ? print_period_ms : 10;
@@ -499,7 +499,7 @@ void Speed_Timed_Loop(void) {
         speed_timed_active = 0;
 
         local_data.asserv_mode = 0;
-        SEND_FIELD(&local_data, asserv_mode);
+        SEND_FIELD_RELIABLE(&local_data, asserv_mode);
 
         printf("SPEEDTEST DONE\n");
         return;

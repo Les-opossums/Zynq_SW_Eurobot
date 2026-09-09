@@ -4,6 +4,7 @@
 #include "xparameters.h"
 #include "xtime_l.h"
 #include "../IRQ_MANAGER/IRQ_manager.h"
+#include "../WATCHDOG_MANAGER/watchdog.h"
 
 #define TIMER_1ms_LOAD_VALUE	332999
 #define TIMER_1ms_PRESCALER		0x0
@@ -23,6 +24,8 @@ static void Timer_IntrHandler(void *CallBackRef) {
     if (XScuTimer_IsExpired(TimerInstancePtr)) {
         XScuTimer_ClearInterruptStatus(TimerInstancePtr);
         Timer_ms1 += 1;
+        /* Surveillance watchdog (contexte ISR, independant de la boucle). */
+        Watchdog_Check((uint32_t)Timer_ms1);
     }
 }
 

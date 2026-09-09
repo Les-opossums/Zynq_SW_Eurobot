@@ -12,6 +12,7 @@
 #include "IRQ_MANAGER/IRQ_manager.h"
 #include "TIMER_MANAGER/timer_manager.h"
 #include "APP_COM/com_interpreter_loop.h"
+#include "WATCHDOG_MANAGER/watchdog.h"
 #include "app_interface.h"
 // temporaire pour debug
 #include "APP_TEST/led_au_test.h"
@@ -40,6 +41,7 @@ int main(void){
     IPC_Init();
     IRQ_Manager_Init();
     Timer_Manager_Init();
+    Watchdog_Init(WATCHDOG_DEFAULT_TIMEOUT_MS);
 
     #if THIS_CORE_ID == CORE_ID_CPU0
         // Le Global Timer est partage physiquement par les 2 cœurs : on ne le
@@ -122,6 +124,10 @@ int main(void){
     IRQ_Manager_Start();
     IPC_SyncCores();
 
+    // Les 2 coeurs sont synchronises : on peut armer le watchdog sans risque de
+    // faux declenchement pendant le boot.
+    Watchdog_Enable();
+
     App_Init(); // init spécifique à l'application du coeur en cours de compilation
 
     xil_printf("[CPU%d] Entree dans la boucle principale\n", THIS_CORE_ID);
@@ -144,6 +150,11 @@ int main(void){
         #endif
 
         App_Loop(); // boucle spécifique à l'application du coeur en cours de compilation
+
+        // Re-emission des commandes IPC one-shot encore en attente (non bloquant).
+        IPC_RetryPending();
+        // Signale que ce coeur vient de boucler (nourrit le watchdog).
+        Watchdog_Kick();
     }
 
     cleanup_platform();

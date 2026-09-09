@@ -35,10 +35,10 @@ static void ETH_Cmd_Handler(eth_msg_type_t type, const uint8_t *payload, uint16_
     /* --- 2. Commandes structurees : envoi direct vers CORE1 via IPC --- */
     case ETH_MSG_CMD_GOAL_POSITION:
         if (len == sizeof(Position)) {
-            IPC_SendToOtherCore(payload, sizeof(Position),
-                                 &IPC_DATA->cmd_position,
-                                 &IPC_DATA->flag_cmd_position_valid,
-                                 &IPC_DATA->flag_cmd_position_ack);
+            IPC_SendReliable(&IPC_DATA->cmd_position,
+                             &IPC_DATA->flag_cmd_position_valid,
+                             &IPC_DATA->flag_cmd_position_ack,
+                             payload, sizeof(Position));
         }
         break;
 
@@ -93,20 +93,20 @@ static void ETH_Cmd_Handler(eth_msg_type_t type, const uint8_t *payload, uint16_
     case ETH_MSG_CMD_BLOCK:
         if (len == sizeof(uint8_t)) {
             int block_mode = 4; // asserv_mode = 4 : bloque le robot
-            IPC_SendToOtherCore(&block_mode, sizeof(block_mode),
-                                 &IPC_DATA->asserv_mode,
-                                 &IPC_DATA->flag_asserv_mode_valid,
-                                 &IPC_DATA->flag_asserv_mode_ack);
+            IPC_SendReliable(&IPC_DATA->asserv_mode,
+                             &IPC_DATA->flag_asserv_mode_valid,
+                             &IPC_DATA->flag_asserv_mode_ack,
+                             &block_mode, sizeof(block_mode));
         }
         break;
 
     case ETH_MSG_CMD_FREE:
         if (len == sizeof(uint8_t)) {
             int free_mode = 0; // asserv_mode = 0 : libere le robot
-            IPC_SendToOtherCore(&free_mode, sizeof(free_mode),
-                                 &IPC_DATA->asserv_mode,
-                                 &IPC_DATA->flag_asserv_mode_valid,
-                                 &IPC_DATA->flag_asserv_mode_ack);
+            IPC_SendReliable(&IPC_DATA->asserv_mode,
+                             &IPC_DATA->flag_asserv_mode_valid,
+                             &IPC_DATA->flag_asserv_mode_ack,
+                             &free_mode, sizeof(free_mode));
         }
         break;
 

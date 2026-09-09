@@ -71,7 +71,7 @@ static void update_shared_motion_done(motion_status_t new_state)
 {
     motion_done = new_state;
     local_data.motion_done = (uint32_t)new_state;
-    SEND_FIELD(&local_data, motion_done);
+    SEND_FIELD_RELIABLE(&local_data, motion_done);
 }
 
 /* ================================================================== *
