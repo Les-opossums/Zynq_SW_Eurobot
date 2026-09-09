@@ -57,8 +57,8 @@ static int CAN_IO_ConfigureFilters(can_io_context_t *ctx) {
 
 static void CAN_IO_SendHandler(void *CallBackRef) {
     (void)CallBackRef;
-    // Rien de specifique : l'emission est bloquante cote appelant (voir
-    // CAN_IO_Send, attente XCanPs_IsTxFifoFull).
+    // Rien de specifique : l'emission est NON bloquante cote appelant (cf
+    // CAN_IO_Send, qui abandonne la trame si la FIFO TX est pleine).
 }
 
 static void CAN_IO_RecvHandler(void *CallBackRef) {
@@ -98,7 +98,13 @@ static void CAN_IO_ErrorHandler(void *CallBackRef, u32 ErrorMask) {
 static void CAN_IO_EventHandler(void *CallBackRef, u32 IntrMask) {
     can_io_context_t *ctx = (can_io_context_t *)CallBackRef;
 
-    if (IntrMask & XCANPS_IXR_BSOFF_MASK)  ctx->error_stats.bus_off_count++;
+    if (IntrMask & XCANPS_IXR_BSOFF_MASK) {
+        ctx->error_stats.bus_off_count++;
+        /* Detection du bus-off : le controleur est passe hors ligne. On NE tente
+         * PAS la recuperation ici (contexte ISR) : on leve un drapeau consomme
+         * par CAN_IO_Update() dans la boucle principale. */
+        ctx->bus_off_pending = 1;
+    }
     if (IntrMask & XCANPS_IXR_RXOFLW_MASK) ctx->error_stats.rx_fifo_overflow_count++;
     if (IntrMask & XCANPS_IXR_RXUFLW_MASK) ctx->error_stats.rx_fifo_underflow_count++;
     if (IntrMask & XCANPS_IXR_ARBLST_MASK) ctx->error_stats.arbitration_lost_count++;
@@ -152,6 +158,7 @@ int CAN_IO_Init(void *instance) {
     while (XCanPs_GetMode(&ctx->instance) != XCANPS_MODE_NORMAL);
 
     ctx->bus_enabled = TRUE;
+    ctx->bus_off_pending = 0;
     CAN_IO_ResetErrorStats(ctx);
     ctx->first_init_done = 1;
 
@@ -160,10 +167,47 @@ int CAN_IO_Init(void *instance) {
     return XST_SUCCESS;
 }
 
+/* ════════════════════════════════════════════════════════════════
+ * Recuperation automatique du bus-off
+ * ════════════════════════════════════════════════════════════════
+ * Appelee UNIQUEMENT depuis CAN_IO_Update (contexte boucle principale, jamais
+ * ISR). Remet le controleur en ligne apres un bus-off : reset, reconfiguration
+ * complete (bit timing + filtres d'acceptance), reactivation des interruptions,
+ * retour en mode Normal. Le controleur gere lui-meme la sequence de
+ * recuperation CAN (attente des 128 x 11 bits recessifs) avant de re-emettre. */
+static void CAN_IO_RecoverBusOff(can_io_context_t *ctx) {
+    XCanPs_Reset(&ctx->instance);
+
+    if (CAN_IO_Config(ctx) != XST_SUCCESS) {
+        CAN_IO_LOG("[CAN] Bus-off : reconfiguration impossible\n");
+        return;
+    }
+    if (CAN_IO_ConfigureFilters(ctx) != XST_SUCCESS) {
+        CAN_IO_LOG("[CAN] Bus-off : reconfiguration des filtres impossible\n");
+        return;
+    }
+
+    XCanPs_IntrEnable(&ctx->instance, XCANPS_IXR_ALL);
+    XCanPs_EnterMode(&ctx->instance, XCANPS_MODE_NORMAL);
+    while (XCanPs_GetMode(&ctx->instance) != XCANPS_MODE_NORMAL);
+
+    ctx->error_stats.bus_off_recovery_count++;
+    CAN_IO_LOG("[CAN] Bus-off : resynchronisation #%lu\n",
+               (unsigned long)ctx->error_stats.bus_off_recovery_count);
+}
+
 void CAN_IO_Update(void *instance) {
-    (void)instance;
-    // RX pilotee par interruption, TX declenchee explicitement par
-    // l'appelant via CAN_IO_Send — rien a faire au rythme generique.
+    can_io_context_t *ctx = (can_io_context_t *)instance;
+
+    /* Recuperation du bus-off hors ISR : le handler d'evenement a leve
+     * bus_off_pending. Si le bus est toujours en defaut apres cette tentative,
+     * un nouveau bus-off relevera le drapeau -> la cadence de retry se cale
+     * naturellement sur celle du controleur, sans saturer la boucle.
+     * RX pilotee par interruption, TX declenchee par l'appelant (CAN_IO_Send). */
+    if (ctx->bus_enabled && ctx->bus_off_pending) {
+        ctx->bus_off_pending = 0;
+        CAN_IO_RecoverBusOff(ctx);
+    }
 }
 
 void CAN_IO_Deinit(void *instance) {
@@ -178,13 +222,22 @@ int CAN_IO_Send(can_io_context_t *ctx, u32 id, const u8 *payload, u8 len) {
     if (!ctx->bus_enabled) return XST_FAILURE;
     if (len > CAN_IO_FRAME_DATA_LENGTH) len = CAN_IO_FRAME_DATA_LENGTH;
 
+    /* NON BLOQUANT : si la FIFO TX est pleine, on ABANDONNE la trame au lieu
+     * d'attendre. En marche normale la FIFO se vide en permanence ; une FIFO
+     * qui reste pleine signale un bus moteur en defaut (ESC non alimentes, pas
+     * d'ACK, bus-off) -- l'ancien spin bloquant figeait alors toute la boucle
+     * d'asservissement de CPU1. On compte l'abandon ; la trame moteur etant
+     * renvoyee a chaque cycle, une consigne fraiche partira au cycle suivant. */
+    if (XCanPs_IsTxFifoFull(&ctx->instance) == TRUE) {
+        ctx->error_stats.tx_dropped_count++;
+        return XST_FIFO_NO_ROOM;
+    }
+
     ctx->tx_frame[0] = (u32)XCanPs_CreateIdValue(id, 0, 0, 0, 0);
     ctx->tx_frame[1] = (u32)XCanPs_CreateDlcValue((u32)len);
 
     u8 *frame_bytes = (u8 *)&ctx->tx_frame[2];
     memcpy(frame_bytes, payload, len);
-
-    while (XCanPs_IsTxFifoFull(&ctx->instance) == TRUE); // bloquant, comme l'original
 
     return (XCanPs_Send(&ctx->instance, ctx->tx_frame) == XST_SUCCESS) ? XST_SUCCESS : XST_FAILURE;
 }
@@ -221,6 +274,7 @@ void CAN_IO_Enable(can_io_context_t *ctx) {
     while (XCanPs_GetMode(&ctx->instance) != XCANPS_MODE_NORMAL);
 
     ctx->bus_enabled = TRUE;
+    ctx->bus_off_pending = 0;
     ctx->error_stats.bus_enabled = TRUE;
 
     CAN_IO_LOG("[CAN] Reactive (device_id=%lu)\n", (unsigned long)ctx->device_id);
@@ -245,6 +299,8 @@ void CAN_IO_PrintErrorStats(can_io_context_t *ctx) {
     xil_printf("Form errors      : %lu\r\n", (unsigned long)ctx->error_stats.form_error_count);
     xil_printf("CRC errors       : %lu\r\n", (unsigned long)ctx->error_stats.crc_error_count);
     xil_printf("Bus-off events   : %lu\r\n", (unsigned long)ctx->error_stats.bus_off_count);
+    xil_printf("Bus-off recovery : %lu\r\n", (unsigned long)ctx->error_stats.bus_off_recovery_count);
+    xil_printf("TX dropped (full): %lu\r\n", (unsigned long)ctx->error_stats.tx_dropped_count);
     xil_printf("RX overflow      : %lu\r\n", (unsigned long)ctx->error_stats.rx_fifo_overflow_count);
     xil_printf("RX underflow     : %lu\r\n", (unsigned long)ctx->error_stats.rx_fifo_underflow_count);
     xil_printf("Arbitration lost : %lu\r\n", (unsigned long)ctx->error_stats.arbitration_lost_count);

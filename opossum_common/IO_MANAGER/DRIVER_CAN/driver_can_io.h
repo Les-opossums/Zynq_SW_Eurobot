@@ -36,6 +36,8 @@ typedef struct {
     uint32_t arbitration_lost_count;
     uint32_t total_error_count;
     uint32_t last_esr_value;
+    uint32_t tx_dropped_count;       /* trames abandonnees : FIFO TX pleine (envoi non bloquant) */
+    uint32_t bus_off_recovery_count; /* nombre de resynchronisations apres un bus-off            */
     uint8_t  bus_enabled;
 } CAN_ErrorStats;
 
@@ -70,6 +72,7 @@ typedef struct {
     u8  btr_ts1;
 
     volatile u8 bus_enabled;
+    volatile u8 bus_off_pending;   // leve par l'ISR sur bus-off, traite hors ISR dans CAN_IO_Update
     CAN_ErrorStats error_stats;
 
     u32 tx_frame[CAN_IO_MAX_FRAME_WORDS];
