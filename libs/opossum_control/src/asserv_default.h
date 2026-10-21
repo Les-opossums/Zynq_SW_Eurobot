@@ -73,6 +73,12 @@
 // Facteur d'echelle par roue (rayon effectif / rayon nominal), issu de la
 // calibration de l'odometrie (tools/opossum_calibration, calib_odometry.py).
 // 1.0 = rayon nominal. N'affecte que l'odometrie (pas les consignes moteur).
+// Correction du facteur d'echelle du gyro : vitesse angulaire utilisee par le
+// Kalman = gyro brut x IMU_GYRO_SCALE (calib_gyro_scale.py donne 1 / (1 + erreur)).
+#ifndef IMU_GYRO_SCALE
+#define IMU_GYRO_SCALE 1.0f
+#endif
+
 #ifndef ODO_WHEEL_SCALE_1
 #define ODO_WHEEL_SCALE_1 1.0f
 #endif

@@ -354,7 +354,7 @@ uint8_t control_fast_step(const control_inputs_t *in)
 
     // 4. Vérification et intégration des données IMU
     const uint32_t sequence_before = in->imu_seq;
-    const float    gyro_z          = in->imu_gyro_z;
+    const float    gyro_z          = in->imu_gyro_z * IMU_GYRO_SCALE;   /* brut x correction d'echelle */
     const uint32_t calibration     = in->imu_calib_status;
 
     const uint8_t imu_available = (in->imu_seq_stable &&
