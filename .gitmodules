@@ -1,0 +1,3 @@
+[submodule "opossum_interfaces"]
+	path = opossum_interfaces
+	url = https://github.com/Les-opossums/opossum_interface.git

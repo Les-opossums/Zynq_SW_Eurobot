@@ -4,6 +4,8 @@
 #include "xstatus.h"
 #include "xil_printf.h"
 #include "../DRIVER_ETH/ETH_driver.h"
+#include "../../APP_ASSERV_BRIDGE/robot_messages.h"
+#include <stddef.h>
 #include <math.h>
 
 /* pi/18000 : conversion angle centiemes de degre -> radians. */
@@ -234,6 +236,13 @@ typedef struct __attribute__((packed)) {
     uint16_t point_count;
     lidar_point_t points[LIDAR_LD19_ETH_POINTS_PER_CHUNK];
 } lidar_ld19_eth_chunk_t;
+
+/* Le chunk doit rester identique au payload LIDAR_SCAN_CHUNK de l'ICD
+ * (opossum_interfaces/protocol.yaml) : verification a la compilation. */
+_Static_assert(LIDAR_LD19_ETH_POINTS_PER_CHUNK == ETH_LIDAR_SCAN_CHUNK_POINTS_MAX, "points par chunk");
+_Static_assert(sizeof(lidar_point_t) == sizeof(eth_lidar_point_t), "lidar_point_t");
+_Static_assert(sizeof(lidar_ld19_eth_chunk_t) == sizeof(eth_payload_lidar_scan_chunk_t), "chunk lidar");
+_Static_assert(offsetof(lidar_ld19_eth_chunk_t, points) == ETH_LIDAR_SCAN_CHUNK_FIXED_SIZE, "chunk lidar : en-tete");
 
 static void lidar_ld19_send_scan_ethernet(lidar_ld19_context_t *ctx, const lidar_scan_t *scan)
 {

@@ -5,10 +5,16 @@ Les étapes suivantes décrivent la manière pour importer le projet SW sur Viti
 
 Clonez le dépôt et basculez sur la branche de développement :
 ```bash
-git clone git@github.com:Les-opossums/Zynq_SW_Eurobot.git
+git clone --recurse-submodules git@github.com:Les-opossums/Zynq_SW_Eurobot.git
 cd Zynq_SW_Eurobot
 git checkout feature/feetech`
 ```
+Le protocole Ethernet (`ETH_protocol.h`, `robot_messages.h`) vient du sous-module
+[`opossum_interfaces`](./opossum_interfaces/README.md) : sur un clone existant, faire
+`git submodule update --init opossum_interfaces`. Pour modifier le protocole, éditer
+`opossum_interfaces/protocol.yaml` puis lancer `python3 gen.py` dans ce dossier
+(jamais de modification à la main des en-têtes).
+
 Lancer Vitis (**Xilinx Vitis 2020.2**), quand le launcher demande de choisir un **Workspace**, il faut donc sélectionner `Zynq_SW_Eurobot/` fraîchement cloné.
 
 
@@ -75,11 +81,11 @@ Vitis c'est super ! (non.)
 3. `Application project name` : `opossum_core1`
 4. `System project name` : `Eurobot_2025_System`
 5. Cocher `Show all processors in the hardware specification`
-6. Sélectionner `ps7_cortexa9_1`
+6. Sélectionner `ps7_cortexa9_0` (CPU0)
 7. \[Optionnel] : Renommer le `Name` et `Display Name` 
 8. Choisir `Empty Application` puis `Finish`
 #### Création d'opossum_core2 :
-Répéter les étapes pour créer l'Application `opossum_core2`, en choisissant cette fois le System existant et le coeur `ps7_cortexa9_0`.
+Répéter les étapes pour créer l'Application `opossum_core2`, en choisissant cette fois le System existant et le coeur `ps7_cortexa9_1` (CPU1).
 
 #### Restauration des sources : 
 1. Copier les sources de `_opossum_core1/src/` vers `opossum_core1/src/` puis supprimer `_opossum_core1`
