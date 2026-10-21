@@ -1,0 +1,31 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  opossum_control:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Outils
+        run: sudo apt-get update && sudo apt-get install -y cmake gcc gcc-arm-none-eabi python3-yaml python3-pytest
+      - name: Build PC + test en boucle fermee (libs/opossum_control)
+        run: |
+          cmake -S libs/opossum_control -B build/opossum_control
+          cmake --build build/opossum_control
+          ctest --test-dir build/opossum_control --output-on-failure
+      - name: Compilation Cortex-A9 de la bibliotheque (sans BSP)
+        run: |
+          for f in libs/opossum_control/src/*.c; do
+            arm-none-eabi-gcc -std=gnu11 -Wall -Werror=implicit-function-declaration \
+              -mcpu=cortex-a9 -mfpu=vfpv3 -mfloat-abi=hard -fsyntax-only "$f"
+          done
+      - name: Protocole genere a jour (sous-module opossum_interfaces)
+        if: hashFiles('opossum_interfaces/gen.py') != ''
+        run: |
+          python3 opossum_interfaces/gen.py --check
+          python3 -m pytest -q opossum_interfaces/tests
