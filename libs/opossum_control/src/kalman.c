@@ -2,6 +2,15 @@
 
 KalmanState kalman_current_state;
 
+KalmanParams kalman_params = KALMAN_PARAMS_DEFAULT;
+
+// Variances precalculees (evite les carres dans les boucles a 1 kHz)
+static float q_var_speed[3] = {
+    PROCESS_NOISE_VX * PROCESS_NOISE_VX,
+    PROCESS_NOISE_VY * PROCESS_NOISE_VY,
+    PROCESS_NOISE_VTHETA * PROCESS_NOISE_VTHETA
+};
+
 void kalman_init(KalmanState* state) {
     memset(state->x, 0, sizeof(state->x));
     memset(state->P, 0, sizeof(state->P));
@@ -92,15 +101,15 @@ void kalman_predict(KalmanState* state, float dt) {
     float abs_vy = fabsf(vy);
     float abs_vt = fabsf(vtheta);
 
-    float tmp_x  = PROCESS_NOISE_BASE_X     + PROCESS_NOISE_VEL_X     * abs_vx;
-    float tmp_y  = PROCESS_NOISE_BASE_Y     + PROCESS_NOISE_VEL_Y     * abs_vy;
-    float tmp_t  = PROCESS_NOISE_BASE_THETA + PROCESS_NOISE_VEL_THETA * abs_vt;
+    float tmp_x  = kalman_params.q_base[0] + kalman_params.q_vel[0] * abs_vx;
+    float tmp_y  = kalman_params.q_base[1] + kalman_params.q_vel[1] * abs_vy;
+    float tmp_t  = kalman_params.q_base[2] + kalman_params.q_vel[2] * abs_vt;
     float q_var_x  = tmp_x  * tmp_x;
     float q_var_y  = tmp_y  * tmp_y;
     float q_var_t  = tmp_t  * tmp_t;
-    float q_var_vx = PROCESS_NOISE_VX     * PROCESS_NOISE_VX;
-    float q_var_vy = PROCESS_NOISE_VY     * PROCESS_NOISE_VY;
-    float q_var_vt = PROCESS_NOISE_VTHETA * PROCESS_NOISE_VTHETA;
+    float q_var_vx = q_var_speed[0];
+    float q_var_vy = q_var_speed[1];
+    float q_var_vt = q_var_speed[2];
 
     // Calcul de P_new = FP * F^T rangée par rangée, triangulaire supérieure uniquement.
     // Rappel F^T : col 0 += F02*row2 + F03*row3 + F04*row4 + F05*row5
@@ -404,6 +413,23 @@ uint8_t kalman_update_imu(KalmanState* state, float measured_vtheta) {
 // pour gerer le passage +pi / -pi.
 // ─────────────────────────────────────────────────────────────────────────────
 float R_imu_theta = OBS_NOISE_IMU_THETA * OBS_NOISE_IMU_THETA;
+
+void kalman_params_default(KalmanParams* p)
+{
+    const KalmanParams def = KALMAN_PARAMS_DEFAULT;
+    *p = def;
+}
+
+void kalman_set_params(const KalmanParams* p)
+{
+    kalman_params = *p;
+    for (int i = 0; i < 3; i++) {
+        q_var_speed[i] = p->q_speed[i] * p->q_speed[i];
+        R_odo[i]       = p->odo[i] * p->odo[i];
+    }
+    R_imu       = p->imu_vtheta * p->imu_vtheta;
+    R_imu_theta = p->imu_theta * p->imu_theta;
+}
 
 uint8_t kalman_update_imu_theta(KalmanState* state, float measured_theta) {
     float y = principal_angle(measured_theta - state->x[2]);

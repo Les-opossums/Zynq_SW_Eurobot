@@ -71,6 +71,43 @@ static inline float principal_angle(float angle)
 
 #define S_INV_EPS 1e-6f
 
+// ============================================================================
+// PARAMETRES REGLABLES A L'EXECUTION
+// ============================================================================
+// Les #define ci-dessus sont les valeurs par defaut. Le filtre lit les valeurs
+// courantes dans kalman_params (ecarts-types, memes unites que les #define),
+// modifiables avec kalman_set_params() : reglage en simulation (SIL, optimiseur)
+// ou plus tard par commande. Le bruit lidar reste fixe par LIDARNOISE
+// (control_loop), lidar_* ne sert que de valeur initiale.
+typedef struct {
+    float q_base[3];      // PROCESS_NOISE_BASE_X / Y / THETA   (par pas de 1 ms)
+    float q_vel[3];       // PROCESS_NOISE_VEL_X / Y / THETA    (x |vitesse|, par pas)
+    float q_speed[3];     // PROCESS_NOISE_VX / VY / VTHETA
+    float odo[3];         // OBS_NOISE_ODO_VX / VY / VTHETA
+    float lidar[3];       // OBS_NOISE_LIDAR_X / Y / THETA      (valeur initiale)
+    float camera_xy;      // OBS_NOISE_CAMERA_XY                (camera sans ecart-type annonce)
+    float camera_theta;   // OBS_NOISE_CAMERA_THETA
+    float imu_vtheta;     // OBS_NOISE_IMU_VTHETA
+    float imu_theta;      // OBS_NOISE_IMU_THETA
+} KalmanParams;
+
+#define KALMAN_PARAMS_DEFAULT { \
+    {PROCESS_NOISE_BASE_X, PROCESS_NOISE_BASE_Y, PROCESS_NOISE_BASE_THETA}, \
+    {PROCESS_NOISE_VEL_X,  PROCESS_NOISE_VEL_Y,  PROCESS_NOISE_VEL_THETA}, \
+    {PROCESS_NOISE_VX,     PROCESS_NOISE_VY,     PROCESS_NOISE_VTHETA}, \
+    {OBS_NOISE_ODO_VX,     OBS_NOISE_ODO_VY,     OBS_NOISE_ODO_VTHETA}, \
+    {OBS_NOISE_LIDAR_X,    OBS_NOISE_LIDAR_Y,    OBS_NOISE_LIDAR_THETA}, \
+    OBS_NOISE_CAMERA_XY, OBS_NOISE_CAMERA_THETA, \
+    OBS_NOISE_IMU_VTHETA, OBS_NOISE_IMU_THETA }
+
+extern KalmanParams kalman_params;
+
+/** Remplit p avec les valeurs par defaut (#define). */
+void kalman_params_default(KalmanParams* p);
+
+/** Applique p (copie dans kalman_params et recalcule les variances). */
+void kalman_set_params(const KalmanParams* p);
+
 
 typedef struct {
     float x[STATE_SIZE] __attribute__((aligned(16)));                 // état X[x, y, theta, vx, vy, vtheta]

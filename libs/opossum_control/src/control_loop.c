@@ -431,9 +431,9 @@ void control_init(uint32_t imu_yaw_seq)
 
     // Configuration par défaut du filtre de Kalman
     ctx.kalman_enable.enable_lidar_kalman = 1;
-    ctx.lidar_noise[0] = OBS_NOISE_LIDAR_X * OBS_NOISE_LIDAR_X;
-    ctx.lidar_noise[1] = OBS_NOISE_LIDAR_Y * OBS_NOISE_LIDAR_Y;
-    ctx.lidar_noise[2] = OBS_NOISE_LIDAR_THETA * OBS_NOISE_LIDAR_THETA;
+    for (int i = 0; i < 3; i++) {
+        ctx.lidar_noise[i] = kalman_params.lidar[i] * kalman_params.lidar[i];
+    }
 
     // Initialisation des sous-systèmes
     odometry_init();

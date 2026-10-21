@@ -22,6 +22,28 @@ Le lidar et les caméras (traités côté Raspberry Pi) arrivent avec un délai 
 
 Toute la logique d'insertion/déclenchement de repropagation est pilotée depuis [`control_loop.c`](src/control_loop.c) (`control_apply_commands()` pour l'insertion, `control_fast_step()` pour la prédiction/repropagation). `kalman.c` / `kalman_FIFO.c` ne contiennent que le filtre lui-même, sans dépendance au séquencement temps réel.
 
+## Réglage des bruits
+
+Les `#define PROCESS_NOISE_*` / `OBS_NOISE_*` de [`kalman.h`](src/kalman.h) sont les valeurs
+par défaut. Le filtre lit les valeurs courantes dans `kalman_params` (écarts-types, mêmes
+unités), modifiables à l'exécution :
+
+```c
+KalmanParams p;
+kalman_params_default(&p);
+p.q_vel[0] = p.q_vel[1] = 2e-5f;
+kalman_set_params(&p);       // recalcule aussi les variances précalculées
+```
+
+Le bruit lidar utilisé est celui de la commande `LIDARNOISE` ; `p.lidar` n'est que la valeur
+initiale, prise par `control_init()`. Les valeurs peuvent être cherchées en simulation avec
+l'optimiseur de `opossum_sil` (dépôt ROS, `sil_kalman_tuning.py`).
+
+**Attention aux unités de Q** : `kalman_predict()` ajoute `(BASE + VEL * |v|)²` à chaque pas
+(1 ms), sans facteur `dt`. `PROCESS_NOISE_VEL_X = 0.02` donne donc ~2 cm d'écart-type ajouté
+par milliseconde à 1 m/s (≈ 60 cm/√s) : en mouvement, le filtre ne fait quasiment plus
+confiance à l'odométrie et suit chaque mesure lidar.
+
 ## Voir aussi
 
 * [opossum_control](README.md) — bibliothèque qui pilote ce filtre (prédiction, insertion des mesures, repropagation)
