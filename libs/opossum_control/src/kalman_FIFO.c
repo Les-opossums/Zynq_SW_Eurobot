@@ -67,6 +67,11 @@ void kalman_fifo_push(KalmanFIFO* fifo, KalmanState* state, Speed* speed_robot, 
 
 int kalman_fifo_get_delay(KalmanFIFO* fifo, int delay_ms, float dt_ms) {
     int samples_back = (int)(delay_ms / dt_ms); 
+    // La FIFO couvre les ages 0 .. KALMAN_FIFO_LEN-1 : au-dela, l'index retombait
+    // (modulo) sur le slot le plus recent et la mesure etait appliquee au present.
+    if (samples_back < 0 || samples_back >= KALMAN_FIFO_LEN) {
+        return -1;
+    }
     if (fifo->count < samples_back) {
         // printf("WARNING: FIFO not enough samples\n");
         return -1; // Erreur : pas assez d'échantillons dans la FIFO
@@ -251,22 +256,39 @@ KalmanRepropagateJob repropagate_job = {0};
 
 void kalman_fifo_repropagate_start(KalmanFIFO* fifo, int delay_index,
                                     float dt_s, float R_lidar[3]) {
-    // Si un job est déjà actif, on ne le remplace que si le nouveau
-    // point de départ est plus ancien (index plus loin dans le passé).
-    // Pour la coupe, la règle simple : on laisse le job actuel finir.
-    // Un lidar à 10Hz → nouveau job toutes les 100ms,
-    // job terminé en ~10ms → pas de collision en pratique.
-    if (repropagate_job.active) return;
+    const int newest = (fifo->head - 1 + KALMAN_FIFO_LEN) % KALMAN_FIFO_LEN;
+
+    // Job deja en cours : on repart du plus ancien des deux points de depart.
+    // Si la nouvelle mesure est plus recente que le slot en cours de calcul,
+    // le job la reapplique en passant (flag has_lidar / has_camera du slot).
+    // Avant : la nouvelle mesure etait ignoree (jamais propagee a l'etat courant).
+    if (repropagate_job.active) {
+        const int age_new = (newest - delay_index + KALMAN_FIFO_LEN) % KALMAN_FIFO_LEN;
+        const int age_cur = (newest - repropagate_job.current_idx + KALMAN_FIFO_LEN) % KALMAN_FIFO_LEN;
+        if (age_new > age_cur) {
+            repropagate_job.current_idx = delay_index;
+        }
+        memcpy(repropagate_job.R_lidar, R_lidar, sizeof(repropagate_job.R_lidar));
+        return;
+    }
 
     repropagate_job.active      = 1;
     repropagate_job.current_idx = delay_index;
-    repropagate_job.last_idx    = (fifo->head - 1 + KALMAN_FIFO_LEN) % KALMAN_FIFO_LEN;
+    repropagate_job.last_idx    = newest;   // informatif : la fin suit la tete (cf tick)
     repropagate_job.dt_s        = dt_s;
     memcpy(repropagate_job.R_lidar, R_lidar, sizeof(repropagate_job.R_lidar));
 }
 
 int kalman_fifo_repropagate_tick(KalmanFIFO* fifo) {
     if (!repropagate_job.active) return 1;
+
+    // La fin du job suit la tete de la FIFO : pendant les quelques ms du job, la
+    // boucle rapide continue de pousser des etats (calcules depuis l'etat non
+    // corrige) ; ils sont recalcules eux aussi. Avant : le job s'arretait sur la
+    // tete figee au lancement et l'etat courant etait remplace par cet etat vieux
+    // de (retard / REPROPAGATE_STEPS_PER_TICK) ms => perte du mouvement de ces ms
+    // a chaque mesure (erreur proportionnelle a la vitesse, en dents de scie).
+    repropagate_job.last_idx = (fifo->head - 1 + KALMAN_FIFO_LEN) % KALMAN_FIFO_LEN;
 
     int steps = 0;
     while (repropagate_job.current_idx != repropagate_job.last_idx

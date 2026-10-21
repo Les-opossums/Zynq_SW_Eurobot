@@ -10,12 +10,12 @@
 typedef struct {
     uint8_t active;        // 1 = une repropagate est en cours
     int     current_idx;   // prochain slot à traiter
-    int     last_idx;      // slot final (head-1 au moment du déclenchement)
+    int     last_idx;      // slot final : head-1, remis a jour a chaque tick
     float   dt_s;
     float   R_lidar[3];
 } KalmanRepropagateJob;
 
-#define KALMAN_FIFO_LEN 200
+#define KALMAN_FIFO_LEN 201   // ages 0 .. 200 ms : retard max accepte 200 ms (cf insert_*)
 typedef struct {
     uint8_t has_lidar;        // Flag : y a-t-il eu un lidar à cet instant ?
     float z_lidar[3];         // La mesure lidar

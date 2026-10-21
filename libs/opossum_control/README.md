@@ -72,7 +72,8 @@ ctest --test-dir build/opossum_control --output-on-failure   # ou build/opossum_
 
 `test_control` simule chaque roue par un premier ordre et vérifie : arrivée en position
 (< 2 cm, < 2°) sur plusieurs trajets dont une rotation pure, commandes nulles sous arrêt
-d'urgence, arrêt sur `BLOCK`.
+d'urgence, arrêt sur `BLOCK`, et qu'un lidar parfait retardé (0, 90, 200 ms) ne dégrade pas
+l'estimation du Kalman (< 1 cm).
 
 ## Comportements observés en SIL
 

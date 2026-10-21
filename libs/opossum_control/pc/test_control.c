@@ -176,6 +176,41 @@ static void test_block(void)
     CHECK(hypotf(b.plant.vx, b.plant.vy) < 0.02f, "arrete apres 1.5 s (%.3f m/s)", hypotf(b.plant.vx, b.plant.vy));
 }
 
+/*
+ * Lidar parfait mais retarde, envoye pendant un deplacement : il ne doit pas
+ * degrader l'estimation. Non-regression de la repropagation de la FIFO, qui
+ * perdait quelques ms de mouvement a chaque mesure (jusqu'a ~10 cm d'erreur),
+ * et du retard de 200 ms applique au present.
+ */
+static void test_delayed_lidar(unsigned delay_ms, unsigned period_ms)
+{
+    static float hist[256][3];
+    bench_t b;
+    bench_init(&b, 0.5f, 1.0f, 0.0f);
+    control_commands_t cmd = {0};
+    cmd.has_enable_kalman = 1u;
+    cmd.enable_kalman.enable_lidar_kalman = 1;
+    control_apply_commands(&cmd, 0.0f, 0u);
+    bench_move(&b, 2.5f, 1.2f, 1.0f);
+    float worst = 0.0f;
+    for (uint32_t ms = 0; ms < 4000u; ms++) {
+        bench_run_ms(&b, 1u);
+        float *h = hist[b.tick % 256u];
+        h[0] = b.plant.x; h[1] = b.plant.y; h[2] = b.plant.t;
+        if (b.tick > delay_ms && b.tick % period_ms == 0u) {
+            const float *m = hist[(b.tick - delay_ms) % 256u];
+            control_commands_t l = {0};
+            l.has_set_lidar = 1u;
+            l.set_lidar = (Set_lidar){m[0], m[1], m[2], delay_ms};
+            control_apply_commands(&l, 0.0f, 0u);
+        }
+        const float e = hypotf(kalman_current_state.x[0] - b.plant.x, kalman_current_state.x[1] - b.plant.y);
+        if (e > worst) worst = e;
+    }
+    CHECK(worst < 0.01f, "lidar parfait retarde de %u ms (%u ms) : erreur Kalman max %.1f mm",
+          delay_ms, period_ms, worst * 1000.0f);
+}
+
 int main(void)
 {
     test_move(0.5f, 0.5f, 0.0f, 1.2f, 0.9f, PI_F / 2.0f);
@@ -183,6 +218,9 @@ int main(void)
     test_move(1.0f, 1.0f, 0.0f, 1.0f, 1.0f, PI_F);   /* rotation pure */
     test_emergency_stop();
     test_block();
+    test_delayed_lidar(0u, 20u);
+    test_delayed_lidar(90u, 100u);
+    test_delayed_lidar(200u, 100u);
     printf(failures ? "\n%d ECHEC(S)\n" : "\nTous les tests passent\n", failures);
     return failures ? 1 : 0;
 }
