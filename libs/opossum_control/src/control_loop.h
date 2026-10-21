@@ -89,6 +89,10 @@ uint8_t control_fast_step(const control_inputs_t *in);
 /* Pas lent (CONTROL_SLOW_PERIOD_MS). */
 void control_slow_step(uint32_t au_state, control_outputs_t *out);
 
+/* Echantillon du log de calibration (accumulateurs mis a jour a chaque pas
+ * rapide, mesure lidar a chaque SETLIDAR). A emettre periodiquement (100 Hz). */
+void control_get_calib_sample(Calib_sample *out);
+
 /* Etat de l'init de localisation (CONTROL_LOC_INIT_*) et avancement 0..100 %. */
 void control_get_loc_init(uint32_t *state, uint32_t *progress);
 

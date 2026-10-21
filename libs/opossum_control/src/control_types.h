@@ -75,6 +75,27 @@ typedef struct __attribute__((packed)){
     float noise_t; // estimation of the noise on the theta measurement (standard deviation in rad)
 } Set_camera;
 
+/* Echantillon du log de calibration (cf control_get_calib_sample).
+ * Meme disposition que le message CALIB_SAMPLE de l'ICD Ethernet
+ * (opossum_interfaces/protocol.yaml) : ne pas modifier l'un sans l'autre.
+ * Les grandeurs integrees (roues, gyro) ne perdent rien si un echantillon
+ * n'est pas emis : l'analyse travaille sur leurs differences. */
+typedef struct __attribute__((packed)) {
+    uint32_t tick_ms;        /* compteur de pas rapides (1 ms) depuis control_init */
+    float    wheel_dist[4];  /* distance parcourue par chaque roue (m), rayon nominal, signe odometrie */
+    float    gyro_z;         /* derniere mesure gyro brute (rad/s) */
+    float    gyro_angle;     /* integrale du gyro brut (rad, non repliee, biais compris) */
+    uint32_t gyro_seq;       /* compteur de mesures gyro (imu_seq) */
+    float    odo_x, odo_y, odo_t;        /* odometrie pure */
+    float    kal_x, kal_y, kal_t;        /* estimation du Kalman */
+    float    lidar_x, lidar_y, lidar_t;  /* derniere mesure lidar recue (SETLIDAR) */
+    uint32_t lidar_delay;    /* retard annonce par cette mesure (ms) */
+    uint32_t lidar_rx_ms;    /* tick_ms a sa reception */
+    uint32_t lidar_count;    /* nombre de mesures lidar recues */
+    uint8_t  motion_done;    /* 0 arrive, 1 en mouvement, 2 freine */
+    uint8_t  flags;          /* bit0 : Kalman initialise, bit1 : arret d'urgence */
+} Calib_sample;
+
 typedef struct __attribute__((packed)){
     float process_noise_lidar_x; // estimation of the process noise on the x measurement from the lidar (standard deviation in m)
     float process_noise_lidar_y; // estimation of the process noise on the y measurement from the lidar (standard deviation in m)

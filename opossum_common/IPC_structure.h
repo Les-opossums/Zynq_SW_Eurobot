@@ -175,6 +175,13 @@ typedef struct {
     volatile uint32_t flag_motion_done_ack;   // CORE0 -> CORE1: 1 new motion done taken into account, 0 otherwise
     uint32_t motion_done; // 0 if the robot is moving, 1 if the robot
 
+    // Log de calibration (commande CALIBLOG) : accumulateurs d'opossum_control,
+    // envoyes a chaque pas lent (100 Hz). Un echantillon non lu est perdu sans
+    // consequence (grandeurs integrees).
+    volatile uint32_t flag_calib_sample_valid; // CORE1 -> CORE0
+    volatile uint32_t flag_calib_sample_ack;   // CORE0 -> CORE1
+    Calib_sample calib_sample;
+
 } ipc_shared_data_t;
 
 #endif // IPC_STRUCTURE_H

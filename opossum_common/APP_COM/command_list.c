@@ -60,6 +60,7 @@ const Command Command_List[] = {
     { "GETODO",       Get_Odo_Cmd},       /* ajoute */
     { "ASSERVDONE",   Asserv_Done_Cmd},   /* ajoute */
     { "PDE",          Activate_Position_Sending_Func},
+    { "CALIBLOG",     Calib_Log_Cmd},     /* log de calibration CALIB_SAMPLE */
 
     // --- Pilotage generique des drivers IO_Manager (les deux cœurs) ---
     // Nom = champ .name de IO_DEVICE_TABLE (cf IO_config.h), entre

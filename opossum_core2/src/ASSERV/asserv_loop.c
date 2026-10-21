@@ -183,6 +183,12 @@ static void slow_loop(void)
 
     (void)IPC_SendToOtherCore(&out.speed_order_constrained, sizeof(out.speed_order_constrained),
                               &IPC_DATA->cmd_speed_constrained, &IPC_DATA->flag_cmd_speed_constrained_valid, &IPC_DATA->flag_cmd_speed_constrained_ack);
+
+    // Log de calibration (emis sur Ethernet par CORE0 si CALIBLOG 1)
+    Calib_sample calib_sample;
+    control_get_calib_sample(&calib_sample);
+    (void)IPC_SendToOtherCore(&calib_sample, sizeof(calib_sample),
+                              &IPC_DATA->calib_sample, &IPC_DATA->flag_calib_sample_valid, &IPC_DATA->flag_calib_sample_ack);
 #if defined(TIMING_MEASURE)
     T_STOP(slow_ipc, ts_slow_ipc);
     T_STOP(slow_total, ts_slow_total);

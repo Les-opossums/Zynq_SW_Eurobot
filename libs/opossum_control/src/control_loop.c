@@ -29,6 +29,7 @@ typedef struct {
  * ================================================================== */
 static control_context_t ctx;
 static uint8_t           fast_ticks_since_slow;
+static Calib_sample      calib;        /* accumulateurs du log de calibration */
 
 /* ================================================================== *
  * Fusion de l'orientation absolue de l'IMU (recalage sur le repere monde)
@@ -175,6 +176,16 @@ static int16_t saturate_motor_command(float command)
 
 void control_apply_commands(const control_commands_t *rx, float imu_yaw, uint32_t imu_yaw_seq)
 {
+    /* Log de calibration : toute mesure lidar recue, que le Kalman l'utilise ou non */
+    if (rx->has_set_lidar) {
+        calib.lidar_x     = rx->set_lidar.lidar_position_x;
+        calib.lidar_y     = rx->set_lidar.lidar_position_y;
+        calib.lidar_t     = rx->set_lidar.lidar_position_t;
+        calib.lidar_delay = rx->set_lidar.delay;
+        calib.lidar_rx_ms = calib.tick_ms;
+        calib.lidar_count++;
+    }
+
     /* --- Commandes de Mouvement et Asservissement --- */
 
     if (rx->has_cmd_position)  { motion_set_position(&rx->cmd_position); }
@@ -282,6 +293,18 @@ void control_apply_commands(const control_commands_t *rx, float imu_yaw, uint32_
     }
 }
 
+void control_get_calib_sample(Calib_sample *out)
+{
+    calib.odo_x = odometry_position.x;
+    calib.odo_y = odometry_position.y;
+    calib.odo_t = odometry_position.t;
+    calib.kal_x = kalman_current_state.x[0];
+    calib.kal_y = kalman_current_state.x[1];
+    calib.kal_t = kalman_current_state.x[2];
+    calib.motion_done = (uint8_t)motion_done;
+    *out = calib;
+}
+
 uint8_t control_kalman_initialized(void)
 {
     return ctx.kalman_initialized;
@@ -311,6 +334,16 @@ uint8_t control_fast_step(const control_inputs_t *in)
     ctrl_hal_timing_start(CTRL_T_FAST_ODO);
     odometry_update_from_motor_rpm(motor_rpm);
     odometry_integrate(CONTROL_FAST_PERIOD_MS * 0.001f);
+
+    // 2bis. Accumulateurs du log de calibration (roues et gyro bruts)
+    calib.tick_ms++;
+    for (int i = 0; i < 4; i++) {
+        calib.wheel_dist[i] += wheel_speed[i] * (CONTROL_FAST_PERIOD_MS * 0.001f);
+    }
+    calib.gyro_z      = in->imu_gyro_z;
+    calib.gyro_angle += in->imu_gyro_z * (CONTROL_FAST_PERIOD_MS * 0.001f);
+    calib.gyro_seq    = in->imu_seq;
+    calib.flags       = (uint8_t)((ctx.kalman_initialized ? 1u : 0u) | (in->au_state ? 2u : 0u));
     ctrl_hal_timing_stop(CTRL_T_FAST_ODO);
 
     // 3. Prédiction du filtre de Kalman
@@ -428,6 +461,7 @@ void control_init(uint32_t imu_yaw_seq)
 {
     ctx = (control_context_t){0};
     fast_ticks_since_slow = 0;
+    calib = (Calib_sample){0};
 
     // Configuration par défaut du filtre de Kalman
     ctx.kalman_enable.enable_lidar_kalman = 1;

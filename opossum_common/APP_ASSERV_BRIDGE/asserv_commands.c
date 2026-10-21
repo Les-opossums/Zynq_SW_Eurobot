@@ -39,6 +39,7 @@ typedef struct {
     Speed           speed_robot;
     Speed           cmd_speed_constrained;
     uint32_t        motion_done;
+    Calib_sample    calib_sample;
 } core0_asserv_data_t;
 
 static core0_asserv_data_t local_data;
@@ -418,7 +419,41 @@ static void compute_robot_state(eth_payload_robot_state_t *rs, float *speed_line
     rs->motion_done     = (uint8_t)local_data.motion_done;
 }
 
+/* ================================================================== *
+ * CALIBLOG - Log de calibration (trame CALIB_SAMPLE sur TELEMETRY)
+ * ================================================================== */
+
+_Static_assert(sizeof(Calib_sample) == sizeof(eth_payload_calib_sample_t),
+               "Calib_sample (opossum_control) et CALIB_SAMPLE (ICD) doivent avoir la meme disposition");
+
+static int      calib_log_en        = 0;
+static uint32_t calib_log_period_ms = 10;
+static uint32_t calib_log_last_ms   = 0;
+
+/* CALIBLOG <0|1> [periode_ms] : active l'emission de CALIB_SAMPLE (defaut 10 ms) */
+uint8_t Calib_Log_Cmd(void) {
+    uint32_t state;
+    if (Get_Param_u32(&state)) return PARAM_ERROR_CODE;
+    calib_log_en = (state != 0);
+    uint32_t period;
+    if (!Get_Param_u32(&period) && period > 0u) {
+        calib_log_period_ms = period;
+    }
+    calib_log_last_ms = Timer_ms1;
+    printf("CALIBLOG %d %lu\n", calib_log_en, (unsigned long)calib_log_period_ms);
+    return 0;
+}
+
+static void Calib_Log_loop(void) {
+    if (!calib_log_en) return;
+    if ((Timer_ms1 - calib_log_last_ms) < calib_log_period_ms) return;
+    if (!CHECK_FIELD(&local_data, calib_sample)) return;   // pas d'echantillon neuf
+    calib_log_last_ms = Timer_ms1;
+    eth_send_frame(ETH_MSG_CALIB_SAMPLE, &local_data.calib_sample, sizeof(local_data.calib_sample));
+}
+
 void Print_Position_loop(void) {
+    Calib_Log_loop();
     if (!auto_printpos_en) return;
     if (!CHECK_FIELD(&local_data, kalman_out) || !CHECK_FIELD(&local_data, speed_robot)) return;
 

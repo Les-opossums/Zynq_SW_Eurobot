@@ -29,6 +29,7 @@ uint8_t Enable_Kalman_Cmd(void);
 uint8_t Set_Odo_Spacing_Cmd(void);
 uint8_t Activate_Position_Sending_Func(void);
 uint8_t Speed_Timed_Cmd(void);
+uint8_t Calib_Log_Cmd(void);
 
 /* --- Boucles a appeler depuis la boucle principale de CORE0 --- */
 void Print_Position_loop(void);
