@@ -3,6 +3,20 @@
 #include "../IO_MANAGER/DRIVER_ETH/driver_eth_io.h"
 #include "ETH_protocol.h"
 #include "../IPC_MANAGER/IPC_manager.h"
+#include "../APP_ASSERV_BRIDGE/robot_messages.h"
+#include <stddef.h>
+
+/* Les commandes structurees sont recopiees telles quelles dans les structures
+ * internes du firmware (common_type.h). Ces structures doivent donc rester
+ * identiques aux payloads de l'ICD (opossum_interfaces/protocol.yaml) :
+ * verification a la compilation. */
+_Static_assert(sizeof(Position) == sizeof(eth_payload_cmd_goal_position_t), "Position != CMD_GOAL_POSITION");
+_Static_assert(offsetof(Position, t) == offsetof(eth_payload_cmd_goal_position_t, t), "Position.t");
+_Static_assert(sizeof(Set_lidar) == sizeof(eth_payload_cmd_set_lidar_t), "Set_lidar != CMD_SET_LIDAR");
+_Static_assert(offsetof(Set_lidar, delay) == offsetof(eth_payload_cmd_set_lidar_t, delay), "Set_lidar.delay");
+_Static_assert(sizeof(Set_camera) == sizeof(eth_payload_cmd_set_camera_1_t), "Set_camera != CMD_SET_CAMERA");
+_Static_assert(offsetof(Set_camera, delay) == offsetof(eth_payload_cmd_set_camera_1_t, delay), "Set_camera.delay");
+_Static_assert(offsetof(Set_camera, noise_t) == offsetof(eth_payload_cmd_set_camera_1_t, noise_t), "Set_camera.noise_t");
 
 static interp_ctx_t Eth_Interp_Ctx = {0};
 

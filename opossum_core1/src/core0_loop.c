@@ -42,6 +42,7 @@ static int last_au_state = 0;
 #endif
 #if USE_ETHERNET
 static int last_leash_state = 0;
+static uint32_t last_heartbeat_ms;
 #endif
 
 void App_Init(void) {
@@ -104,6 +105,20 @@ void App_Loop(void) {
         eth_send_frame(ETH_MSG_LEASH, &leash_msg, sizeof(leash_msg));
     }
     last_leash_state = leash_state;
+
+    // HEARTBEAT (ETH_MSG_HEARTBEAT) a 1 Hz : porte ETH_PROTOCOL_HASH, le hash
+    // de opossum_interfaces/protocol.yaml avec lequel ce firmware a ete compile.
+    // comm_node refuse d'envoyer des commandes si ce hash differe du sien.
+    if ((uint32_t)((uint32_t)Timer_ms1 - last_heartbeat_ms) >= 1000U) {
+        last_heartbeat_ms = (uint32_t)Timer_ms1;
+        eth_payload_heartbeat_t hb_msg = {
+            .uptime_ms     = (uint32_t)Timer_ms1,
+            .state         = 0u,
+            .flags         = (uint8_t)((AU_state ? 0x01u : 0u) | (leash_state ? 0x02u : 0u)),
+            .protocol_hash = ETH_PROTOCOL_HASH
+        };
+        eth_send_frame(ETH_MSG_HEARTBEAT, &hb_msg, sizeof(hb_msg));
+    }
 #endif
 
     // Indicateur visuel du bandeau WS2812B : AU (rouge), init de localisation
