@@ -141,6 +141,16 @@ Cette manipulation est à faire pour le projet d'application CPU0 **ET** CPU1.
    `"${workspace_loc}\opossum_common"` 
 7. Cliquez sur **Apply and Close**.
 
+### Étape 1bis : Lier la bibliothèque d'asservissement au projet CPU1
+L'asservissement et le Kalman vivent dans [`libs/opossum_control`](./libs/opossum_control/README.md) (C pur, aussi compilé sur PC pour la simulation). Le projet **opossum_core2** doit compiler son dossier `src/` :
+
+1. Clic droit sur le dossier `src` du projet **opossum_core2** -> **New** -> **Folder**.
+2. **Advanced >>** -> cocher **Link to alternate location (Linked Folder)**.
+3. Saisir `PARENT-2-PROJECT_LOC/libs/opossum_control/src` (ou **Browse...** jusqu'à `Zynq_SW/libs/opossum_control/src`).
+4. **Folder name** : `opossum_control`, puis **Finish**.
+
+Ne pas lier tout `libs/opossum_control` : `pc/` contient le code de test PC (avec un `main`). Aucun chemin d'inclusion supplémentaire n'est nécessaire (includes relatifs). Le projet CPU0 n'a rien à lier : il n'utilise que les types (`control_types.h`, inclus par `common_type.h`).
+
 ### Étape 2 : Nettoyer et Compiler
 1. Project -> **Clean...** (Nettoyez tous les projets).
 2. Project -> **Build All**.

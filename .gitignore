@@ -37,3 +37,6 @@ Zynq_block_design_wrapper/
 Opossum_hw/
 
 BOOT.bin
+
+# Build PC de la bibliotheque d'asservissement
+libs/opossum_control/build/

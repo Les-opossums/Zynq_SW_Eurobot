@@ -1,4 +1,4 @@
-# KALMAN — Filtre de fusion de capteurs (CPU1)
+# KALMAN — Filtre de fusion de capteurs
 
 Ce dossier contient le filtre de Kalman étendu (EKF) qui fusionne l'odométrie, le lidar, jusqu'à 3 caméras et l'IMU pour estimer la position/vitesse du robot, ainsi qu'une FIFO permettant de corriger le passé (les mesures externes arrivent toujours en retard) et de "repropager" l'effet de la correction jusqu'au présent.
 
@@ -20,10 +20,10 @@ Le lidar et les caméras (traités côté Raspberry Pi) arrivent avec un délai 
 
 ## Intégration avec ASSERV
 
-Toute la logique d'insertion/déclenchement de repropagation est pilotée depuis [`asserv_loop.c`](../ASSERV/README.md) (`receive_commands()` pour l'insertion, `fast_loop()` pour la prédiction/repropagation, cf. [ASSERV](../ASSERV/README.md)). Ce dossier ne contient que le filtre lui-même, sans dépendance au séquencement temps réel.
+Toute la logique d'insertion/déclenchement de repropagation est pilotée depuis [`control_loop.c`](src/control_loop.c) (`control_apply_commands()` pour l'insertion, `control_fast_step()` pour la prédiction/repropagation). `kalman.c` / `kalman_FIFO.c` ne contiennent que le filtre lui-même, sans dépendance au séquencement temps réel.
 
 ## Voir aussi
 
-* [ASSERV](../ASSERV/README.md) — boucle qui pilote ce filtre (prédiction, insertion des mesures, repropagation)
-* [APP_ASSERV_BRIDGE](../../../opossum_common/APP_ASSERV_BRIDGE/README.md) — commandes `SETLIDAR`/`SETCAMERA*`/`LIDARNOISE`/`ENKALMAN` qui alimentent ce filtre depuis CPU0
-* [opossum_core2](../../README.md) — vue d'ensemble du projet CPU1
+* [opossum_control](README.md) — bibliothèque qui pilote ce filtre (prédiction, insertion des mesures, repropagation)
+* [APP_ASSERV_BRIDGE](../../opossum_common/APP_ASSERV_BRIDGE/README.md) — commandes `SETLIDAR`/`SETCAMERA*`/`LIDARNOISE`/`ENKALMAN` qui alimentent ce filtre depuis CPU0
+* [opossum_core2](../../opossum_core2/README.md) — vue d'ensemble du projet CPU1

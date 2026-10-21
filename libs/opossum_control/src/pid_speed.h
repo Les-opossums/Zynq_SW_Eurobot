@@ -1,7 +1,7 @@
 #ifndef __PID_SPEED_H_
 #define __PID_SPEED_H_
 
-#include "../../../opossum_common/common_type.h"
+#include "control_types.h"
 
 // coefficient du PID (proportionnel, integrale, derivee) et leurs coefs de moyennage pour l'asserv en vitesse
 // lineaire

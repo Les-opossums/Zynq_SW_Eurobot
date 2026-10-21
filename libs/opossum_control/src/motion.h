@@ -1,7 +1,7 @@
 #ifndef ASSERV_MOTION_H
 #define ASSERV_MOTION_H
 
-#include "../../../opossum_common/common_type.h"
+#include "control_types.h"
 
 /* Mode d'asservissement actif */
 typedef enum {

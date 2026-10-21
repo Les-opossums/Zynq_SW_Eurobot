@@ -1,37 +1,42 @@
-# ASSERV — Odométrie, trajectoire, PID et pilotage moteur (CPU1)
+# ASSERV — Adaptateur Zynq de l'asservissement (CPU1)
 
-Ce dossier contient toute la boucle de contrôle temps réel de CPU1 : lecture de l'odométrie, génération/suivi de trajectoire, contraintes physiques, PID de vitesse, et transmission des commandes moteur. Point d'entrée : `asserv_loop_init()` / `asserv_loop_update()` (`asserv_loop.c`), appelées depuis `App_Init()`/`App_Loop()` (cf. [`core1_loop.c`](../../README.md)).
+L'odométrie, le Kalman, la génération de trajectoire, les contraintes et le PID sont dans la
+bibliothèque C pur [opossum_control](../../../libs/opossum_control/README.md), commune au
+firmware et à la simulation PC. Ce dossier ne contient que la traduction avec le matériel de
+CPU1. Point d'entrée : `asserv_loop_init()` / `asserv_loop_update()`, appelées depuis
+`App_Init()`/`App_Loop()` (cf. [`core1_loop.c`](../../README.md)).
 
 ## Fichiers
 
 | Fichier | Rôle |
 |---|---|
-| `asserv.h` | En-tête agrégateur : inclut tous les modules ci-dessous + [KALMAN](../KALMAN/README.md) + [`c610_feedback.h`](../../../opossum_common/APP_MOTORS/README.md) + [`IO_config.h`](../../../opossum_common/README.md) + [`IPC_manager.h`](../../../opossum_common/IPC_MANAGER/README.md) |
-| `asserv_default.h` | Toutes les constantes par défaut (gains PID, limites de vitesse/accélération, entraxe, réduction moteur...) |
-| `asserv_loop.c` / `.h` | Séquencement des boucles rapide/lente + réception des commandes IPC (`receive_commands()`) |
-| `odometry.c` / `.h` | Intégration de l'odométrie brute à partir des RPM moteurs |
-| `motion.c` / `.h` | Génération de trajectoire (mode position / vitesse / vitesse absolue / bloqué), état `motion_done` remonté à CPU0 |
-| `speed_constrainer.c` / `.h` | Limiteurs de vitesse et d'accélération (rampes) |
-| `pid_speed.c` / `.h` | PID de vitesse par roue |
-| `PWM_Calculator.c` / `.h` | Calcul final des commandes ESC (`Asserv_PWM_calculator`) |
+| `asserv.h` | En-tête agrégateur : [opossum_control](../../../libs/opossum_control/README.md) + [`c610_feedback.h`](../../../opossum_common/APP_MOTORS/README.md) + [`IO_config.h`](../../../opossum_common/README.md) + [`IPC_manager.h`](../../../opossum_common/IPC_MANAGER/README.md) + timers |
+| `asserv_loop.c` / `.h` | Cadencement par `Timer_ms1`, lecture IPC (commandes, IMU, AU, laisse) et CAN (retours moteurs), envoi CAN, télémétrie IPC |
+| `control_hal_zynq.c` | Services plateforme de la bibliothèque : `xil_printf`, remontée fiable de `motion_done` par IPC, chronométrage `TIMING_MEASURE` |
 
 ## Séquencement (`asserv_loop_update`)
 
-Deux boucles à fréquences différentes, cadencées par `Timer_ms1` (cf. [TIMER_MANAGER](../../../opossum_common/TIMER_MANAGER/README.md)) :
-
-* **Boucle rapide** (`fast_loop`, tous les `ODO_EVERY_MS` = 1 ms) : lecture des RPM moteurs ([APP_MOTORS](../../../opossum_common/APP_MOTORS/README.md)), intégration odométrique, prédiction + correction Kalman (odométrie puis IMU), poussée dans la FIFO Kalman, avancement d'une éventuelle repropagation en tâche de fond.
-* **Boucle lente** (`slow_loop`, tous les `ASSERV_EVERY` = 10 cycles rapides, soit 10 ms) : moyenne de l'odométrie rapide, génération de trajectoire (`motion_step`), contraintes vitesse/accélération, calcul PID → commandes ESC, **coupure matérielle sur `IPC_DATA->AU_state`** (arrêt d'urgence, remise à zéro de l'intégrale du PID), transmission CAN, remontée de télémétrie vers CPU0 (position Kalman, vitesse odométrie, vitesse contrainte).
-
-`receive_commands()` est appelée à **chaque** tour (avant même l'attente d'échéance), pour ne jamais retarder l'application d'une commande reçue de CPU0 — cf. [APP_ASSERV_BRIDGE](../../../opossum_common/APP_ASSERV_BRIDGE/README.md) côté émetteur.
+* À **chaque** tour : `receive_commands()` lit les messages IPC de CORE0 et les passe à
+  `control_apply_commands()` (jamais de retard sur une commande). Les observations caméra
+  ne sont lues qu'une fois le Kalman initialisé.
+* Tous les `CONTROL_FAST_PERIOD_MS` (1 ms) : lecture des RPM moteurs et de l'IMU, puis
+  `control_fast_step()` (odométrie, prédiction + corrections Kalman, FIFO, fusion du cap IMU).
+* Tous les `CONTROL_TICKS_PER_SLOW` pas rapides (10 ms) : `control_slow_step()` (trajectoire,
+  contraintes, PID, **coupure sur `IPC_DATA->AU_state`**), envoi CAN, télémétrie vers CORE0
+  (pose Kalman, vitesse odométrie, consigne contrainte).
 
 ## Instrumentation (`TIMING_MEASURE`)
 
-Chaque étape des deux boucles est chronométrée individuellement (`ts_fast_*`, `ts_slow_*`) et imprimée toutes les secondes aux côtés du timing de l'[IO_MANAGER](../../../opossum_common/IO_MANAGER/README.md) — cf. [TIMER_MANAGER / timing_stats.h](../../../opossum_common/TIMER_MANAGER/README.md) pour l'interrupteur commun aux deux cœurs.
+Les étapes internes de la bibliothèque (`fast_*`, `slow_motion`, `slow_constr`, `slow_pid`)
+sont chronométrées via `control_hal_zynq.c`, l'envoi CAN (`slow_can`), la télémétrie
+(`slow_ipc`) et le pas lent complet (`slow_total`) ici ; impression toutes les secondes avec
+le timing de l'[IO_MANAGER](../../../opossum_common/IO_MANAGER/README.md) — cf.
+[TIMER_MANAGER / timing_stats.h](../../../opossum_common/TIMER_MANAGER/README.md).
 
 ## Voir aussi
 
-* [KALMAN](../KALMAN/README.md) — filtre de fusion consommé par ce module
+* [opossum_control](../../../libs/opossum_control/README.md) — la logique d'asservissement et le [Kalman](../../../libs/opossum_control/KALMAN.md)
 * [APP_MOTORS](../../../opossum_common/APP_MOTORS/README.md) — retour et commande des ESC C610
 * [APP_ASSERV_BRIDGE](../../../opossum_common/APP_ASSERV_BRIDGE/README.md) — commandes envoyées depuis CPU0
-* [IPC_MANAGER](../../../opossum_common/IPC_MANAGER/README.md) — mécanisme de réception/envoi utilisé par `receive_commands()`
+* [IPC_MANAGER](../../../opossum_common/IPC_MANAGER/README.md) — mécanisme de réception/envoi
 * [opossum_core2](../../README.md) — vue d'ensemble du projet CPU1

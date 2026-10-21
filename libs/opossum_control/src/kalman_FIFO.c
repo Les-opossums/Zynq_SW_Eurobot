@@ -1,5 +1,5 @@
 #include "kalman_FIFO.h"
-#include "../ASSERV/asserv_default.h"
+#include "asserv_default.h"
 #include <string.h>
 
 KalmanFIFO kalman_fifo;

@@ -4,7 +4,7 @@
 #include <math.h>
 #include <stdint.h>
 #include <string.h>
-#include "../../../opossum_common/common_type.h"
+#include "control_types.h"
 
 #define STATE_SIZE 6  // x, y, theta
 
@@ -115,7 +115,7 @@ void kalman_predict(KalmanState* state, float dt);
  *      - 4 : Clamp de sécurité post update
  *      - 5 : Clamp de sécurité post update
  */
-uint8_t kalman_update(KalmanState* state, float z[STATE_SIZE], float R_diag[3], uint8_t bypass_outlier_rejection);
+uint8_t kalman_update(KalmanState* state, float z[3], float R_diag[3], uint8_t bypass_outlier_rejection);
 
 /**
  * @brief Update spécifique pour l'odométrie interne (encodeurs des M2006), qui observe les vitesses (vx, vy, vtheta).

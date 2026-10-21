@@ -1,7 +1,8 @@
 #ifndef ASSERV_H
 #define ASSERV_H
 
-/* Common platform services used by the CPU1 control application. */
+/* Adaptateur Zynq (CPU1) de la bibliotheque opossum_control : services
+ * plateforme utilises par asserv_loop.c et control_hal_zynq.c. */
 #include <stdint.h>
 
 #include "../../../opossum_common/APP_MOTORS/c610_feedback.h"
@@ -10,17 +11,13 @@
 #include "../../../opossum_common/TIMER_MANAGER/timer_manager.h"
 #include "../../../opossum_common/common_type.h"
 
-/* State estimator. */
-#include "../KALMAN/kalman.h"
-#include "../KALMAN/kalman_FIFO.h"
+/* Asservissement + Kalman, C pur (libs/opossum_control) */
+#include "../../../libs/opossum_control/src/opossum_control.h"
 
-/* Control stack. */
-#include "PWM_Calculator.h"
-#include "asserv_default.h"
 #include "asserv_loop.h"
-#include "motion.h"
-#include "odometry.h"
-#include "pid_speed.h"
-#include "speed_constrainer.h"
+
+/* Impression des temps d'execution des etapes d'opossum_control
+ * (control_hal_zynq.c, no-op si TIMING_MEASURE est desactive). */
+void ctrl_hal_zynq_print_timing(void);
 
 #endif /* ASSERV_H */

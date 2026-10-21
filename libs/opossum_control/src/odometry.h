@@ -1,7 +1,7 @@
 #ifndef ASSERV_ODOMETRY_H
 #define ASSERV_ODOMETRY_H
 
-#include "../../../opossum_common/common_type.h"
+#include "control_types.h"
 
 /* The signs and reduction ratio are kept here because they depend on the
  * mechanical assembly, not on the controller implementation. */

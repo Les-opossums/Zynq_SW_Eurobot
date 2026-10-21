@@ -1,6 +1,4 @@
-#include "asserv.h"
-#include "../../../opossum_common/IPC_MANAGER/IPC_manager.h"  /* ajuste la profondeur si besoin */
-#include "xil_printf.h"
+#include "opossum_control.h"
 #include <math.h>
 
 /* ================================================================== *
@@ -59,19 +57,13 @@ static int     settle_timer_ticks = 0;
 #define SETTLE_TIMEOUT_TICKS      ((int)(DEFAULT_SETTLE_TIME_MS   / ASSERV_STEP_MS))
 #define FINE_STOP_TIMEOUT_TICKS   ((int)(DEFAULT_FINE_STOP_TIME_MS / ASSERV_STEP_MS))
 
-/* Structure locale utilisee pour la remontee IPC de motion_done. */
-static struct {
-    uint32_t motion_done;
-} local_data;
-
 /* ================================================================== *
- * IPC
+ * Remontee de motion_done (via la HAL : IPC vers CORE0 sur le Zynq)
  * ================================================================== */
 static void update_shared_motion_done(motion_status_t new_state)
 {
     motion_done = new_state;
-    local_data.motion_done = (uint32_t)new_state;
-    SEND_FIELD_RELIABLE(&local_data, motion_done);
+    ctrl_hal_motion_done((uint32_t)new_state);
 }
 
 /* ================================================================== *
@@ -244,7 +236,7 @@ static void speed_asserv_break_step(void)
 
         motion_free();
 
-        xil_printf("Break,done\n");
+        ctrl_hal_log("Break,done\n");
     }
 }
 
@@ -316,7 +308,7 @@ static void pos_asserv_step(const Position *current_position)
             update_shared_motion_done(MOTION_SUCCESS);
 
             motion_free();
-            xil_printf("Pos,done\n");
+            ctrl_hal_log("Pos,done\n");
             return;
         }
     }
@@ -340,7 +332,7 @@ static void pos_asserv_step(const Position *current_position)
             update_shared_motion_done(MOTION_SUCCESS);
 
             motion_free();
-            xil_printf("Pos,done\n");
+            ctrl_hal_log("Pos,done\n");
             return;
         }
     } else {

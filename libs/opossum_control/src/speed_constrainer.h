@@ -1,7 +1,7 @@
 #ifndef __SPEED_CONSTRAINER_H_
 #define __SPEED_CONSTRAINER_H_
 
-#include "../../../opossum_common/common_type.h"
+#include "control_types.h"
 
 extern Acceleration Accel_Max;
 
