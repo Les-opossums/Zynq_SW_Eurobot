@@ -8,6 +8,7 @@ Speed speed_robot_asserv;
 Position odometry_position;
 float robot_wheel_distance = DEFAULT_ODO_SPACING;
 float wheel_speed[4];
+float wheel_speed_raw[4];   /* rayon nominal, sans facteur de calibration (log de calibration) */
 static float accumulated_wheel_speed[4];
 static Speed accumulated_robot_speed;
 
@@ -23,6 +24,7 @@ void odometry_init(void)
     speed_robot_asserv = (Speed){0};
     odometry_position = (Position){0};
     wheel_speed[0] = wheel_speed[1] = wheel_speed[2] = wheel_speed[3] = 0.0f;
+    wheel_speed_raw[0] = wheel_speed_raw[1] = wheel_speed_raw[2] = wheel_speed_raw[3] = 0.0f;
     accumulated_wheel_speed[0] = accumulated_wheel_speed[1] = 0.0f;
     accumulated_wheel_speed[2] = accumulated_wheel_speed[3] = 0.0f;
     accumulated_robot_speed = (Speed){0};
@@ -39,10 +41,14 @@ void odometry_set_wheel_distance(float distance_m)
 
 void odometry_update_from_motor_rpm(const int motor_rpm[4])
 {
-    const float w1 = wheel_speed[0] = motor_rpm_to_wheel_speed(motor_rpm[0], ODO_MOTOR_1_SIGN);
-    const float w2 = wheel_speed[1] = motor_rpm_to_wheel_speed(motor_rpm[1], ODO_MOTOR_2_SIGN);
-    const float w3 = wheel_speed[2] = motor_rpm_to_wheel_speed(motor_rpm[2], ODO_MOTOR_3_SIGN);
-    const float w4 = wheel_speed[3] = motor_rpm_to_wheel_speed(motor_rpm[3], ODO_MOTOR_4_SIGN);
+    wheel_speed_raw[0] = motor_rpm_to_wheel_speed(motor_rpm[0], ODO_MOTOR_1_SIGN);
+    wheel_speed_raw[1] = motor_rpm_to_wheel_speed(motor_rpm[1], ODO_MOTOR_2_SIGN);
+    wheel_speed_raw[2] = motor_rpm_to_wheel_speed(motor_rpm[2], ODO_MOTOR_3_SIGN);
+    wheel_speed_raw[3] = motor_rpm_to_wheel_speed(motor_rpm[3], ODO_MOTOR_4_SIGN);
+    const float w1 = wheel_speed[0] = wheel_speed_raw[0] * ODO_WHEEL_SCALE_1;
+    const float w2 = wheel_speed[1] = wheel_speed_raw[1] * ODO_WHEEL_SCALE_2;
+    const float w3 = wheel_speed[2] = wheel_speed_raw[2] * ODO_WHEEL_SCALE_3;
+    const float w4 = wheel_speed[3] = wheel_speed_raw[3] * ODO_WHEEL_SCALE_4;
 
     speed_robot_odom.vx = INV_SQRT2 * (-w1 + w2 + w3 - w4) * 0.5f;
     speed_robot_odom.vy = INV_SQRT2 * (w1 + w2 - w3 - w4) * 0.5f;

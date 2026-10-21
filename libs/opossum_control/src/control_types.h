@@ -82,7 +82,7 @@ typedef struct __attribute__((packed)){
  * n'est pas emis : l'analyse travaille sur leurs differences. */
 typedef struct __attribute__((packed)) {
     uint32_t tick_ms;        /* compteur de pas rapides (1 ms) depuis control_init */
-    float    wheel_dist[4];  /* distance parcourue par chaque roue (m), rayon nominal, signe odometrie */
+    float    wheel_dist[4];  /* distance parcourue par chaque roue (m), rayon NOMINAL (sans ODO_WHEEL_SCALE_i), signe odometrie */
     float    gyro_z;         /* derniere mesure gyro brute (rad/s) */
     float    gyro_angle;     /* integrale du gyro brut (rad, non repliee, biais compris) */
     uint32_t gyro_seq;       /* compteur de mesures gyro (imu_seq) */

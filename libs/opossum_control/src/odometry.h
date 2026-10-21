@@ -21,6 +21,7 @@ extern Speed speed_robot_asserv;
 extern Position odometry_position;
 extern float robot_wheel_distance;
 extern float wheel_speed[4];
+extern float wheel_speed_raw[4];
 
 void odometry_init(void);
 void odometry_set_wheel_distance(float distance_m);

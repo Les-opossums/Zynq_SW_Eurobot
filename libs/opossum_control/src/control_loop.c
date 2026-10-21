@@ -338,7 +338,7 @@ uint8_t control_fast_step(const control_inputs_t *in)
     // 2bis. Accumulateurs du log de calibration (roues et gyro bruts)
     calib.tick_ms++;
     for (int i = 0; i < 4; i++) {
-        calib.wheel_dist[i] += wheel_speed[i] * (CONTROL_FAST_PERIOD_MS * 0.001f);
+        calib.wheel_dist[i] += wheel_speed_raw[i] * (CONTROL_FAST_PERIOD_MS * 0.001f);
     }
     calib.gyro_z      = in->imu_gyro_z;
     calib.gyro_angle += in->imu_gyro_z * (CONTROL_FAST_PERIOD_MS * 0.001f);

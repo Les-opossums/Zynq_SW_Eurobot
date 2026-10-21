@@ -70,4 +70,20 @@
 #define ODO_MOTOR_3_SIGN  1.0f
 #define ODO_MOTOR_4_SIGN  1.0f
 
+// Facteur d'echelle par roue (rayon effectif / rayon nominal), issu de la
+// calibration de l'odometrie (tools/opossum_calibration, calib_odometry.py).
+// 1.0 = rayon nominal. N'affecte que l'odometrie (pas les consignes moteur).
+#ifndef ODO_WHEEL_SCALE_1
+#define ODO_WHEEL_SCALE_1 1.0f
+#endif
+#ifndef ODO_WHEEL_SCALE_2
+#define ODO_WHEEL_SCALE_2 1.0f
+#endif
+#ifndef ODO_WHEEL_SCALE_3
+#define ODO_WHEEL_SCALE_3 1.0f
+#endif
+#ifndef ODO_WHEEL_SCALE_4
+#define ODO_WHEEL_SCALE_4 1.0f
+#endif
+
 #endif // _LIB_ASSERV_DEFAULT_H_
