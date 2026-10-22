@@ -169,16 +169,23 @@ void kalman_predict(KalmanState* state, float dt) {
 // Utilitaire partagé : inversion 3×3 avec régularisation
 // ─────────────────────────────────────────────────────────────────────────────
 static int invert3x3(float S[3][3], float S_inv[3][3]) {
+    // Seuil RELATIF au produit des termes diagonaux : S est en m^2 / rad^2. L'ancien
+    // seuil absolu (|det| < 1e-6) declarait singuliere toute matrice dont les
+    // ecarts-types sont de l'ordre du cm (lidar a 2 cm : det ~ 6e-11) : a l'arret,
+    // ou P devient petit, toutes les mesures lidar / camera etaient refusees
+    // (retour 3) et l'estimation restait figee sur la derniere mesure acceptee.
+    float scale = fabsf(S[0][0] * S[1][1] * S[2][2]);
     float det = S[0][0]*(S[1][1]*S[2][2] - S[1][2]*S[2][1])
               - S[0][1]*(S[1][0]*S[2][2] - S[1][2]*S[2][0])
               + S[0][2]*(S[1][0]*S[2][1] - S[1][1]*S[2][0]);
 
-    if (fabsf(det) < S_INV_EPS) {
+    if (!(fabsf(det) > S_INV_REL_EPS * scale) || !(scale > 0.0f)) {
         S[0][0] += S_INV_EPS; S[1][1] += S_INV_EPS; S[2][2] += S_INV_EPS;
+        scale = fabsf(S[0][0] * S[1][1] * S[2][2]);
         det = S[0][0]*(S[1][1]*S[2][2] - S[1][2]*S[2][1])
             - S[0][1]*(S[1][0]*S[2][2] - S[1][2]*S[2][0])
             + S[0][2]*(S[1][0]*S[2][1] - S[1][1]*S[2][0]);
-        if (fabsf(det) < S_INV_EPS) return 0;
+        if (!(fabsf(det) > S_INV_REL_EPS * scale)) return 0;
     }
     float inv = 1.0f / det;
     S_inv[0][0] =  (S[1][1]*S[2][2] - S[1][2]*S[2][1]) * inv;

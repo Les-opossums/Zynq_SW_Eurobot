@@ -211,6 +211,44 @@ static void test_delayed_lidar(unsigned delay_ms, unsigned period_ms)
           delay_ms, period_ms, worst * 1000.0f);
 }
 
+/*
+ * Robot immobile, lidar bruite (2 cm, annonce 2 cm) : le Kalman doit moyenner les
+ * mesures. Non-regression du seuil de singularite absolu de invert3x3, qui refusait
+ * toutes les mesures une fois P petit (estimation figee sur la premiere mesure).
+ */
+static void test_static_noisy_lidar(void)
+{
+    bench_t b;
+    bench_init(&b, 1.5f, 1.0f, 0.0f);
+    control_commands_t cmd = {0};
+    cmd.has_enable_kalman = 1u;
+    cmd.enable_kalman.enable_lidar_kalman = 1;
+    cmd.has_kalman_noise_lidar = 1u;
+    cmd.kalman_noise_lidar = (Set_lidar_noise){0.02f, 0.02f, 0.02f};
+    control_apply_commands(&cmd, 0.0f, 0u);
+    uint32_t rng = 12345u;
+    float first = 0.0f, worst_late = 0.0f;
+    for (uint32_t ms = 1; ms <= 6000u; ms++) {
+        bench_run_ms(&b, 1u);
+        if (ms % 100u == 0u) {
+            float n[2];
+            for (int k = 0; k < 2; k++) {        /* bruit uniforme +-3.5 cm (ecart-type 2 cm) */
+                rng = rng * 1664525u + 1013904223u;
+                n[k] = ((float)(rng >> 8) / 16777216.0f - 0.5f) * 0.0693f;
+            }
+            control_commands_t l = {0};
+            l.has_set_lidar = 1u;
+            l.set_lidar = (Set_lidar){1.5f + n[0], 1.0f + n[1], 0.0f, 0u};
+            control_apply_commands(&l, 0.0f, 0u);
+        }
+        const float e = hypotf(kalman_current_state.x[0] - 1.5f, kalman_current_state.x[1] - 1.0f);
+        if (ms == 150u) first = e;
+        if (ms > 4000u && e > worst_late) worst_late = e;
+    }
+    CHECK(worst_late < 0.012f, "robot immobile, lidar 2 cm : erreur Kalman apres 4 s %.1f mm (apres 1re mesure %.1f mm)",
+          worst_late * 1000.0f, first * 1000.0f);
+}
+
 int main(void)
 {
     test_move(0.5f, 0.5f, 0.0f, 1.2f, 0.9f, PI_F / 2.0f);
@@ -221,6 +259,7 @@ int main(void)
     test_delayed_lidar(0u, 20u);
     test_delayed_lidar(90u, 100u);
     test_delayed_lidar(200u, 100u);
+    test_static_noisy_lidar();
     printf(failures ? "\n%d ECHEC(S)\n" : "\nTous les tests passent\n", failures);
     return failures ? 1 : 0;
 }

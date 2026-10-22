@@ -69,7 +69,8 @@ static inline float principal_angle(float angle)
 // donne un cap tres stable, ~1 deg d'incertitude typique -> ~0.02 rad.
 #define OBS_NOISE_IMU_THETA       0.02f    // ~1.1 deg d'écart-type
 
-#define S_INV_EPS 1e-6f
+#define S_INV_EPS 1e-6f       // regularisation ajoutee a la diagonale de S si besoin (variance)
+#define S_INV_REL_EPS 1e-6f   // S jugee singuliere si |det| < S_INV_REL_EPS * S00*S11*S22
 
 // ============================================================================
 // PARAMETRES REGLABLES A L'EXECUTION
